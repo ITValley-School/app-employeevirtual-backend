@@ -1,0 +1,318 @@
+{
+    "info": {
+        "name": "EmployeeVirtual - API de Agentes",
+        "description": "Collection para testar a API de agentes do EmployeeVirtual",
+        "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+    },
+    "variable": [
+        {
+            "key": "base_url",
+            "value": "http://localhost:8000",
+            "description": "URL base da API"
+        },
+        {
+            "key": "auth_token",
+            "value": "",
+            "description": "Token JWT de autenticação"
+        }
+    ],
+    "auth": {
+        "type": "bearer",
+        "bearer": [
+            {
+                "key": "token",
+                "value": "{{auth_token}}",
+                "type": "string"
+            }
+        ]
+    },
+    "item": [
+        {
+            "name": "🔐 Autenticação",
+            "item": [
+                {
+                    "name": "Login",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "exec": [
+                                    "if (pm.response.code === 200) {",
+                                    "    const responseJson = pm.response.json();",
+                                    "    pm.collectionVariables.set('auth_token', responseJson.access_token);",
+                                    "    console.log('Token salvo:', responseJson.access_token);",
+                                    "}"
+                                ]
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/x-www-form-urlencoded"
+                            }
+                        ],
+                        "body": {
+                            "mode": "urlencoded",
+                            "urlencoded": [
+                                {
+                                    "key": "username",
+                                    "value": "teste@employeevirtual.com",
+                                    "description": "Email do usuário de teste"
+                                },
+                                {
+                                    "key": "password",
+                                    "value": "123456",
+                                    "description": "Senha do usuário de teste"
+                                }
+                            ]
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/api/auth/login",
+                            "host": ["{{base_url}}"],
+                            "path": ["api", "auth", "login"]
+                        },
+                        "description": "Faz login e obtém o token JWT"
+                    }
+                },
+                {
+                    "name": "Perfil do Usuário",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{base_url}}/api/auth/me",
+                            "host": ["{{base_url}}"],
+                            "path": ["api", "auth", "me"]
+                        },
+                        "description": "Busca dados do usuário autenticado"
+                    }
+                }
+            ]
+        },
+        {
+            "name": "🤖 Gerenciar Agentes",
+            "item": [
+                {
+                    "name": "Listar Agentes do Usuário",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{base_url}}/api/agents?include_system=true",
+                            "host": ["{{base_url}}"],
+                            "path": ["api", "agents"],
+                            "query": [
+                                {
+                                    "key": "include_system",
+                                    "value": "true",
+                                    "description": "Incluir agentes do sistema"
+                                }
+                            ]
+                        },
+                        "description": "Lista todos os agentes do usuário"
+                    }
+                },
+                {
+                    "name": "Buscar Agente por ID",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{base_url}}/api/agents/1",
+                            "host": ["{{base_url}}"],
+                            "path": ["api", "agents", "1"]
+                        },
+                        "description": "Busca o agente com ID = 1"
+                    }
+                },
+                {
+                    "name": "Criar Novo Agente",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"name\": \"Meu Agente Personalizado\",\n    \"description\": \"Agente criado via API para testes\",\n    \"agent_type\": \"custom\",\n    \"system_prompt\": \"Você é um assistente útil que responde sempre em português brasileiro. Seja amigável e profissional.\",\n    \"personality\": \"Amigável, profissional e prestativo\",\n    \"llm_provider\": \"openai\",\n    \"model\": \"gpt-4o-mini\",\n    \"temperature\": 0.7,\n    \"max_tokens\": 2000\n}"
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/api/agents",
+                            "host": ["{{base_url}}"],
+                            "path": ["api", "agents"]
+                        },
+                        "description": "Cria um novo agente personalizado"
+                    }
+                },
+                {
+                    "name": "Atualizar Agente",
+                    "request": {
+                        "method": "PUT",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"description\": \"Agente atualizado via API\",\n    \"temperature\": 0.5\n}"
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/api/agents/1",
+                            "host": ["{{base_url}}"],
+                            "path": ["api", "agents", "1"]
+                        },
+                        "description": "Atualiza o agente com ID = 1"
+                    }
+                }
+            ]
+        },
+        {
+            "name": "💬 Executar Agentes",
+            "item": [
+                {
+                    "name": "Executar Agente (Completo)",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"user_message\": \"Olá! Você pode me ajudar a criar uma função Python que calcula o fatorial de um número?\",\n    \"context\": {\n        \"linguagem\": \"python\",\n        \"nivel\": \"iniciante\"\n    }\n}"
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/api/agents/1/execute",
+                            "host": ["{{base_url}}"],
+                            "path": ["api", "agents", "1", "execute"]
+                        },
+                        "description": "Executa o agente de programação com uma pergunta sobre Python"
+                    }
+                },
+                {
+                    "name": "Chat Rápido com Agente",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"agent_id\": 1,\n    \"message\": \"Explique o que é uma API REST de forma simples\",\n    \"context\": {\n        \"format\": \"simples\"\n    }\n}"
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/api/agents/chat",
+                            "host": ["{{base_url}}"],
+                            "path": ["api", "agents", "chat"]
+                        },
+                        "description": "Chat rápido sem salvar histórico"
+                    }
+                },
+                {
+                    "name": "Histórico de Execuções",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{base_url}}/api/agents/1/executions?limit=10",
+                            "host": ["{{base_url}}"],
+                            "path": ["api", "agents", "1", "executions"],
+                            "query": [
+                                {
+                                    "key": "limit",
+                                    "value": "10",
+                                    "description": "Limite de execuções"
+                                }
+                            ]
+                        },
+                        "description": "Lista as últimas execuções do agente"
+                    }
+                }
+            ]
+        },
+        {
+            "name": "📚 Base de Conhecimento",
+            "item": [
+                {
+                    "name": "Listar Conhecimento do Agente",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{base_url}}/api/agents/1/knowledge",
+                            "host": ["{{base_url}}"],
+                            "path": ["api", "agents", "1", "knowledge"]
+                        },
+                        "description": "Lista arquivos de conhecimento do agente"
+                    }
+                },
+                {
+                    "name": "Adicionar Conhecimento",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"file_name\": \"documentacao_api.pdf\",\n    \"file_type\": \"pdf\",\n    \"file_size\": 1024000,\n    \"file_url\": \"https://example.com/docs/api.pdf\",\n    \"orion_file_id\": \"doc_123456\"\n}"
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/api/agents/1/knowledge",
+                            "host": ["{{base_url}}"],
+                            "path": ["api", "agents", "1", "knowledge"]
+                        },
+                        "description": "Adiciona arquivo à base de conhecimento"
+                    }
+                }
+            ]
+        },
+        {
+            "name": "🏥 Health Check",
+            "item": [
+                {
+                    "name": "Status da API",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{base_url}}/health",
+                            "host": ["{{base_url}}"],
+                            "path": ["health"]
+                        },
+                        "description": "Verifica status da API e conexões"
+                    }
+                },
+                {
+                    "name": "Informações da API",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{base_url}}/api/info",
+                            "host": ["{{base_url}}"],
+                            "path": ["api", "info"]
+                        },
+                        "description": "Informações gerais da API"
+                    }
+                }
+            ]
+        }
+    ]
+}
