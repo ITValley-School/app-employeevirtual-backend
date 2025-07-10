@@ -18,7 +18,7 @@ def get_database_url():
     Constrói a URL de conexão do banco de dados
     """
     # Primeiro tenta usar a DATABASE_URL completa
-    database_url = os.getenv("DATABASE_URL")
+    database_url = os.getenv("DATABASE_URL_PYODBC")
     if database_url:
         return database_url
     

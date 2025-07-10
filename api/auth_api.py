@@ -32,6 +32,7 @@ async def register_user(user_data: UserCreate, db: Session = Depends(get_db)):
     
     try:
         user = user_service.create_user(user_data)
+        print(f"Usuário criado: {user.id} - {user.email}")
         return user
     except ValueError as e:
         raise HTTPException(
@@ -206,6 +207,7 @@ async def get_user_activities(
         "activities": activities,
         "total": len(activities)
     }
+
 
 @router.get("/stats")
 async def get_user_stats(

@@ -133,7 +133,7 @@ class UserRepository:
             user_id=user_id,
             activity_type=activity_type,
             description=description,
-            activity_metadata=activity_metadata or {}
+            activity_metadata=activity_metadata or "{}"
         )
         self.db.add(db_activity)
         self.db.commit()

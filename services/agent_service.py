@@ -8,9 +8,10 @@ from datetime import datetime
 from typing import Optional, List, Dict, Any
 from sqlalchemy.orm import Session
 from pydantic_ai import Agent as PydanticAgent
+from data.user_repository import UserRepository
 
 from models.agent_models import (
-    AgentCreate, AgentUpdate, AgentResponse
+    AgentCreate, AgentUpdate, AgentResponse, SystemAgent
 )
 from data.agent_repository import AgentRepository
 
@@ -24,6 +25,7 @@ class AgentService:
     def __init__(self, db: Session):
         self.db = db
         self.repository = AgentRepository(db)  # Usa o repository para dados
+        self.user_repository = UserRepository(db)        
     
     def create_agent(self, user_id: int, agent_data: AgentCreate) -> AgentResponse:
         """
@@ -55,11 +57,11 @@ class AgentService:
         db_agent = self.repository.create_agent(agent_dict)
         
         # Registrar atividade
-        self._log_user_activity(
-            user_id, 
-            "agent_created", 
-            f"Agente '{agent_data.name}' criado"
-        )
+        self.user_repository.create_activity(
+            user_id=user_id,
+            activity_type="agent_created", 
+            description=f"Agente '{agent_data.name}' criado"
+        )        
         
         return AgentResponse.from_orm(db_agent)
     
@@ -111,9 +113,7 @@ class AgentService:
         Returns:
             AgentResponse atualizado ou None se não encontrado
         """
-        agent = self.db.query(Agent).filter(
-            and_(Agent.id == agent_id, Agent.user_id == user_id)
-        ).first()
+        agent = self.repository.get_agent_by_id(agent_id, user_id)
         
         if not agent:
             return None
@@ -129,11 +129,11 @@ class AgentService:
         self.db.refresh(agent)
         
         # Registrar atividade
-        self._log_user_activity(
-            user_id, 
-            "agent_updated", 
-            f"Agente '{agent.name}' atualizado"
-        )
+        self.user_repository.create_activity(
+            user_id=user_id,
+            activity_type="agent_updated", 
+            description=f"Agente '{agent_data.name}' atualizado"
+        )           
         
         return AgentResponse.from_orm(agent)
     
@@ -148,9 +148,7 @@ class AgentService:
         Returns:
             True se deletado com sucesso
         """
-        agent = self.db.query(Agent).filter(
-            and_(Agent.id == agent_id, Agent.user_id == user_id)
-        ).first()
+        agent = self.repository.get_agent_by_id(agent_id, user_id)
         
         if not agent:
             return False
@@ -162,12 +160,12 @@ class AgentService:
         self.db.commit()
         
         # Registrar atividade
-        self._log_user_activity(
-            user_id, 
-            "agent_deleted", 
-            f"Agente '{agent_name}' deletado"
-        )
-        
+        self.user_repository.create_activity(
+            user_id=user_id,
+            activity_type="agent_deleted", 
+            description=f"Agente '{agent_name}' deletado"
+        )        
+
         return True
     
     async def execute_agent(self, agent_id: int, user_id: int, user_message: str, context: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
@@ -235,11 +233,12 @@ class AgentService:
             self.db.commit()
             
             # Registrar atividade
-            self._log_user_activity(
-                user_id, 
-                "agent_executed", 
-                f"Agente '{agent.name}' executado"
-            )
+            self.user_repository.create_activity(
+                user_id=user_id,
+                activity_type="agent_executed", 
+                description=f"Agente '{agent.name}' executado"
+            )                 
+
             
             return {
                 "agent_id": agent_id,
@@ -349,11 +348,11 @@ class AgentService:
         self.db.refresh(knowledge)
         
         # Registrar atividade
-        self._log_user_activity(
-            user_id, 
-            "agent_knowledge_added", 
-            f"Conhecimento adicionado ao agente '{agent.name}'"
-        )
+        self.user_repository.create_activity(
+            user_id=user_id,
+            activity_type="agent_knowledge_added", 
+            description=f"Conhecimento adicionado ao agente '{agent.name}'"
+        )           
         
         return {
             "id": knowledge.id,
@@ -402,14 +401,5 @@ class AgentService:
         # Por enquanto, retorna None (sem RAG)
         return None
     
-    def _log_user_activity(self, user_id: int, activity_type: str, description: str):
-        """Registra atividade do usuário"""
-        activity = UserActivity(
-            user_id=user_id,
-            activity_type=activity_type,
-            description=description
-        )
-        
-        self.db.add(activity)
-        # Não fazer commit aqui, deixar para o método principal
+
 
