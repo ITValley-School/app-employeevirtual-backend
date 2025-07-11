@@ -11,7 +11,7 @@ from pydantic_ai import Agent as PydanticAgent
 from data.user_repository import UserRepository
 
 from models.agent_models import (
-    AgentCreate, AgentUpdate, AgentResponse, SystemAgent
+    AgentCreate, AgentKnowledge, AgentUpdate, AgentResponse, SystemAgent
 )
 from data.agent_repository import AgentRepository
 
@@ -181,9 +181,7 @@ class AgentService:
         Returns:
             Resultado da execução
         """
-        agent = self.db.query(Agent).filter(
-            and_(Agent.id == agent_id, Agent.user_id == user_id)
-        ).first()
+        agent = self.repository.get_agent_by_id(agent_id, user_id)
         
         if not agent:
             raise ValueError("Agente não encontrado")
@@ -327,9 +325,7 @@ class AgentService:
             Dados do conhecimento adicionado
         """
         # Verificar se agente existe e pertence ao usuário
-        agent = self.db.query(Agent).filter(
-            and_(Agent.id == agent_id, Agent.user_id == user_id)
-        ).first()
+        agent = self.repository.get_agent_by_id(agent_id, user_id)
         
         if not agent:
             raise ValueError("Agente não encontrado")
