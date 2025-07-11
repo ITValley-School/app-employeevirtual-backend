@@ -74,8 +74,8 @@ app = FastAPI(
     description="API completa para o sistema EmployeeVirtual - Agentes de IA, Automações e Chat",
     version="1.0.0",
     docs_url="/docs",
-    redoc_url="/redoc",
-    lifespan=lifespan
+    redoc_url="/redoc"
+    #lifespan=lifespan
 )
 
 # Adicionar middlewares
@@ -224,21 +224,21 @@ async def general_exception_handler(request, exc):
         }
     )
 
-if __name__ == "__main__":
-    # Configurações do servidor
-    host = os.getenv("HOST", "0.0.0.0")
-    port = int(os.getenv("PORT", 8000))
-    debug = os.getenv("DEBUG", "false").lower() == "true"
+# if __name__ == "__main__":
+#     # Configurações do servidor
+#     host = os.getenv("HOST", "0.0.0.0")
+#     port = int(os.getenv("PORT", 8000))
+#     debug = os.getenv("DEBUG", "false").lower() == "true"
     
-    print(f"🚀 Iniciando servidor em http://{host}:{port}")
-    print(f"📚 Documentação disponível em http://{host}:{port}/docs")
+#     print(f"🚀 Iniciando servidor em http://{host}:{port}")
+#     print(f"📚 Documentação disponível em http://{host}:{port}/docs")
     
-    # Iniciar servidor
-    uvicorn.run(
-        "main:app",
-        host=host,
-        port=port,
-        reload=debug,
-        log_level="info"
-    )
+#     # Iniciar servidor
+#     uvicorn.run(
+#         "main:app",
+#         host=host,
+#         port=port,
+#         reload=debug,
+#         log_level="info"
+#     )
 
