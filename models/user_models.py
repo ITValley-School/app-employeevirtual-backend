@@ -51,10 +51,10 @@ class UserUpdate(BaseModel):
 class UserResponse(UserBase):
     """Modelo de resposta do usuário"""
     id: int
-    status: UserStatus
+    status: Optional[UserStatus] = UserStatus.ACTIVE
     created_at: datetime
-    updated_at: Optional[datetime]
-    last_login: Optional[datetime]
+    updated_at: Optional[datetime] = None
+    last_login: Optional[datetime] = None
     total_agents: Optional[int] = 0
     total_flows: Optional[int] = 0
     total_executions: Optional[int] = 0

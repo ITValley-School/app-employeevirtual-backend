@@ -4,7 +4,7 @@ Repositório de usuários para o sistema EmployeeVirtual
 from datetime import datetime, timedelta
 from typing import Optional, List, Dict, Any
 from sqlalchemy.orm import Session
-from sqlalchemy import and_, func, desc
+from sqlalchemy import and_, func, desc, cast, Date
 
 from models.user_models import User, UserSession, UserActivity
 
@@ -133,7 +133,7 @@ class UserRepository:
             user_id=user_id,
             activity_type=activity_type,
             description=description,
-            activity_metadata=activity_metadata or {}
+            activity_metadata=activity_metadata or "{}"
         )
         self.db.add(db_activity)
         self.db.commit()
@@ -163,7 +163,7 @@ class UserRepository:
         since_date = datetime.utcnow() - timedelta(days=days)
         
         results = self.db.query(
-            func.date(UserActivity.created_at).label('date'),
+            cast(UserActivity.created_at, Date).label('date'),
             func.count(UserActivity.id).label('count')
         ).filter(
             and_(
@@ -171,7 +171,7 @@ class UserRepository:
                 UserActivity.created_at >= since_date
             )
         ).group_by(
-            func.date(UserActivity.created_at)
+            cast(UserActivity.created_at, Date)
         ).order_by(desc('date')).all()
         
         return [{'date': result.date, 'count': result.count} for result in results]

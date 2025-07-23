@@ -162,8 +162,8 @@ class UserService:
             update_data['email'] = user_data.email
         if user_data.plan is not None:
             update_data['plan'] = user_data.plan
-        if user_data.password is not None:
-            update_data['password_hash'] = self._hash_password(user_data.password)
+        if user_data.status is not None:
+            update_data['status'] = user_data.status
         
         # Atualizar usuário
         updated_user = self.user_repository.update_user(user_id, **update_data)
@@ -412,6 +412,7 @@ class UserService:
         
         return success
     
+    # TODO não está funcionando
     def get_user_stats(self, user_id: int) -> Dict[str, Any]:
         """
         Busca estatísticas do usuário
