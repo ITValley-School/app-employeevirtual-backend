@@ -1,67 +1,13 @@
 """
 Aplicação principal do sistema EmployeeVirtual
 """
-from fastapi import FastAPI, HTTPException, Depends
-from fastapi.responses import JSONResponse
-from sqlalchemy.orm import Session
-from datetime import datetime
-import os
-import uvicorn
-from contextlib import asynccontextmanager
+from fastapi import FastAPI
 
-# Imports dos módulos
-from data.database import get_db, create_tables, get_connection_info
-from data.mongodb import create_indexes, get_connection_info as get_mongo_info, close_mongo_connections
+# Apenas CORS middleware - o que importa
 from middlewares.cors_middleware import add_cors_middleware
-from middlewares.logging_middleware import LoggingMiddleware, RequestLoggingMiddleware
 
-# Import do configurador de routers
+# Import do configurador de routers - uma linha só
 from api.router_config import register_routers
-
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    """
-    Gerencia ciclo de vida da aplicação
-    
-    Args:
-        app: Instância do FastAPI
-    """
-    # Startup
-    print("🚀 Iniciando EmployeeVirtual Backend...")
-    
-    # Verificar conexão com banco de dados (sem criar tabelas)
-    try:
-        # Apenas testa a conexão
-        connection_info = get_connection_info()
-        print(f"✅ Conexão com banco de dados verificada: {connection_info.get('database', 'N/A')}")
-    except Exception as e:
-        print(f"❌ Erro ao conectar com banco de dados: {e}")
-        print("⚠️ Verifique suas configurações no arquivo .env")
-        # Não continua se não conseguir conectar ao banco
-        raise e
-    
-    # Criar índices do MongoDB (opcional)
-    try:
-        await create_indexes()
-        print("✅ Índices do MongoDB criados/verificados")
-    except Exception as e:
-        print(f"⚠️ Aviso: MongoDB não disponível ou com erro (continuando mesmo assim): {e}")
-    
-    print("✅ EmployeeVirtual Backend iniciado com sucesso!")
-    print("📚 Documentação disponível em: /docs")
-    print("🏥 Health check disponível em: /health")
-    
-    yield
-    
-    # Shutdown
-    print("🛑 Encerrando EmployeeVirtual Backend...")
-    
-    # Fechar conexões MongoDB
-    try:
-        close_mongo_connections()
-        print("✅ Conexões fechadas")
-    except Exception:
-        pass
 
 # Criar aplicação FastAPI
 app = FastAPI(
@@ -70,15 +16,12 @@ app = FastAPI(
     version="1.0.0",
     docs_url="/docs",
     redoc_url="/redoc"
-    #lifespan=lifespan
 )
 
-# Adicionar middlewares
+# Adicionar apenas CORS middleware - como sempre funcionou
 add_cors_middleware(app)
-app.add_middleware(RequestLoggingMiddleware)
-app.add_middleware(LoggingMiddleware)
 
-# Registrar todos os routers automaticamente
+# Registrar todos os routers automaticamente - uma linha só
 register_routers(app)
 
 @app.get("/")
@@ -98,44 +41,17 @@ async def root():
     }
 
 @app.get("/health")
-async def health_check(db: Session = Depends(get_db)):
+async def health_check():
     """
-    Endpoint de health check
+    Endpoint de health check - SIMPLES sem banco
     
-    Args:
-        db: Sessão do banco de dados
-        
     Returns:
-        Status da aplicação e dependências
+        Status básico da aplicação
     """
-    try:
-        # Verificar conexão SQL
-        sql_info = get_connection_info()
-        sql_status = "connected"
-    except Exception as e:
-        sql_info = {"error": str(e)}
-        sql_status = "error"
-    
-    # Verificar conexão MongoDB
-    mongo_info = get_mongo_info()
-    mongo_status = "connected" if mongo_info.get("connected") else "error"
-    
-    # Status geral
-    overall_status = "healthy" if sql_status == "connected" and mongo_status == "connected" else "degraded"
-    
     return {
-        "status": overall_status,
-        "timestamp": "2024-01-01T00:00:00Z",  # Usar datetime real
-        "services": {
-            "sql_database": {
-                "status": sql_status,
-                "info": sql_info
-            },
-            "mongodb": {
-                "status": mongo_status,
-                "info": mongo_info
-            }
-        }
+        "status": "healthy",
+        "message": "EmployeeVirtual API is running",
+        "version": "1.0.0"
     }
 
 @app.get("/api/info")
@@ -150,84 +66,6 @@ async def api_info():
         "name": "EmployeeVirtual API",
         "version": "1.0.0",
         "description": "API completa para o sistema EmployeeVirtual",
-        "features": [
-            "Autenticação JWT",
-            "Agentes de IA personalizados",
-            "Automações/Flows",
-            "Chat/Conversação",
-            "Dashboard e métricas",
-            "Upload e processamento de arquivos",
-            "Integração com Orion (serviços de IA)"
-        ],
-        "endpoints": {
-            "auth": "/api/auth",
-            "agents": "/api/agents",
-            "flows": "/api/flows",
-            "chat": "/api/chat",
-            "dashboard": "/api/dashboard",
-            "files": "/api/files"
-        }
+        "status": "running"
     }
-
-@app.exception_handler(HTTPException)
-async def http_exception_handler(request, exc):
-    """
-    Handler para exceções HTTP
-    
-    Args:
-        request: Request HTTP
-        exc: Exceção HTTP
-        
-    Returns:
-        Response JSON com erro
-    """
-    return JSONResponse(
-        status_code=exc.status_code,
-        content={
-            "error": True,
-            "message": exc.detail,
-            "status_code": exc.status_code,
-            "path": str(request.url.path)
-        }
-    )
-
-@app.exception_handler(Exception)
-async def general_exception_handler(request, exc):
-    """
-    Handler para exceções gerais
-    
-    Args:
-        request: Request HTTP
-        exc: Exceção
-        
-    Returns:
-        Response JSON com erro
-    """
-    return JSONResponse(
-        status_code=500,
-        content={
-            "error": True,
-            "message": "Erro interno do servidor",
-            "status_code": 500,
-            "path": str(request.url.path)
-        }
-    )
-
-if __name__ == "__main__":
-    # Configurações do servidor
-    host = os.getenv("HOST", "0.0.0.0")
-    port = int(os.getenv("PORT", 8000))
-    debug = os.getenv("DEBUG", "false").lower() == "true"
-    
-    print(f"🚀 Iniciando servidor em http://{host}:{port}")
-    print(f"📚 Documentação disponível em http://{host}:{port}/docs")
-    
-    # Iniciar servidor
-    uvicorn.run(
-        "main:app",
-        host=host,
-        port=port,
-        reload=debug,
-        log_level="info"
-    )
 
