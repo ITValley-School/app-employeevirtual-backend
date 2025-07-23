@@ -1,6 +1,15 @@
 """
 Middleware de autenticação para o sistema EmployeeVirtual
+
+
+***** ---> Nao estamos usando este middleware atualmente. Manter este código apenas para referência 
+
+ou casos específicos onde autenticação por regras de negócio seja necessária.
+
 """
+
+
+
 from fastapi import Request, HTTPException, status
 from starlette.middleware.base import BaseHTTPMiddleware
 from typing import Callable, List
@@ -13,14 +22,25 @@ class AuthMiddleware(BaseHTTPMiddleware):
     def __init__(self, app, secret_key: str = None, excluded_paths: List[str] = None):
         super().__init__(app)
         self.secret_key = secret_key or os.getenv("JWT_SECRET_KEY", "your-secret-key")
-        self.excluded_paths = excluded_paths or [
-            "/docs",
-            "/openapi.json",
-            "/health",
-            "/auth/login",
-            "/auth/register",
-            "/favicon.ico"
-        ]
+        
+        # Configuração flexível dos caminhos excluídos
+        if excluded_paths is None:
+            # Primeiro tenta ler do .env
+            env_excluded = os.getenv("AUTH_EXCLUDED_PATHS", "")
+            if env_excluded:
+                excluded_paths = [path.strip() for path in env_excluded.split(",")]
+            else:
+                # Fallback para valores padrão
+                excluded_paths = [
+                    "/docs",
+                    "/openapi.json",
+                    "/health",
+                    "/auth/login",
+                    "/auth/register",
+                    "/favicon.ico"
+                ]
+        
+        self.excluded_paths = excluded_paths
     
     async def dispatch(self, request: Request, call_next: Callable):
         """
@@ -86,7 +106,19 @@ class AuthMiddleware(BaseHTTPMiddleware):
         return await call_next(request)
 
 class RateLimitMiddleware(BaseHTTPMiddleware):
-    """Middleware para rate limiting"""
+    """
+    Middleware para rate limiting
+    
+    NOTA: Este middleware não está sendo usado na aplicação.
+    Rate limiting deve ser implementado na camada de infraestrutura:
+    - Azure Application Gateway
+    - Azure Front Door
+    - Nginx/Apache (proxy reverso)
+    - API Gateway services
+    
+    Manter este código apenas para referência ou casos específicos
+    onde rate limiting por regras de negócio seja necessário.
+    """
     
     def __init__(self, app, max_requests: int = 100, window_seconds: int = 60):
         super().__init__(app)

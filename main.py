@@ -13,15 +13,9 @@ from data.database import get_db, create_tables, get_connection_info
 from data.mongodb import create_indexes, get_connection_info as get_mongo_info, close_mongo_connections
 from middlewares.cors_middleware import add_cors_middleware
 from middlewares.logging_middleware import LoggingMiddleware, RequestLoggingMiddleware
-from middlewares.auth_middleware import RateLimitMiddleware
 
-# Imports das APIs
-from api.auth_api import router as auth_router
-from api.agent_api import router as agent_router
-from api.flow_api import router as flow_router
-from api.chat_api import router as chat_router
-from api.dashboard_api import router as dashboard_router
-from api.file_api import router as file_router
+# Import do configurador de routers
+from api.router_config import register_routers
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -82,15 +76,9 @@ app = FastAPI(
 add_cors_middleware(app)
 app.add_middleware(RequestLoggingMiddleware)
 app.add_middleware(LoggingMiddleware)
-app.add_middleware(RateLimitMiddleware, max_requests=1000, window_seconds=60)
 
-# Registrar routers
-app.include_router(auth_router, prefix="/api/auth", tags=["Autenticação"])
-app.include_router(agent_router, prefix="/api/agents", tags=["Agentes"])
-app.include_router(flow_router, prefix="/api/flows", tags=["Flows/Automações"])
-app.include_router(chat_router, prefix="/api/chat", tags=["Chat/Conversação"])
-app.include_router(dashboard_router, prefix="/api/dashboard", tags=["Dashboard/Métricas"])
-app.include_router(file_router, prefix="/api/files", tags=["Arquivos"])
+# Registrar todos os routers automaticamente
+register_routers(app)
 
 @app.get("/")
 async def root():
