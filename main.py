@@ -4,6 +4,7 @@ Aplicação principal do sistema EmployeeVirtual
 from fastapi import FastAPI, HTTPException, Depends
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
+from datetime import datetime
 import os
 import uvicorn
 from contextlib import asynccontextmanager
@@ -68,8 +69,8 @@ app = FastAPI(
     description="API completa para o sistema EmployeeVirtual - Agentes de IA, Automações e Chat",
     version="1.0.0",
     docs_url="/docs",
-    redoc_url="/redoc"
-    #lifespan=lifespan
+    redoc_url="/redoc",
+    lifespan=lifespan
 )
 
 # Adicionar middlewares
@@ -124,7 +125,7 @@ async def health_check(db: Session = Depends(get_db)):
     
     return {
         "status": overall_status,
-        "timestamp": "2024-01-01T00:00:00Z",  # Usar datetime real
+        "timestamp": datetime.utcnow().isoformat() + "Z",
         "services": {
             "sql_database": {
                 "status": sql_status,
