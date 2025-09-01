@@ -9,6 +9,7 @@ from models.agent_models import AgentCreate, AgentUpdate, AgentResponse, AgentEx
 from models.user_models import UserResponse
 from services.agent_service import AgentService
 from api.auth_api import get_current_user_dependency
+from auth.dependencies import get_current_user
 from data.database import get_db
 
 router = APIRouter()
@@ -16,7 +17,7 @@ router = APIRouter()
 @router.post("/", response_model=AgentResponse, status_code=status.HTTP_201_CREATED)
 async def create_agent(
     agent_data: AgentCreate,
-    current_user: UserResponse = Depends(get_current_user_dependency),
+    current_user: UserResponse = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
