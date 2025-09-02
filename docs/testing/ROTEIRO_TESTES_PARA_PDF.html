@@ -1,0 +1,731 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Roteiro de Testes - EmployeeVirtual API</title>
+    <style>
+        @page {
+            margin: 2cm;
+            size: A4;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            margin: 0;
+            padding: 0;
+        }
+        
+        h1 {
+            color: #2c3e50;
+            border-bottom: 3px solid #3498db;
+            padding-bottom: 10px;
+            page-break-before: always;
+        }
+        
+        h1:first-child {
+            page-break-before: auto;
+        }
+        
+        h2 {
+            color: #2980b9;
+            border-left: 4px solid #3498db;
+            padding-left: 15px;
+            margin-top: 30px;
+        }
+        
+        h3 {
+            color: #34495e;
+            margin-top: 25px;
+        }
+        
+        h4 {
+            color: #7f8c8d;
+            margin-top: 20px;
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 40px;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 10px;
+        }
+        
+        .header h1 {
+            margin: 0;
+            border: none;
+            color: white;
+            font-size: 2.5em;
+        }
+        
+        .header p {
+            margin: 10px 0 0 0;
+            font-size: 1.2em;
+            opacity: 0.9;
+        }
+        
+        .info-box {
+            background: #ecf0f1;
+            border-left: 5px solid #3498db;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 5px;
+        }
+        
+        .warning-box {
+            background: #fff3cd;
+            border-left: 5px solid #ffc107;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 5px;
+        }
+        
+        .success-box {
+            background: #d4edda;
+            border-left: 5px solid #28a745;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 5px;
+        }
+        
+        .error-box {
+            background: #f8d7da;
+            border-left: 5px solid #dc3545;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 5px;
+        }
+        
+        pre {
+            background: #2c3e50;
+            color: #ecf0f1;
+            padding: 15px;
+            border-radius: 5px;
+            overflow-x: auto;
+            font-size: 0.9em;
+        }
+        
+        code {
+            background: #ecf0f1;
+            padding: 2px 5px;
+            border-radius: 3px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9em;
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+        }
+        
+        th, td {
+            border: 1px solid #bdc3c7;
+            padding: 12px;
+            text-align: left;
+        }
+        
+        th {
+            background: #34495e;
+            color: white;
+        }
+        
+        tr:nth-child(even) {
+            background: #f8f9fa;
+        }
+        
+        .checklist {
+            list-style: none;
+            padding: 0;
+        }
+        
+        .checklist li {
+            margin: 10px 0;
+            padding: 8px;
+            background: #f8f9fa;
+            border-radius: 5px;
+        }
+        
+        .checklist li:before {
+            content: "☐ ";
+            font-weight: bold;
+            color: #3498db;
+        }
+        
+        .emoji {
+            font-size: 1.2em;
+        }
+        
+        .page-break {
+            page-break-before: always;
+        }
+        
+        .credentials {
+            background: #e8f5e8;
+            border: 2px solid #28a745;
+            padding: 20px;
+            border-radius: 10px;
+            margin: 20px 0;
+        }
+        
+        .credentials h3 {
+            color: #155724;
+            margin-top: 0;
+        }
+        
+        .endpoint {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            padding: 15px;
+            margin: 15px 0;
+            border-radius: 5px;
+        }
+        
+        .method-get { border-left: 5px solid #28a745; }
+        .method-post { border-left: 5px solid #007bff; }
+        .method-put { border-left: 5px solid #ffc107; }
+        .method-delete { border-left: 5px solid #dc3545; }
+        
+        .toc {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 10px;
+            margin: 30px 0;
+        }
+        
+        .toc h2 {
+            margin-top: 0;
+            color: #2c3e50;
+        }
+        
+        .toc ul {
+            list-style: none;
+            padding-left: 20px;
+        }
+        
+        .toc a {
+            text-decoration: none;
+            color: #3498db;
+        }
+        
+        .toc a:hover {
+            text-decoration: underline;
+        }
+        
+        .footer {
+            text-align: center;
+            margin-top: 50px;
+            padding: 20px;
+            background: #2c3e50;
+            color: white;
+            border-radius: 10px;
+        }
+        
+        @media print {
+            .page-break {
+                page-break-before: always;
+            }
+            
+            body {
+                font-size: 12pt;
+            }
+            
+            pre {
+                font-size: 10pt;
+            }
+        }
+    </style>
+</head>
+<body>
+
+<div class="header">
+    <h1>🧪 Roteiro de Testes Completo</h1>
+    <p>EmployeeVirtual API - Guia para Desenvolvedores</p>
+    <p><strong>Versão:</strong> 1.0.0 | <strong>Data:</strong> Janeiro 2024</p>
+</div>
+
+<div class="toc">
+    <h2>📋 Índice</h2>
+    <ul>
+        <li><a href="#prerequisites">🚀 Pré-requisitos</a></li>
+        <li><a href="#quick-start">⚡ Início Rápido</a></li>
+        <li><a href="#postman-setup">🛠️ Configuração do Postman</a></li>
+        <li><a href="#auth-tests">🔐 Testes de Autenticação</a></li>
+        <li><a href="#user-tests">👤 Testes de Usuários</a></li>
+        <li><a href="#agent-tests">🤖 Testes de Agentes</a></li>
+        <li><a href="#chat-tests">💬 Testes de Chat</a></li>
+        <li><a href="#flow-tests">🔄 Testes de Fluxos</a></li>
+        <li><a href="#file-tests">📁 Testes de Arquivos</a></li>
+        <li><a href="#dashboard-tests">📊 Testes de Dashboard</a></li>
+        <li><a href="#troubleshooting">🔧 Troubleshooting</a></li>
+        <li><a href="#checklist">✅ Checklist Final</a></li>
+    </ul>
+</div>
+
+<h1 id="prerequisites">🚀 Pré-requisitos</h1>
+
+<div class="info-box">
+    <h3>Ambiente Configurado</h3>
+    <ul class="checklist">
+        <li>Banco de dados instalado (<code>database_schema_super_clean.sql</code>)</li>
+        <li>Aplicação rodando (FastAPI no <code>main.py</code>)</li>
+        <li>Postman instalado (versão 10.x+)</li>
+        <li>Newman instalado (opcional): <code>npm install -g newman</code></li>
+    </ul>
+</div>
+
+<div class="credentials">
+    <h3>🔑 Credenciais de Teste</h3>
+    <table>
+        <tr>
+            <th>Usuário</th>
+            <th>Email</th>
+            <th>Senha</th>
+            <th>Tipo</th>
+        </tr>
+        <tr>
+            <td>Administrador</td>
+            <td><code>admin@employeevirtual.com</code></td>
+            <td><code>Soleil123</code></td>
+            <td>Admin</td>
+        </tr>
+        <tr>
+            <td>Usuário Teste</td>
+            <td><code>teste@employeevirtual.com</code></td>
+            <td><code>123456</code></td>
+            <td>User</td>
+        </tr>
+    </table>
+</div>
+
+<div class="info-box">
+    <h3>📍 URLs Base</h3>
+    <ul>
+        <li><strong>Local:</strong> <code>http://localhost:8000</code></li>
+        <li><strong>Desenvolvimento:</strong> <code>https://dev-employeevirtual.azurewebsites.net</code></li>
+        <li><strong>Produção:</strong> <code>https://employeevirtual.azurewebsites.net</code></li>
+    </ul>
+</div>
+
+<h1 id="quick-start" class="page-break">⚡ Início Rápido (5 Minutos)</h1>
+
+<div class="success-box">
+    <h3>Opção A: Via Postman GUI</h3>
+    <ol>
+        <li><strong>Setup:</strong> Importe coleção + ambiente Development</li>
+        <li><strong>Health Check:</strong> Execute <code>GET /health</code> → deve retornar 200 OK</li>
+        <li><strong>Login:</strong> Execute <code>POST /auth/login</code> com credenciais admin → salva token automaticamente</li>
+        <li><strong>Teste Básico:</strong> Execute <code>GET /users/me</code> → deve retornar dados do usuário</li>
+        <li><strong>Validação:</strong> Todos os requests devem ter status 2xx</li>
+    </ol>
+</div>
+
+<div class="info-box">
+    <h3>Opção B: Via Scripts Automáticos</h3>
+    <pre>
+# Windows - Teste básico (2 minutos)
+cd docs/testing/postman
+.\quick-test.bat
+
+# Windows - Teste completo com relatório (5 minutos)
+.\run-tests.ps1 -TestSuite smoke -OpenReport
+
+# Linux/Mac - Via Newman
+newman run EmployeeVirtual_Agents_API.postman_collection.json \
+  -e EmployeeVirtual-Development.postman_environment.json \
+  --folder "🔐 Autenticação" --folder "👤 Usuários"
+    </pre>
+</div>
+
+<div class="warning-box">
+    <h3>Opção C: Collection Runner</h3>
+    <ol>
+        <li><strong>Postman:</strong> Clique na coleção → "Run collection"</li>
+        <li><strong>Configurar:</strong> Selecione ambiente Development + todos os requests</li>
+        <li><strong>Executar:</strong> Clique "Run EmployeeVirtual API"</li>
+        <li><strong>Verificar:</strong> Todos os testes devem passar (verde)</li>
+    </ol>
+</div>
+
+<h1 id="postman-setup" class="page-break">🛠️ Configuração do Postman</h1>
+
+<h2>📁 Arquivos para Importar</h2>
+
+<div class="info-box">
+    <p>Localize os arquivos na pasta: <code>docs/testing/postman/</code></p>
+    <ul>
+        <li><code>EmployeeVirtual_Agents_API.postman_collection.json</code> - Coleção principal</li>
+        <li><code>EmployeeVirtual-Development.postman_environment.json</code> - Ambiente de desenvolvimento</li>
+        <li><code>EmployeeVirtual-Production.postman_environment.json</code> - Ambiente de produção</li>
+    </ul>
+</div>
+
+<h2>🔧 Passos de Configuração</h2>
+
+<ol>
+    <li>
+        <strong>Importar no Postman:</strong>
+        <ul>
+            <li>Abra o Postman</li>
+            <li>File → Import</li>
+            <li>Selecione todos os arquivos .json da pasta</li>
+            <li>Confirme a importação</li>
+        </ul>
+    </li>
+    <li>
+        <strong>Configurar Ambiente:</strong>
+        <ul>
+            <li>Selecione "EmployeeVirtual - Development" no dropdown</li>
+            <li>Verifique se baseUrl = <code>http://localhost:8000</code></li>
+            <li>Execute Health Check: <code>GET /health</code></li>
+        </ul>
+    </li>
+</ol>
+
+<h2>🧪 Métodos de Teste Disponíveis</h2>
+
+<table>
+    <tr>
+        <th>Método</th>
+        <th>Descrição</th>
+        <th>Quando Usar</th>
+    </tr>
+    <tr>
+        <td>🎯 Manual</td>
+        <td>Executar requests individuais</td>
+        <td>Debug específico, análise detalhada</td>
+    </tr>
+    <tr>
+        <td>🏃 Semi-Auto</td>
+        <td>Collection Runner do Postman</td>
+        <td>Teste completo com interface visual</td>
+    </tr>
+    <tr>
+        <td>🤖 Automático</td>
+        <td>Scripts Newman via CLI</td>
+        <td>CI/CD, automação, testes em lote</td>
+    </tr>
+    <tr>
+        <td>📊 Relatórios</td>
+        <td>HTML/JSON reports automáticos</td>
+        <td>Documentação, análise de performance</td>
+    </tr>
+</table>
+
+<h1 id="auth-tests" class="page-break">🔐 Testes de Autenticação</h1>
+
+<h2>Endpoint: POST /auth/login</h2>
+
+<div class="endpoint method-post">
+    <h3>Teste 1.1 - Login Admin (Sucesso)</h3>
+    <pre>
+POST /auth/login
+Content-Type: application/json
+
+{
+    "email": "admin@employeevirtual.com",
+    "password": "Soleil123"
+}
+    </pre>
+    <p><strong>Resultado Esperado:</strong></p>
+    <ul>
+        <li>Status: <code>200 OK</code></li>
+        <li>Retorna: <code>access_token</code>, <code>token_type</code>, <code>user_info</code></li>
+        <li>Token salvo automaticamente no ambiente</li>
+    </ul>
+</div>
+
+<div class="endpoint method-post">
+    <h3>Teste 1.2 - Login Usuário Teste (Sucesso)</h3>
+    <pre>
+POST /auth/login
+Content-Type: application/json
+
+{
+    "email": "teste@employeevirtual.com",
+    "password": "123456"
+}
+    </pre>
+    <p><strong>Resultado Esperado:</strong> Status <code>200 OK</code> com token válido</p>
+</div>
+
+<div class="endpoint method-post">
+    <h3>Teste 1.3 - Login Inválido (Falha)</h3>
+    <pre>
+POST /auth/login
+Content-Type: application/json
+
+{
+    "email": "invalido@teste.com",
+    "password": "senhaerrada"
+}
+    </pre>
+    <p><strong>Resultado Esperado:</strong> Status <code>401 Unauthorized</code></p>
+</div>
+
+<h2>Endpoint: POST /auth/register</h2>
+
+<div class="endpoint method-post">
+    <h3>Teste 2.1 - Registro Novo Usuário (Sucesso)</h3>
+    <pre>
+POST /auth/register
+Content-Type: application/json
+
+{
+    "name": "Novo Usuário",
+    "email": "novo@teste.com",
+    "password": "senha123"
+}
+    </pre>
+    <p><strong>Resultado Esperado:</strong> Status <code>201 Created</code></p>
+</div>
+
+<h1 id="user-tests" class="page-break">👤 Testes de Usuários</h1>
+
+<h2>Endpoint: GET /users/me</h2>
+
+<div class="endpoint method-get">
+    <h3>Teste 3.1 - Perfil do Usuário (Sucesso)</h3>
+    <pre>
+GET /users/me
+Authorization: Bearer {token}
+    </pre>
+    <p><strong>Resultado Esperado:</strong></p>
+    <ul>
+        <li>Status: <code>200 OK</code></li>
+        <li>Dados do usuário logado</li>
+        <li>Campos: id, name, email, plan, status, role</li>
+    </ul>
+</div>
+
+<h2>Endpoint: PUT /users/me</h2>
+
+<div class="endpoint method-put">
+    <h3>Teste 3.2 - Atualizar Perfil (Sucesso)</h3>
+    <pre>
+PUT /users/me
+Authorization: Bearer {token}
+Content-Type: application/json
+
+{
+    "name": "Nome Atualizado",
+    "avatar_url": "https://example.com/avatar.jpg"
+}
+    </pre>
+    <p><strong>Resultado Esperado:</strong> Status <code>200 OK</code> com dados atualizados</p>
+</div>
+
+<h1 id="agent-tests" class="page-break">🤖 Testes de Agentes</h1>
+
+<h2>Endpoint: POST /agents</h2>
+
+<div class="endpoint method-post">
+    <h3>Teste 4.1 - Criar Agente (Sucesso)</h3>
+    <pre>
+POST /agents
+Authorization: Bearer {token}
+Content-Type: application/json
+
+{
+    "name": "Assistente de Código",
+    "description": "Agente especializado em programação",
+    "agent_type": "assistant",
+    "system_prompt": "Você é um assistente de programação...",
+    "model": "gpt-4",
+    "temperature": 0.7
+}
+    </pre>
+    <p><strong>Resultado Esperado:</strong> Status <code>201 Created</code> com ID do agente</p>
+</div>
+
+<h2>Endpoint: GET /agents</h2>
+
+<div class="endpoint method-get">
+    <h3>Teste 4.2 - Listar Agentes (Sucesso)</h3>
+    <pre>
+GET /agents
+Authorization: Bearer {token}
+    </pre>
+    <p><strong>Resultado Esperado:</strong> Status <code>200 OK</code> com lista de agentes do usuário</p>
+</div>
+
+<h2>Endpoint: GET /agents/{id}</h2>
+
+<div class="endpoint method-get">
+    <h3>Teste 4.3 - Detalhes do Agente (Sucesso)</h3>
+    <pre>
+GET /agents/1
+Authorization: Bearer {token}
+    </pre>
+    <p><strong>Resultado Esperado:</strong> Status <code>200 OK</code> com dados completos do agente</p>
+</div>
+
+<h1 id="chat-tests" class="page-break">💬 Testes de Chat</h1>
+
+<h2>Endpoint: POST /chats</h2>
+
+<div class="endpoint method-post">
+    <h3>Teste 5.1 - Criar Chat (Sucesso)</h3>
+    <pre>
+POST /chats
+Authorization: Bearer {token}
+Content-Type: application/json
+
+{
+    "agent_id": 1,
+    "title": "Novo Chat de Teste"
+}
+    </pre>
+    <p><strong>Resultado Esperado:</strong> Status <code>201 Created</code> com ID do chat</p>
+</div>
+
+<h2>Endpoint: POST /chats/{id}/messages</h2>
+
+<div class="endpoint method-post">
+    <h3>Teste 5.2 - Enviar Mensagem (Sucesso)</h3>
+    <pre>
+POST /chats/1/messages
+Authorization: Bearer {token}
+Content-Type: application/json
+
+{
+    "content": "Olá, como você pode me ajudar?",
+    "message_type": "user"
+}
+    </pre>
+    <p><strong>Resultado Esperado:</strong> Status <code>201 Created</code> com resposta do agente</p>
+</div>
+
+<h1 id="troubleshooting" class="page-break">🔧 Troubleshooting</h1>
+
+<h2>Problemas Comuns e Soluções</h2>
+
+<div class="error-box">
+    <h3>❌ Erro: "Could not send request"</h3>
+    <p><strong>Problema:</strong> Connection refused / Network error</p>
+    <p><strong>Solução:</strong></p>
+    <ol>
+        <li>Verificar se servidor está rodando: <code>python main.py</code></li>
+        <li>Testar URL diretamente: <code>curl http://localhost:8000/health</code></li>
+        <li>Verificar porta 8000: <code>netstat -an | findstr :8000</code></li>
+        <li>Verificar firewall/antivírus</li>
+    </ol>
+</div>
+
+<div class="error-box">
+    <h3>❌ Erro: "401 Unauthorized"</h3>
+    <p><strong>Problema:</strong> Token inválido ou expirado</p>
+    <p><strong>Solução:</strong></p>
+    <ol>
+        <li>Executar login novamente: <code>POST /auth/login</code></li>
+        <li>Verificar se token foi salvo: Environment → authToken</li>
+        <li>Verificar Authorization Header nos requests</li>
+        <li>Confirmar que token não expirou (30 min)</li>
+    </ol>
+</div>
+
+<div class="error-box">
+    <h3>❌ Erro: "422 Validation Error"</h3>
+    <p><strong>Problema:</strong> Dados de entrada inválidos</p>
+    <p><strong>Solução:</strong></p>
+    <ol>
+        <li>Verificar Content-Type: <code>application/json</code></li>
+        <li>Verificar JSON válido (sem vírgulas extras)</li>
+        <li>Verificar campos obrigatórios</li>
+        <li>Verificar tipos de dados (string, number, boolean)</li>
+    </ol>
+</div>
+
+<h2>Scripts de Validação</h2>
+
+<div class="info-box">
+    <h3>Health Check Script</h3>
+    <pre>
+# Windows
+curl http://localhost:8000/health
+# Deve retornar: {"status": "healthy"}
+
+# PowerShell
+Invoke-RestMethod -Uri "http://localhost:8000/health"
+    </pre>
+</div>
+
+<div class="info-box">
+    <h3>Token Validation Script</h3>
+    <pre>
+// Script de teste para validar token
+pm.test("Token is valid", function () {
+    const token = pm.environment.get("authToken");
+    pm.expect(token).to.not.be.empty;
+    pm.expect(token).to.match(/^eyJ/); // JWT starts with eyJ
+});
+    </pre>
+</div>
+
+<h1 id="checklist" class="page-break">✅ Checklist Final</h1>
+
+<h2>Funcionalidades Core</h2>
+<ul class="checklist">
+    <li>Registro e login funcionando</li>
+    <li>Token JWT sendo gerado</li>
+    <li>Autorização funcionando</li>
+    <li>CRUD de agentes funcionando</li>
+    <li>CRUD de chats funcionando</li>
+    <li>Upload de arquivos funcionando</li>
+    <li>Dashboard retornando dados</li>
+</ul>
+
+<h2>Segurança</h2>
+<ul class="checklist">
+    <li>Endpoints protegidos exigem token</li>
+    <li>Tokens inválidos são rejeitados</li>
+    <li>Usuários só acessam seus próprios dados</li>
+    <li>Validação de entrada funcionando</li>
+    <li>Proteção contra acesso não autorizado</li>
+</ul>
+
+<h2>Performance</h2>
+<ul class="checklist">
+    <li>Responses < 2 segundos (desenvolvimento)</li>
+    <li>Sem vazamentos de memória</li>
+    <li>Conexões de banco sendo fechadas</li>
+    <li>Logs sendo gerados corretamente</li>
+</ul>
+
+<h2>Objetivos de Qualidade</h2>
+
+<div class="success-box">
+    <h3>Metas de Sucesso</h3>
+    <ul class="checklist">
+        <li>100% dos endpoints funcionando</li>
+        <li>Zero falhas de segurança</li>
+        <li>Tempos de resposta < 2 segundos</li>
+        <li>Cobertura de testes completa</li>
+        <li>Documentação atualizada</li>
+    </ul>
+</div>
+
+<div class="info-box">
+    <h3>Critérios de Aprovação</h3>
+    <ul>
+        <li>Todos os testes do checklist passando</li>
+        <li>Relatório de bugs documentado</li>
+        <li>Performance dentro dos padrões</li>
+        <li>Segurança validada</li>
+        <li>Funcionalidades core operacionais</li>
+    </ul>
+</div>
+
+<div class="footer">
+    <h2>🚀 BOA SORTE COM OS TESTES! 🚀</h2>
+    <p><strong>Equipe EmployeeVirtual</strong></p>
+    <p>Documentação gerada em: <script>document.write(new Date().toLocaleDateString('pt-BR'));</script></p>
+    <p>Versão: 1.0.0 | Para suporte: dev@employeevirtual.com</p>
+</div>
+
+</body>
+</html>
