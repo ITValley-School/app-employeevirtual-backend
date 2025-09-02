@@ -9,7 +9,7 @@ from .dependencies import (
     require_admin_user,
 )
 
-from .jwt_service import JWTService, create_token_pair
+from .jwt_service import JWTService
 
 from .config import (
     ACCESS_TOKEN_EXPIRE_MINUTES,
@@ -23,7 +23,6 @@ __all__ = [
     "require_premium_user",
     "require_admin_user",
     "JWTService",
-    "create_token_pair",
     "ACCESS_TOKEN_EXPIRE_MINUTES",
     "REFRESH_TOKEN_EXPIRE_DAYS",
     "ERROR_MESSAGES"

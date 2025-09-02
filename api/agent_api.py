@@ -8,7 +8,6 @@ from typing import List, Dict, Any, Optional
 from models.agent_models import AgentCreate, AgentUpdate, AgentResponse, AgentExecutionRequest
 from models.user_models import UserResponse
 from services.agent_service import AgentService
-from api.auth_api import get_current_user_dependency
 from auth.dependencies import get_current_user
 from data.database import get_db
 
@@ -45,7 +44,7 @@ async def create_agent(
 @router.get("/", response_model=List[AgentResponse])
 async def get_user_agents(
     include_system: bool = True,
-    current_user: UserResponse = Depends(get_current_user_dependency),
+    current_user: UserResponse = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
@@ -88,7 +87,7 @@ async def get_system_agents(db: Session = Depends(get_db)):
 @router.get("/{agent_id}", response_model=AgentResponse)
 async def get_agent(
     agent_id: int,
-    current_user: UserResponse = Depends(get_current_user_dependency),
+    current_user: UserResponse = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
@@ -121,7 +120,7 @@ async def get_agent(
 async def update_agent(
     agent_id: int,
     agent_data: AgentUpdate,
-    current_user: UserResponse = Depends(get_current_user_dependency),
+    current_user: UserResponse = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
@@ -154,7 +153,7 @@ async def update_agent(
 @router.delete("/{agent_id}")
 async def delete_agent(
     agent_id: int,
-    current_user: UserResponse = Depends(get_current_user_dependency),
+    current_user: UserResponse = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
@@ -187,7 +186,7 @@ async def delete_agent(
 async def execute_agent(
     agent_id: int,
     execution_data: AgentExecutionRequest,
-    current_user: UserResponse = Depends(get_current_user_dependency),
+    current_user: UserResponse = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
@@ -232,7 +231,7 @@ async def execute_agent(
 async def execute_agent_simple(
     agent_id: int,
     execution_data: AgentExecutionRequest,
-    current_user: UserResponse = Depends(get_current_user_dependency),
+    current_user: UserResponse = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
@@ -304,7 +303,7 @@ async def validate_agent_config(
 async def get_agent_executions(
     agent_id: int,
     limit: int = 50,
-    current_user: UserResponse = Depends(get_current_user_dependency),
+    current_user: UserResponse = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
@@ -332,7 +331,7 @@ async def get_agent_executions(
 async def add_knowledge_to_agent(
     agent_id: int,
     file_data: Dict[str, Any],
-    current_user: UserResponse = Depends(get_current_user_dependency),
+    current_user: UserResponse = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
@@ -375,7 +374,7 @@ async def add_knowledge_to_agent(
 @router.get("/{agent_id}/knowledge")
 async def get_agent_knowledge(
     agent_id: int,
-    current_user: UserResponse = Depends(get_current_user_dependency),
+    current_user: UserResponse = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
@@ -426,7 +425,7 @@ async def quick_chat(
     agent_id: int,
     message: str,
     context: Optional[Dict[str, Any]] = None,
-    current_user: UserResponse = Depends(get_current_user_dependency),
+    current_user: UserResponse = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """

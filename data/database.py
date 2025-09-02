@@ -27,7 +27,7 @@ def get_database_url():
     database = os.getenv("SQL_DATABASE") 
     username = os.getenv("SQL_USERNAME")
     password = os.getenv("SQL_PASSWORD")
-    driver = os.getenv("SQL_DRIVER", "ODBC Driver 17 for SQL Server")
+    driver = os.getenv("SQL_DRIVER", "ODBC Driver 18 for SQL Server")
     port = os.getenv("SQL_PORT", "1433")
     
     if not all([server, database, username, password]):

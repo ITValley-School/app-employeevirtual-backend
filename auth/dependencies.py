@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 from models.user_models import UserResponse
 from services.user_service import UserService
 from data.database import get_db
+from models.uuid_models import validate_uuid
 
 from auth.jwt_service import JWTService
 from auth.config import ERROR_MESSAGES
@@ -57,15 +58,13 @@ async def get_current_user(
             headers={"WWW-Authenticate": "Bearer"},
         )
     
-    user_id_str = payload.get("sub")
-    if not user_id_str or not user_id_str.isdigit():
+    user_id = payload.get("sub")
+    if not user_id or not validate_uuid(user_id):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail=ERROR_MESSAGES["TOKEN_MALFORMED"],
             headers={"WWW-Authenticate": "Bearer"},
         )
-    
-    user_id = int(user_id_str)
     
     user_service = UserService(db)
     user = user_service.get_user_by_id(user_id)
@@ -91,7 +90,7 @@ async def get_current_user_optional(
 async def require_premium_user(
     current_user: UserResponse = Depends(get_current_user)
 ) -> UserResponse:
-    premium_plans = ["premium", "enterprise", "admin"]
+    premium_plans = ["pro", "enterprise"]
     
     if current_user.plan not in premium_plans:
         raise HTTPException(
@@ -101,46 +100,76 @@ async def require_premium_user(
     
     return current_user
 
+async def require_enterprise_user(
+    current_user: UserResponse = Depends(get_current_user)
+) -> UserResponse:
+    if current_user.plan != "enterprise":
+        raise HTTPException(
+            status_code=status.HTTP_402_PAYMENT_REQUIRED,
+            detail=ERROR_MESSAGES["ENTERPRISE_REQUIRED"]
+        )
+    
+    return current_user
+
 async def require_admin_user(
     current_user: UserResponse = Depends(get_current_user)
 ) -> UserResponse:
-    if hasattr(current_user, 'is_admin') and current_user.is_admin:
-        return current_user
+    if current_user.plan != "enterprise":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=ERROR_MESSAGES["ADMIN_REQUIRED"]
+        )
     
-    if current_user.plan == "admin":
-        return current_user
-    
-    raise HTTPException(
-        status_code=status.HTTP_403_FORBIDDEN,
-        detail=ERROR_MESSAGES["ADMIN_REQUIRED"]
-    )
+    return current_user
 
-async def verify_token_only(
+async def get_current_user_id(
+    current_user: UserResponse = Depends(get_current_user)
+) -> str:
+    """Retorna apenas o ID do usuário atual"""
+    return current_user.id
+
+async def get_current_user_plan(
+    current_user: UserResponse = Depends(get_current_user)
+) -> str:
+    """Retorna apenas o plano do usuário atual"""
+    return current_user.plan
+
+async def get_current_user_status(
+    current_user: UserResponse = Depends(get_current_user)
+) -> str:
+    """Retorna apenas o status do usuário atual"""
+    return current_user.status
+
+async def require_active_user(
+    current_user: UserResponse = Depends(get_current_user)
+) -> UserResponse:
+    """Verifica se o usuário está ativo"""
+    if current_user.status != "active":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=ERROR_MESSAGES["USER_INACTIVE"]
+        )
+    
+    return current_user
+
+async def require_verified_user(
+    current_user: UserResponse = Depends(get_current_user)
+) -> UserResponse:
+    """Verifica se o usuário está verificado (pode ser expandido no futuro)"""
+    # Por enquanto, apenas verifica se está ativo
+    return await require_active_user(current_user)
+
+async def get_user_context(
     request: Request,
-    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)
+    current_user: UserResponse = Depends(get_current_user)
 ) -> Dict[str, Any]:
-    token = extract_token_from_request(request, credentials)
-    
-    if not token:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=ERROR_MESSAGES["TOKEN_NOT_PROVIDED"],
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-    
-    payload = JWTService.verify_token(token, "access")
-    
-    if payload is None:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=ERROR_MESSAGES["TOKEN_INVALID"],
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-    
+    """Retorna contexto completo do usuário para logging e auditoria"""
     return {
-        "user_id": int(payload.get("sub")),
-        "email": payload.get("email"),
-        "jti": payload.get("jti"),
-        "issued_at": payload.get("iat"),
-        "expires_at": payload.get("exp")
+        "user_id": current_user.id,
+        "user_email": current_user.email,
+        "user_plan": current_user.plan,
+        "user_status": current_user.status,
+        "client_ip": get_client_ip(request),
+        "user_agent": request.headers.get("user-agent", "unknown"),
+        "request_id": request.headers.get("x-request-id", "unknown")
     }

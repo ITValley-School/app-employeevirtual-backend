@@ -1,165 +1,79 @@
 """
 API de arquivos para o sistema EmployeeVirtual
 """
-from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File as FastAPIFile, Form
+from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
 from sqlalchemy.orm import Session
 from typing import List, Dict, Any, Optional
-import os
-import uuid
-from datetime import datetime
 
 from models.file_models import FileResponse, FileUpdate
 from models.user_models import UserResponse
-from services.orion_service import OrionService
-from api.auth_api import get_current_user_dependency
+from services.file_service import FileService
+from auth.dependencies import get_current_user
 from data.database import get_db
 
 router = APIRouter()
 
 @router.post("/upload", response_model=FileResponse, status_code=status.HTTP_201_CREATED)
 async def upload_file(
-    file: UploadFile = FastAPIFile(...),
-    description: Optional[str] = Form(None),
-    tags: Optional[str] = Form(None),
-    process_with_orion: bool = Form(True),
-    current_user: UserResponse = Depends(get_current_user_dependency),
+    file: UploadFile = File(...),
+    description: Optional[str] = None,
+    tags: Optional[List[str]] = None,
+    current_user: UserResponse = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
-    Faz upload de arquivo
+    Faz upload de um arquivo
     
     Args:
         file: Arquivo a ser enviado
         description: Descrição do arquivo
-        tags: Tags do arquivo (separadas por vírgula)
-        process_with_orion: Se deve processar com Orion
+        tags: Tags para categorização
         current_user: Usuário atual
         db: Sessão do banco de dados
         
     Returns:
         Dados do arquivo enviado
+        
+    Raises:
+        HTTPException: Se arquivo inválido ou erro no upload
     """
-    from models.file_models import File as FileModel
-    
-    # Validar tipo de arquivo
-    allowed_extensions = {'.pdf', '.txt', '.docx', '.doc', '.jpg', '.jpeg', '.png', '.mp3', '.wav', '.mp4', '.avi'}
-    file_extension = os.path.splitext(file.filename)[1].lower()
-    
-    if file_extension not in allowed_extensions:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Tipo de arquivo não suportado: {file_extension}"
-        )
-    
-    # Ler conteúdo do arquivo
-    file_content = await file.read()
-    file_size = len(file_content)
-    
-    # Validar tamanho (100MB max)
-    max_size = 100 * 1024 * 1024  # 100MB
-    if file_size > max_size:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Arquivo muito grande. Tamanho máximo: 100MB"
-        )
-    
-    # Gerar nome único
-    unique_filename = f"{uuid.uuid4()}{file_extension}"
+    file_service = FileService(db)
     
     try:
-        # Upload para Orion Data Lake
-        orion_service = OrionService()
-        upload_result = await orion_service.upload_to_datalake(
-            file_content=file_content,
-            file_name=unique_filename,
+        uploaded_file = await file_service.upload_file(
             user_id=current_user.id,
-            metadata={
-                "original_filename": file.filename,
-                "description": description,
-                "tags": tags,
-                "uploaded_by": current_user.email
-            }
-        )
-        
-        if upload_result["status"] != "success":
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Erro no upload: {upload_result.get('error_message')}"
-            )
-        
-        # Salvar no banco de dados
-        db_file = FileModel(
-            user_id=current_user.id,
-            original_filename=file.filename,
-            stored_filename=unique_filename,
-            file_type=file_extension[1:],  # Remove o ponto
-            file_size=file_size,
+            file=file,
             description=description,
-            tags=tags,
-            datalake_url=upload_result.get("datalake_url"),
-            datalake_path=upload_result.get("datalake_path"),
-            orion_file_id=upload_result.get("file_id")
+            tags=tags or []
         )
         
-        db.add(db_file)
-        db.commit()
-        db.refresh(db_file)
+        return uploaded_file
         
-        # Processar com Orion se solicitado
-        processing_result = None
-        if process_with_orion and upload_result.get("datalake_url"):
-            try:
-                if file_extension in ['.pdf']:
-                    processing_result = await orion_service.analyze_pdf(upload_result["datalake_url"])
-                elif file_extension in ['.jpg', '.jpeg', '.png']:
-                    processing_result = await orion_service.extract_text_from_image(upload_result["datalake_url"])
-                elif file_extension in ['.mp3', '.wav']:
-                    processing_result = await orion_service.transcribe_audio(upload_result["datalake_url"])
-                
-                if processing_result and processing_result["status"] == "success":
-                    db_file.processed = True
-                    db_file.processing_result = str(processing_result.get("result", {}))
-                    db_file.orion_task_id = processing_result.get("orion_task_id")
-                    db.commit()
-                    
-            except Exception as e:
-                # Log erro mas não falha o upload
-                print(f"Erro no processamento Orion: {str(e)}")
-        
-        return FileResponse(
-            id=db_file.id,
-            user_id=db_file.user_id,
-            original_filename=db_file.original_filename,
-            stored_filename=db_file.stored_filename,
-            file_type=db_file.file_type,
-            file_size=db_file.file_size,
-            description=db_file.description,
-            tags=db_file.tags.split(',') if db_file.tags else [],
-            datalake_url=db_file.datalake_url,
-            processed=db_file.processed,
-            processing_result=processing_result.get("result") if processing_result else None,
-            created_at=db_file.created_at,
-            updated_at=db_file.updated_at
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
         )
-        
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Erro no upload do arquivo: {str(e)}"
+            detail=f"Erro no upload: {str(e)}"
         )
 
 @router.get("/", response_model=List[FileResponse])
 async def get_user_files(
     file_type: Optional[str] = None,
+    tags: Optional[List[str]] = None,
     limit: int = 50,
-    current_user: UserResponse = Depends(get_current_user_dependency),
+    current_user: UserResponse = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
     Busca arquivos do usuário
     
     Args:
-        file_type: Filtrar por tipo de arquivo
+        file_type: Tipo de arquivo para filtrar
+        tags: Tags para filtrar
         limit: Limite de arquivos
         current_user: Usuário atual
         db: Sessão do banco de dados
@@ -167,39 +81,21 @@ async def get_user_files(
     Returns:
         Lista de arquivos
     """
-    from models.file_models import File as FileModel
-    from sqlalchemy import desc
+    file_service = FileService(db)
     
-    query = db.query(FileModel).filter(FileModel.user_id == current_user.id)
+    files = file_service.get_user_files(
+        user_id=current_user.id,
+        file_type=file_type,
+        tags=tags,
+        limit=limit
+    )
     
-    if file_type:
-        query = query.filter(FileModel.file_type == file_type)
-    
-    files = query.order_by(desc(FileModel.created_at)).limit(limit).all()
-    
-    return [
-        FileResponse(
-            id=f.id,
-            user_id=f.user_id,
-            original_filename=f.original_filename,
-            stored_filename=f.stored_filename,
-            file_type=f.file_type,
-            file_size=f.file_size,
-            description=f.description,
-            tags=f.tags.split(',') if f.tags else [],
-            datalake_url=f.datalake_url,
-            processed=f.processed,
-            processing_result=f.processing_result,
-            created_at=f.created_at,
-            updated_at=f.updated_at
-        )
-        for f in files
-    ]
+    return files
 
 @router.get("/{file_id}", response_model=FileResponse)
 async def get_file(
     file_id: int,
-    current_user: UserResponse = Depends(get_current_user_dependency),
+    current_user: UserResponse = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
@@ -216,40 +112,23 @@ async def get_file(
     Raises:
         HTTPException: Se arquivo não encontrado
     """
-    from models.file_models import File as FileModel
+    file_service = FileService(db)
     
-    file = db.query(FileModel).filter(
-        FileModel.id == file_id,
-        FileModel.user_id == current_user.id
-    ).first()
+    file_data = file_service.get_file(file_id, current_user.id)
     
-    if not file:
+    if not file_data:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Arquivo não encontrado"
         )
     
-    return FileResponse(
-        id=file.id,
-        user_id=file.user_id,
-        original_filename=file.original_filename,
-        stored_filename=file.stored_filename,
-        file_type=file.file_type,
-        file_size=file.file_size,
-        description=file.description,
-        tags=file.tags.split(',') if file.tags else [],
-        datalake_url=file.datalake_url,
-        processed=file.processed,
-        processing_result=file.processing_result,
-        created_at=file.created_at,
-        updated_at=file.updated_at
-    )
+    return file_data
 
 @router.put("/{file_id}", response_model=FileResponse)
 async def update_file(
     file_id: int,
-    file_data: FileUpdate,
-    current_user: UserResponse = Depends(get_current_user_dependency),
+    metadata: FileUpdate,
+    current_user: UserResponse = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
@@ -257,7 +136,7 @@ async def update_file(
     
     Args:
         file_id: ID do arquivo
-        file_data: Dados a serem atualizados
+        metadata: Novos metadados
         current_user: Usuário atual
         db: Sessão do banco de dados
         
@@ -267,56 +146,36 @@ async def update_file(
     Raises:
         HTTPException: Se arquivo não encontrado
     """
-    from models.file_models import File as FileModel
+    file_service = FileService(db)
     
-    file = db.query(FileModel).filter(
-        FileModel.id == file_id,
-        FileModel.user_id == current_user.id
-    ).first()
-    
-    if not file:
+    try:
+        updated_file = file_service.update_file(
+            file_id=file_id,
+            user_id=current_user.id,
+            metadata=metadata
+        )
+        
+        return updated_file
+        
+    except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Arquivo não encontrado"
+            detail=str(e)
         )
-    
-    # Atualizar campos fornecidos
-    update_data = file_data.dict(exclude_unset=True)
-    for field, value in update_data.items():
-        if field == "tags" and isinstance(value, list):
-            setattr(file, field, ','.join(value))
-        else:
-            setattr(file, field, value)
-    
-    file.updated_at = datetime.utcnow()
-    
-    db.commit()
-    db.refresh(file)
-    
-    return FileResponse(
-        id=file.id,
-        user_id=file.user_id,
-        original_filename=file.original_filename,
-        stored_filename=file.stored_filename,
-        file_type=file.file_type,
-        file_size=file.file_size,
-        description=file.description,
-        tags=file.tags.split(',') if file.tags else [],
-        datalake_url=file.datalake_url,
-        processed=file.processed,
-        processing_result=file.processing_result,
-        created_at=file.created_at,
-        updated_at=file.updated_at
-    )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
 
 @router.delete("/{file_id}")
 async def delete_file(
     file_id: int,
-    current_user: UserResponse = Depends(get_current_user_dependency),
+    current_user: UserResponse = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
-    Deleta arquivo
+    Deleta um arquivo
     
     Args:
         file_id: ID do arquivo
@@ -329,121 +188,26 @@ async def delete_file(
     Raises:
         HTTPException: Se arquivo não encontrado
     """
-    from models.file_models import File as FileModel
+    file_service = FileService(db)
     
-    file = db.query(FileModel).filter(
-        FileModel.id == file_id,
-        FileModel.user_id == current_user.id
-    ).first()
+    success = file_service.delete_file(file_id, current_user.id)
     
-    if not file:
+    if not success:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Arquivo não encontrado"
         )
-    
-    # TODO: Deletar do Data Lake também
-    
-    db.delete(file)
-    db.commit()
     
     return {"message": "Arquivo deletado com sucesso"}
-
-@router.post("/{file_id}/process")
-async def process_file_with_orion(
-    file_id: int,
-    service_type: str = "auto",
-    current_user: UserResponse = Depends(get_current_user_dependency),
-    db: Session = Depends(get_db)
-):
-    """
-    Processa arquivo com Orion
-    
-    Args:
-        file_id: ID do arquivo
-        service_type: Tipo de serviço (auto, ocr, transcription, analysis)
-        current_user: Usuário atual
-        db: Sessão do banco de dados
-        
-    Returns:
-        Resultado do processamento
-        
-    Raises:
-        HTTPException: Se arquivo não encontrado
-    """
-    from models.file_models import File as FileModel
-    
-    file = db.query(FileModel).filter(
-        FileModel.id == file_id,
-        FileModel.user_id == current_user.id
-    ).first()
-    
-    if not file:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Arquivo não encontrado"
-        )
-    
-    if not file.datalake_url:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Arquivo não está disponível no Data Lake"
-        )
-    
-    orion_service = OrionService()
-    
-    try:
-        # Determinar tipo de serviço automaticamente
-        if service_type == "auto":
-            if file.file_type in ['pdf']:
-                service_type = "pdf_analysis"
-            elif file.file_type in ['jpg', 'jpeg', 'png']:
-                service_type = "ocr"
-            elif file.file_type in ['mp3', 'wav']:
-                service_type = "transcription"
-            else:
-                service_type = "document_analysis"
-        
-        # Processar arquivo
-        result = await orion_service.call_service(
-            service_type=service_type,
-            file_url=file.datalake_url
-        )
-        
-        if result["status"] == "success":
-            # Atualizar arquivo
-            file.processed = True
-            file.processing_result = str(result.get("result", {}))
-            file.orion_task_id = result.get("orion_task_id")
-            file.updated_at = datetime.utcnow()
-            
-            db.commit()
-            
-            return {
-                "message": "Arquivo processado com sucesso",
-                "result": result.get("result"),
-                "task_id": result.get("orion_task_id")
-            }
-        else:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Erro no processamento: {result.get('error_message')}"
-            )
-            
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Erro no processamento do arquivo: {str(e)}"
-        )
 
 @router.get("/{file_id}/download")
 async def download_file(
     file_id: int,
-    current_user: UserResponse = Depends(get_current_user_dependency),
+    current_user: UserResponse = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
-    Gera URL de download do arquivo
+    Faz download de um arquivo
     
     Args:
         file_id: ID do arquivo
@@ -451,34 +215,279 @@ async def download_file(
         db: Sessão do banco de dados
         
     Returns:
-        URL de download
+        Arquivo para download
         
     Raises:
         HTTPException: Se arquivo não encontrado
     """
-    from models.file_models import File as FileModel
+    file_service = FileService(db)
     
-    file = db.query(FileModel).filter(
-        FileModel.id == file_id,
-        FileModel.user_id == current_user.id
-    ).first()
+    try:
+        file_data = file_service.download_file(file_id, current_user.id)
+        
+        return file_data
+        
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(e)
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Erro no download: {str(e)}"
+        )
+
+@router.post("/{file_id}/share")
+async def share_file(
+    file_id: int,
+    share_with: List[str],
+    permissions: str = "read",
+    current_user: UserResponse = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Compartilha um arquivo com outros usuários
     
-    if not file:
+    Args:
+        file_id: ID do arquivo
+        share_with: Lista de emails dos usuários
+        permissions: Permissões (read, write, admin)
+        current_user: Usuário atual
+        db: Sessão do banco de dados
+        
+    Returns:
+        Status do compartilhamento
+        
+    Raises:
+        HTTPException: Se arquivo não encontrado
+    """
+    file_service = FileService(db)
+    
+    try:
+        share_result = file_service.share_file(
+            file_id=file_id,
+            user_id=current_user.id,
+            share_with=share_with,
+            permissions=permissions
+        )
+        
+        return share_result
+        
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(e)
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+
+@router.get("/{file_id}/shared")
+async def get_shared_users(
+    file_id: int,
+    current_user: UserResponse = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Retorna lista de usuários com quem o arquivo foi compartilhado
+    
+    Args:
+        file_id: ID do arquivo
+        current_user: Usuário atual
+        db: Sessão do banco de dados
+        
+    Returns:
+        Lista de usuários compartilhados
+        
+    Raises:
+        HTTPException: Se arquivo não encontrado
+    """
+    file_service = FileService(db)
+    
+    shared_users = file_service.get_shared_users(file_id, current_user.id)
+    
+    if shared_users is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Arquivo não encontrado"
         )
     
-    if not file.datalake_url:
+    return shared_users
+
+@router.post("/{file_id}/process")
+async def process_file(
+    file_id: int,
+    process_type: str,
+    options: Optional[Dict[str, Any]] = None,
+    current_user: UserResponse = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Processa um arquivo (OCR, análise, conversão, etc.)
+    
+    Args:
+        file_id: ID do arquivo
+        process_type: Tipo de processamento
+        options: Opções de processamento
+        current_user: Usuário atual
+        db: Sessão do banco de dados
+        
+    Returns:
+        Status do processamento
+        
+    Raises:
+        HTTPException: Se arquivo não encontrado
+    """
+    file_service = FileService(db)
+    
+    try:
+        process_result = await file_service.process_file(
+            file_id=file_id,
+            user_id=current_user.id,
+            process_type=process_type,
+            options=options or {}
+        )
+        
+        return process_result
+        
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(e)
+        )
+    except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Arquivo não está disponível para download"
+            detail=str(e)
         )
+
+@router.get("/{file_id}/content")
+async def get_file_content(
+    file_id: int,
+    format: str = "text",
+    current_user: UserResponse = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Retorna conteúdo processado do arquivo
     
-    # TODO: Gerar URL assinada temporária
+    Args:
+        file_id: ID do arquivo
+        format: Formato do conteúdo (text, json, html)
+        current_user: Usuário atual
+        db: Sessão do banco de dados
+        
+    Returns:
+        Conteúdo do arquivo
+        
+    Raises:
+        HTTPException: Se arquivo não encontrado
+    """
+    file_service = FileService(db)
+    
+    try:
+        content = file_service.get_file_content(
+            file_id=file_id,
+            user_id=current_user.id,
+            format=format
+        )
+        
+        return content
+        
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(e)
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+
+@router.post("/{file_id}/analyze")
+async def analyze_file(
+    file_id: int,
+    analysis_type: str,
+    current_user: UserResponse = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Analisa um arquivo usando IA
+    
+    Args:
+        file_id: ID do arquivo
+        analysis_type: Tipo de análise
+        current_user: Usuário atual
+        db: Sessão do banco de dados
+        
+    Returns:
+        Resultado da análise
+        
+    Raises:
+        HTTPException: Se arquivo não encontrado
+    """
+    file_service = FileService(db)
+    
+    try:
+        analysis_result = await file_service.analyze_file(
+            file_id=file_id,
+            user_id=current_user.id,
+            analysis_type=analysis_type
+        )
+        
+        return analysis_result
+        
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(e)
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+
+@router.get("/search")
+async def search_files(
+    query: str,
+    file_type: Optional[str] = None,
+    tags: Optional[List[str]] = None,
+    limit: int = 20,
+    current_user: UserResponse = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Busca arquivos por texto, tipo ou tags
+    
+    Args:
+        query: Texto para busca
+        file_type: Tipo de arquivo para filtrar
+        tags: Tags para filtrar
+        limit: Limite de resultados
+        current_user: Usuário atual
+        db: Sessão do banco de dados
+        
+    Returns:
+        Lista de arquivos encontrados
+    """
+    file_service = FileService(db)
+    
+    search_results = file_service.search_files(
+        user_id=current_user.id,
+        query=query,
+        file_type=file_type,
+        tags=tags,
+        limit=limit
+    )
+    
     return {
-        "download_url": file.datalake_url,
-        "filename": file.original_filename,
-        "expires_in": 3600  # 1 hora
+        "query": query,
+        "results": search_results,
+        "total": len(search_results)
     }
 

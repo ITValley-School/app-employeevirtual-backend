@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import and_, func, desc, cast, Date
 
 from models.user_models import User, UserSession, UserActivity
+from models.uuid_models import validate_uuid
 
 
 class UserRepository:
@@ -18,7 +19,10 @@ class UserRepository:
     # CRUD Usuários
     def create_user(self, name: str, email: str, password_hash: str, plan: str = "free") -> User:
         """Cria um novo usuário"""
+        from models.uuid_models import generate_uuid
+        
         db_user = User(
+            id=generate_uuid(),  # Gerar UUID manualmente
             name=name,
             email=email,
             password_hash=password_hash,
@@ -29,16 +33,21 @@ class UserRepository:
         self.db.refresh(db_user)
         return db_user
     
-    def get_user_by_id(self, user_id: int) -> Optional[User]:
-        """Busca usuário por ID"""
+    def get_user_by_id(self, user_id: str) -> Optional[User]:
+        """Busca usuário por ID (UUID)"""
+        if not validate_uuid(user_id):
+            return None
         return self.db.query(User).filter(User.id == user_id).first()
     
     def get_user_by_email(self, email: str) -> Optional[User]:
         """Busca usuário por email"""
         return self.db.query(User).filter(User.email == email).first()
     
-    def update_user(self, user_id: int, **kwargs) -> Optional[User]:
+    def update_user(self, user_id: str, **kwargs) -> Optional[User]:
         """Atualiza dados do usuário"""
+        if not validate_uuid(user_id):
+            return None
+            
         user = self.get_user_by_id(user_id)
         if not user:
             return None
@@ -52,8 +61,11 @@ class UserRepository:
         self.db.refresh(user)
         return user
     
-    def delete_user(self, user_id: int) -> bool:
+    def delete_user(self, user_id: str) -> bool:
         """Remove usuário"""
+        if not validate_uuid(user_id):
+            return False
+            
         user = self.get_user_by_id(user_id)
         if not user:
             return False
@@ -71,8 +83,11 @@ class UserRepository:
         return self.db.query(User).count()
     
     # CRUD Sessões
-    def create_session(self, user_id: int, token: str, expires_at: datetime) -> UserSession:
+    def create_session(self, user_id: str, token: str, expires_at: datetime) -> UserSession:
         """Cria uma nova sessão de usuário"""
+        if not validate_uuid(user_id):
+            raise ValueError("Invalid user_id UUID")
+            
         db_session = UserSession(
             user_id=user_id,
             token=token,
@@ -103,14 +118,17 @@ class UserRepository:
         self.db.commit()
         return True
     
-    def invalidate_user_sessions(self, user_id: int) -> bool:
-        """Invalida todas as sessões de um usuário"""
-        sessions = self.db.query(UserSession).filter(UserSession.user_id == user_id).all()
-        for session in sessions:
-            session.is_active = False
-        
-        self.db.commit()
-        return True
+    def get_user_sessions(self, user_id: str) -> List[UserSession]:
+        """Busca todas as sessões de um usuário"""
+        if not validate_uuid(user_id):
+            return []
+            
+        return self.db.query(UserSession).filter(
+            and_(
+                UserSession.user_id == user_id,
+                UserSession.is_active == True
+            )
+        ).all()
     
     def cleanup_expired_sessions(self) -> int:
         """Remove sessões expiradas"""
@@ -126,84 +144,100 @@ class UserRepository:
         return count
     
     # CRUD Atividades
-    def create_activity(self, user_id: int, activity_type: str, description: str, 
-                       activity_metadata: Optional[Dict[str, Any]] = None) -> UserActivity:
-        """Cria um registro de atividade do usuário"""
+    def create_activity(self, user_id: str, activity_type: str, description: str = None, metadata: dict = None) -> UserActivity:
+        """Cria uma nova atividade do usuário"""
+        if not validate_uuid(user_id):
+            raise ValueError("Invalid user_id UUID")
+            
+        activity_metadata = None
+        if metadata:
+            import json
+            activity_metadata = json.dumps(metadata)
+        
         db_activity = UserActivity(
             user_id=user_id,
             activity_type=activity_type,
             description=description,
-            activity_metadata=activity_metadata or "{}"
+            activity_metadata=activity_metadata
         )
         self.db.add(db_activity)
         self.db.commit()
         self.db.refresh(db_activity)
         return db_activity
     
-    def get_user_activities(self, user_id: int, limit: int = 50, offset: int = 0) -> List[UserActivity]:
-        """Busca atividades do usuário"""
+    def get_user_activities(self, user_id: str, limit: int = 50) -> List[UserActivity]:
+        """Busca atividades de um usuário"""
+        if not validate_uuid(user_id):
+            return []
+            
         return self.db.query(UserActivity).filter(
             UserActivity.user_id == user_id
-        ).order_by(desc(UserActivity.created_at)).offset(offset).limit(limit).all()
+        ).order_by(desc(UserActivity.created_at)).limit(limit).all()
     
-    def get_activities_by_type(self, user_id: int, activity_type: str, 
-                              days: int = 30) -> List[UserActivity]:
-        """Busca atividades por tipo nos últimos N dias"""
-        since_date = datetime.utcnow() - timedelta(days=days)
-        return self.db.query(UserActivity).filter(
-            and_(
-                UserActivity.user_id == user_id,
-                UserActivity.activity_type == activity_type,
-                UserActivity.created_at >= since_date
+    def get_activity_by_id(self, activity_id: str) -> Optional[UserActivity]:
+        """Busca atividade por ID"""
+        if not validate_uuid(activity_id):
+            return None
+            
+        return self.db.query(UserActivity).filter(UserActivity.id == activity_id).first()
+    
+    def delete_activity(self, activity_id: str) -> bool:
+        """Remove uma atividade"""
+        if not validate_uuid(activity_id):
+            return False
+            
+        activity = self.get_activity_by_id(activity_id)
+        if not activity:
+            return False
+        
+        self.db.delete(activity)
+        self.db.commit()
+        return True
+    
+    # Métodos de busca e filtros
+    def search_users(self, search_term: str, limit: int = 20) -> List[User]:
+        """Busca usuários por nome ou email"""
+        search_pattern = f"%{search_term}%"
+        return self.db.query(User).filter(
+            or_(
+                User.name.ilike(search_pattern),
+                User.email.ilike(search_pattern)
             )
-        ).order_by(desc(UserActivity.created_at)).all()
+        ).limit(limit).all()
     
-    def get_daily_activity_count(self, user_id: int, days: int = 30) -> List[Dict[str, Any]]:
-        """Busca contagem de atividades por dia"""
-        since_date = datetime.utcnow() - timedelta(days=days)
-        
-        results = self.db.query(
-            cast(UserActivity.created_at, Date).label('date'),
-            func.count(UserActivity.id).label('count')
-        ).filter(
-            and_(
-                UserActivity.user_id == user_id,
-                UserActivity.created_at >= since_date
-            )
-        ).group_by(
-            cast(UserActivity.created_at, Date)
-        ).order_by(desc('date')).all()
-        
-        return [{'date': result.date, 'count': result.count} for result in results]
+    def get_users_by_plan(self, plan: str, limit: int = 100) -> List[User]:
+        """Busca usuários por plano"""
+        return self.db.query(User).filter(User.plan == plan).limit(limit).all()
     
-    def get_activity_summary(self, user_id: int, days: int = 30) -> Dict[str, int]:
-        """Busca resumo de atividades por tipo"""
-        since_date = datetime.utcnow() - timedelta(days=days)
-        
-        results = self.db.query(
-            UserActivity.activity_type,
-            func.count(UserActivity.id).label('count')
-        ).filter(
-            and_(
-                UserActivity.user_id == user_id,
-                UserActivity.created_at >= since_date
-            )
-        ).group_by(UserActivity.activity_type).all()
-        
-        return {result.activity_type: result.count for result in results}
+    def get_users_by_status(self, status: str, limit: int = 100) -> List[User]:
+        """Busca usuários por status"""
+        return self.db.query(User).filter(User.status == status).limit(limit).all()
     
-    # Métricas e relatórios
-    def get_user_metrics(self, user_id: int) -> Dict[str, Any]:
-        """Busca métricas consolidadas do usuário"""
+    def get_recent_users(self, days: int = 7, limit: int = 50) -> List[User]:
+        """Busca usuários criados recentemente"""
+        cutoff_date = datetime.utcnow() - timedelta(days=days)
+        return self.db.query(User).filter(
+            User.created_at >= cutoff_date
+        ).order_by(desc(User.created_at)).limit(limit).all()
+    
+    def get_users_with_activity(self, days: int = 30, limit: int = 100) -> List[User]:
+        """Busca usuários com atividade recente"""
+        cutoff_date = datetime.utcnow() - timedelta(days=days)
+        return self.db.query(User).join(UserActivity).filter(
+            UserActivity.created_at >= cutoff_date
+        ).distinct().limit(limit).all()
+    
+    # Métodos de estatísticas
+    def get_user_stats(self, user_id: str) -> Dict[str, Any]:
+        """Retorna estatísticas de um usuário"""
+        if not validate_uuid(user_id):
+            return {}
+            
         user = self.get_user_by_id(user_id)
         if not user:
             return {}
         
-        # Atividades dos últimos 30 dias
-        activity_summary = self.get_activity_summary(user_id, 30)
-        daily_activities = self.get_daily_activity_count(user_id, 30)
-        
-        # Sessões ativas
+        # Contar sessões ativas
         active_sessions = self.db.query(UserSession).filter(
             and_(
                 UserSession.user_id == user_id,
@@ -212,15 +246,25 @@ class UserRepository:
             )
         ).count()
         
+        # Contar atividades
+        total_activities = self.db.query(UserActivity).filter(
+            UserActivity.user_id == user_id
+        ).count()
+        
+        # Última atividade
+        last_activity = self.db.query(UserActivity).filter(
+            UserActivity.user_id == user_id
+        ).order_by(desc(UserActivity.created_at)).first()
+        
         return {
-            'user_id': user_id,
-            'name': user.name,
-            'email': user.email,
-            'plan': user.plan,
-            'created_at': user.created_at,
-            'last_login': user.last_login,
-            'activity_summary': activity_summary,
-            'daily_activities': daily_activities,
-            'active_sessions': active_sessions,
-            'total_activities': sum(activity_summary.values())
+            "user_id": user_id,
+            "name": user.name,
+            "email": user.email,
+            "plan": user.plan,
+            "status": user.status,
+            "created_at": user.created_at,
+            "last_login": user.last_login,
+            "active_sessions": active_sessions,
+            "total_activities": total_activities,
+            "last_activity": last_activity.created_at if last_activity else None
         }

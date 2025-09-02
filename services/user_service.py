@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 from data.user_repository import UserRepository
 from models.user_models import UserCreate, UserUpdate, UserResponse, UserLogin
 from models.dashboard_models import UserMetrics
+from models.uuid_models import validate_uuid
 
 
 class UserService:
@@ -102,6 +103,7 @@ class UserService:
             name=user.name,
             email=user.email,
             plan=user.plan,
+            status=user.status,
             created_at=user.created_at,
             updated_at=user.updated_at,
             last_login=user.last_login
@@ -113,61 +115,90 @@ class UserService:
             "expires_at": expires_at
         }
     
-    def get_user_by_id(self, user_id: int) -> Optional[UserResponse]:
+    def get_user_by_id(self, user_id: str) -> Optional[UserResponse]:
         """
         Busca usuário por ID
         
         Args:
-            user_id: ID do usuário
+            user_id: UUID do usuário
             
         Returns:
             UserResponse ou None se não encontrado
         """
-        user = self.user_repository.get_user_by_id(user_id)
-        if not user:
+        if not validate_uuid(user_id):
+            return None
+            
+        db_user = self.user_repository.get_user_by_id(user_id)
+        if not db_user:
             return None
         
         return UserResponse(
-            id=user.id,
-            name=user.name,
-            email=user.email,
-            plan=user.plan,
-            created_at=user.created_at,
-            updated_at=user.updated_at,
-            last_login=user.last_login
+            id=db_user.id,
+            name=db_user.name,
+            email=db_user.email,
+            plan=db_user.plan,
+            status=db_user.status,
+            created_at=db_user.created_at,
+            updated_at=db_user.updated_at,
+            last_login=db_user.last_login
         )
     
-    def update_user(self, user_id: int, user_data: UserUpdate) -> Optional[UserResponse]:
+    def get_user_by_email(self, email: str) -> Optional[UserResponse]:
+        """
+        Busca usuário por email
+        
+        Args:
+            email: Email do usuário
+            
+        Returns:
+            UserResponse ou None se não encontrado
+        """
+        db_user = self.user_repository.get_user_by_email(email)
+        if not db_user:
+            return None
+        
+        return UserResponse(
+            id=db_user.id,
+            name=db_user.name,
+            email=db_user.email,
+            plan=db_user.plan,
+            status=db_user.status,
+            created_at=db_user.created_at,
+            updated_at=db_user.updated_at,
+            last_login=db_user.last_login
+        )
+    
+    def update_user(self, user_id: str, user_data: UserUpdate) -> Optional[UserResponse]:
         """
         Atualiza dados do usuário
         
         Args:
-            user_id: ID do usuário
-            user_data: Dados para atualização
+            user_id: UUID do usuário
+            user_data: Dados a serem atualizados
             
         Returns:
-            UserResponse ou None se usuário não encontrado
+            UserResponse atualizado ou None se não encontrado
         """
-        # Verificar se email já está em uso por outro usuário
-        if user_data.email:
-            existing_user = self.user_repository.get_user_by_email(user_data.email)
-            if existing_user and existing_user.id != user_id:
-                raise ValueError("Email já está em uso por outro usuário")
-        
+        if not validate_uuid(user_id):
+            return None
+            
         # Preparar dados para atualização
         update_data = {}
         if user_data.name is not None:
-            update_data['name'] = user_data.name
+            update_data["name"] = user_data.name
         if user_data.email is not None:
-            update_data['email'] = user_data.email
+            update_data["email"] = user_data.email
         if user_data.plan is not None:
-            update_data['plan'] = user_data.plan
+            update_data["plan"] = user_data.plan
         if user_data.status is not None:
-            update_data['status'] = user_data.status
+            update_data["status"] = user_data.status
+        
+        if not update_data:
+            return self.get_user_by_id(user_id)
         
         # Atualizar usuário
-        updated_user = self.user_repository.update_user(user_id, **update_data)
-        if not updated_user:
+        db_user = self.user_repository.update_user(user_id, **update_data)
+        if not db_user:
             return None
         
         # Log da atividade
@@ -178,85 +209,159 @@ class UserService:
         )
         
         return UserResponse(
-            id=updated_user.id,
-            name=updated_user.name,
-            email=updated_user.email,
-            plan=updated_user.plan,
-            created_at=updated_user.created_at,
-            updated_at=updated_user.updated_at,
-            last_login=updated_user.last_login
+            id=db_user.id,
+            name=db_user.name,
+            email=db_user.email,
+            plan=db_user.plan,
+            status=db_user.status,
+            created_at=db_user.created_at,
+            updated_at=db_user.updated_at,
+            last_login=db_user.last_login
         )
     
-    def delete_user(self, user_id: int) -> bool:
+    def delete_user(self, user_id: str) -> bool:
         """
         Remove um usuário
         
         Args:
-            user_id: ID do usuário
+            user_id: UUID do usuário
             
         Returns:
-            True se removido com sucesso
+            True se removido com sucesso, False caso contrário
         """
-        # Invalidar todas as sessões do usuário
-        self.user_repository.invalidate_user_sessions(user_id)
+        if not validate_uuid(user_id):
+            return False
+            
+        # Log da atividade antes de remover
+        self.user_repository.create_activity(
+            user_id=user_id,
+            activity_type="user_deleted",
+            description="Usuário removido do sistema"
+        )
         
-        # Remover usuário
         return self.user_repository.delete_user(user_id)
     
-    def create_session(self, user_id: int, expires_in_hours: int = 24) -> str:
+    def list_users(self, skip: int = 0, limit: int = 100) -> List[UserResponse]:
         """
-        Cria uma sessão para o usuário
+        Lista usuários com paginação
         
         Args:
-            user_id: ID do usuário
-            expires_in_hours: Duração da sessão em horas
+            skip: Número de registros para pular
+            limit: Número máximo de registros
+            
+        Returns:
+            Lista de usuários
+        """
+        db_users = self.user_repository.list_users(skip, limit)
+        
+        return [
+            UserResponse(
+                id=user.id,
+                name=user.name,
+                email=user.email,
+                plan=user.plan,
+                status=user.status,
+                created_at=user.created_at,
+                updated_at=user.updated_at,
+                last_login=user.last_login
+            )
+            for user in db_users
+        ]
+    
+    def search_users(self, search_term: str, limit: int = 20) -> List[UserResponse]:
+        """
+        Busca usuários por nome ou email
+        
+        Args:
+            search_term: Termo de busca
+            limit: Número máximo de resultados
+            
+        Returns:
+            Lista de usuários encontrados
+        """
+        db_users = self.user_repository.search_users(search_term, limit)
+        
+        return [
+            UserResponse(
+                id=user.id,
+                name=user.name,
+                email=user.email,
+                plan=user.plan,
+                status=user.status,
+                created_at=user.created_at,
+                updated_at=user.updated_at,
+                last_login=user.last_login
+            )
+            for user in db_users
+        ]
+    
+    def get_user_metrics(self, user_id: str) -> Optional[UserMetrics]:
+        """
+        Busca métricas do usuário
+        
+        Args:
+            user_id: UUID do usuário
+            
+        Returns:
+            UserMetrics ou None se não encontrado
+        """
+        if not validate_uuid(user_id):
+            return None
+            
+        stats = self.user_repository.get_user_stats(user_id)
+        if not stats:
+            return None
+        
+        return UserMetrics(
+            user_id=stats["user_id"],
+            total_agents=stats.get("total_agents", 0),
+            total_flows=stats.get("total_flows", 0),
+            total_executions=stats.get("total_executions", 0),
+            active_sessions=stats.get("active_sessions", 0),
+            total_activities=stats.get("total_activities", 0),
+            last_activity=stats.get("last_activity"),
+            created_at=stats["created_at"],
+            last_login=stats["last_login"]
+        )
+    
+    def create_session(self, user_id: str, expires_in_hours: int = 24) -> str:
+        """
+        Cria uma nova sessão para o usuário
+        
+        Args:
+            user_id: UUID do usuário
+            expires_in_hours: Horas até expirar
             
         Returns:
             Token da sessão
         """
+        if not validate_uuid(user_id):
+            raise ValueError("Invalid user_id UUID")
+            
         # Gerar token único
-        token = self._generate_session_token()
+        token = secrets.token_urlsafe(32)
         expires_at = datetime.utcnow() + timedelta(hours=expires_in_hours)
         
-        # Criar sessão
+        # Criar sessão no banco
         self.user_repository.create_session(user_id, token, expires_at)
-        
-        # Log da atividade
-        self.user_repository.create_activity(
-            user_id=user_id,
-            activity_type="session_created",
-            description="Nova sessão criada"
-        )
         
         return token
     
-    def validate_session(self, token: str) -> Optional[UserResponse]:
+    def validate_session(self, token: str) -> Optional[str]:
         """
-        Valida um token de sessão
+        Valida uma sessão e retorna o user_id
         
         Args:
             token: Token da sessão
             
         Returns:
-            UserResponse se sessão válida, None caso contrário
+            UUID do usuário ou None se sessão inválida
         """
         session = self.user_repository.get_session_by_token(token)
         if not session:
             return None
         
-        user = self.user_repository.get_user_by_id(session.user_id)
-        if not user:
-            return None
-        
-        return UserResponse(
-            id=user.id,
-            name=user.name,
-            email=user.email,
-            plan=user.plan,
-            created_at=user.created_at,
-            updated_at=user.updated_at,
-            last_login=user.last_login
-        )
+        return session.user_id
     
     def invalidate_session(self, token: str) -> bool:
         """
@@ -270,177 +375,133 @@ class UserService:
         """
         return self.user_repository.invalidate_session(token)
     
-    def cleanup_expired_sessions(self) -> int:
+    def get_user_sessions(self, user_id: str) -> List[Dict[str, Any]]:
         """
-        Remove sessões expiradas
-        
-        Returns:
-            Número de sessões removidas
-        """
-        return self.user_repository.cleanup_expired_sessions()
-    
-    def get_user_activities(self, user_id: int, limit: int = 50, offset: int = 0) -> List[Dict[str, Any]]:
-        """
-        Busca atividades do usuário
+        Busca todas as sessões ativas de um usuário
         
         Args:
-            user_id: ID do usuário
-            limit: Limite de atividades
-            offset: Deslocamento para paginação
+            user_id: UUID do usuário
+            
+        Returns:
+            Lista de sessões
+        """
+        if not validate_uuid(user_id):
+            return []
+            
+        sessions = self.user_repository.get_user_sessions(user_id)
+        
+        return [
+            {
+                "id": session.id,
+                "token": session.token,
+                "expires_at": session.expires_at,
+                "created_at": session.created_at,
+                "is_active": session.is_active
+            }
+            for session in sessions
+        ]
+    
+    def get_user_activities(self, user_id: str, limit: int = 50) -> List[Dict[str, Any]]:
+        """
+        Busca atividades de um usuário
+        
+        Args:
+            user_id: UUID do usuário
+            limit: Número máximo de atividades
             
         Returns:
             Lista de atividades
         """
-        activities = self.user_repository.get_user_activities(user_id, limit, offset)
+        if not validate_uuid(user_id):
+            return []
+            
+        activities = self.user_repository.get_user_activities(user_id, limit)
         
         return [
             {
-                'id': activity.id,
-                'activity_type': activity.activity_type,
-                'description': activity.description,
-                'activity_metadata': activity.activity_metadata,
-                'created_at': activity.created_at
+                "id": activity.id,
+                "activity_type": activity.activity_type,
+                "description": activity.description,
+                "activity_metadata": activity.activity_metadata,
+                "created_at": activity.created_at
             }
             for activity in activities
         ]
     
-    def get_user_metrics(self, user_id: int) -> UserMetrics:
+    def change_password(self, user_id: str, current_password: str, new_password: str) -> bool:
         """
-        Busca métricas do usuário
+        Altera a senha do usuário
         
         Args:
-            user_id: ID do usuário
+            user_id: UUID do usuário
+            current_password: Senha atual
+            new_password: Nova senha
             
         Returns:
-            Métricas do usuário
+            True se alterada com sucesso
         """
-        metrics_data = self.user_repository.get_user_metrics(user_id)
-        
-        if not metrics_data:
-            raise ValueError("Usuário não encontrado")
-        
-        return UserMetrics(
-            user_id=metrics_data['user_id'],
-            name=metrics_data['name'],
-            email=metrics_data['email'],
-            plan=metrics_data['plan'],
-            created_at=metrics_data['created_at'],
-            last_login=metrics_data['last_login'],
-            activity_summary=metrics_data['activity_summary'],
-            daily_activities=metrics_data['daily_activities'],
-            active_sessions=metrics_data['active_sessions'],
-            total_activities=metrics_data['total_activities']
-        )
-    
-    def log_user_activity(self, user_id: int, activity_type: str, description: str,
-                         metadata: Optional[Dict[str, Any]] = None) -> bool:
-        """
-        Registra uma atividade do usuário
-        
-        Args:
-            user_id: ID do usuário
-            activity_type: Tipo da atividade
-            description: Descrição da atividade
-            metadata: Metadados adicionais
-            
-        Returns:
-            True se registrada com sucesso
-        """
-        try:
-            self.user_repository.create_activity(
-                user_id=user_id,
-                activity_type=activity_type,
-                description=description,
-                activity_metadata=metadata
-            )
-            return True
-        except Exception:
+        if not validate_uuid(user_id):
             return False
-    
-    def get_user_by_token(self, token: str) -> Optional[UserResponse]:
-        """
-        Busca usuário por token de sessão
-        
-        Args:
-            token: Token de sessão
             
-        Returns:
-            UserResponse ou None se token inválido
-        """
-        session = self.user_repository.get_session_by_token(token)
-        if not session:
-            return None
-        
-        user = self.user_repository.get_user_by_id(session.user_id)
+        user = self.user_repository.get_user_by_id(user_id)
         if not user:
-            return None
+            return False
         
-        return UserResponse(
-            id=user.id,
-            name=user.name,
-            email=user.email,
-            plan=user.plan,
-            created_at=user.created_at,
-            updated_at=user.updated_at,
-            last_login=user.last_login
+        # Verificar senha atual
+        if not self._verify_password(current_password, user.password_hash):
+            return False
+        
+        # Hash da nova senha
+        new_password_hash = self._hash_password(new_password)
+        
+        # Atualizar senha
+        updated_user = self.user_repository.update_user(user_id, password_hash=new_password_hash)
+        if not updated_user:
+            return False
+        
+        # Log da atividade
+        self.user_repository.create_activity(
+            user_id=user_id,
+            activity_type="password_changed",
+            description="Senha alterada com sucesso"
         )
+        
+        return True
     
-    def logout_user(self, token: str) -> bool:
+    def reset_password(self, email: str) -> bool:
         """
-        Faz logout do usuário (invalida token)
+        Inicia processo de reset de senha
         
         Args:
-            token: Token de sessão
+            email: Email do usuário
             
         Returns:
-            True se logout realizado com sucesso
+            True se processo iniciado
         """
-        success = self.user_repository.invalidate_session(token)
+        user = self.user_repository.get_user_by_email(email)
+        if not user:
+            return False
         
-        if success:
-            # Tentar buscar usuário para log (pode falhar se token inválido)
-            try:
-                session = self.user_repository.get_session_by_token(token)
-                if session:
-                    self.user_repository.create_activity(
-                        user_id=session.user_id,
-                        activity_type="user_logout",
-                        description="Logout realizado"
-                    )
-            except Exception:
-                pass
+        # Gerar token de reset (24 horas)
+        reset_token = secrets.token_urlsafe(32)
+        expires_at = datetime.utcnow() + timedelta(hours=24)
         
-        return success
+        # TODO: Implementar armazenamento do token de reset
+        # TODO: Enviar email com link de reset
+        
+        # Log da atividade
+        self.user_repository.create_activity(
+            user_id=user.id,
+            activity_type="password_reset_requested",
+            description="Solicitação de reset de senha"
+        )
+        
+        return True
     
-    # TODO não está funcionando
-    def get_user_stats(self, user_id: int) -> Dict[str, Any]:
-        """
-        Busca estatísticas do usuário
-        
-        Args:
-            user_id: ID do usuário
-            
-        Returns:
-            Estatísticas do usuário
-        """
-        return self.user_repository.get_user_metrics(user_id)
-    
-    # Métodos privados para hash de senha e tokens
     def _hash_password(self, password: str) -> str:
-        """Gera hash da senha"""
-        salt = secrets.token_hex(16)
-        password_hash = hashlib.pbkdf2_hmac('sha256', password.encode(), salt.encode(), 100000)
-        return f"{salt}:{password_hash.hex()}"
+        """Hash da senha usando SHA-256"""
+        return hashlib.sha256(password.encode()).hexdigest()
     
     def _verify_password(self, password: str, password_hash: str) -> bool:
-        """Verifica senha contra hash"""
-        try:
-            salt, stored_hash = password_hash.split(':')
-            password_hash_check = hashlib.pbkdf2_hmac('sha256', password.encode(), salt.encode(), 100000)
-            return password_hash_check.hex() == stored_hash
-        except Exception:
-            return False
-    
-    def _generate_session_token(self) -> str:
-        """Gera token único para sessão"""
-        return secrets.token_urlsafe(32)
+        """Verifica se a senha está correta"""
+        return self._hash_password(password) == password_hash

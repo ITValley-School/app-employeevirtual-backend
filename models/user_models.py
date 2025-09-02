@@ -6,9 +6,11 @@ from pydantic import BaseModel, Field, EmailStr
 from typing import Optional, List
 from datetime import datetime
 from enum import Enum
-from sqlalchemy import Column, Integer, String, DateTime, Boolean, Text, Enum as SQLEnum
+from sqlalchemy import Column, String, DateTime, Boolean, Text, Enum as SQLEnum
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.sql import func
+
+from models.uuid_models import UUIDColumn, generate_uuid, uuid_field, required_uuid_field
 
 Base = declarative_base()
 
@@ -50,7 +52,7 @@ class UserUpdate(BaseModel):
     
 class UserResponse(UserBase):
     """Modelo de resposta do usuário"""
-    id: int
+    id: str = Field(..., description="UUID único do usuário")
     status: Optional[UserStatus] = UserStatus.ACTIVE
     created_at: datetime
     updated_at: Optional[datetime] = None
@@ -69,7 +71,7 @@ class UserLogin(BaseModel):
 
 class UserProfile(BaseModel):
     """Modelo para perfil do usuário"""
-    id: int
+    id: str = Field(..., description="UUID único do usuário")
     name: str
     email: str
     plan: UserPlan
@@ -87,7 +89,7 @@ class User(Base):
     __tablename__ = "users"
     __table_args__ = SCHEMA_CONFIG
     
-    id = Column(Integer, primary_key=True, index=True)
+    id = Column(UUIDColumn, primary_key=True, default=generate_uuid, index=True)
     name = Column(String(100), nullable=False)
     email = Column(String(255), unique=True, index=True, nullable=False)
     password_hash = Column(String(255), nullable=False)
@@ -107,8 +109,8 @@ class UserSession(Base):
     __tablename__ = "user_sessions"
     __table_args__ = {'schema': 'empl'}
     
-    id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, nullable=False, index=True)
+    id = Column(UUIDColumn, primary_key=True, index=True)
+    user_id = Column(UUIDColumn, nullable=False, index=True)
     token = Column(String(500), unique=True, index=True, nullable=False)
     expires_at = Column(DateTime(timezone=True), nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
@@ -122,8 +124,8 @@ class UserActivity(Base):
     __tablename__ = "user_activities"
     __table_args__ = {'schema': 'empl'}
     
-    id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, nullable=False, index=True)
+    id = Column(UUIDColumn, primary_key=True, index=True)
+    user_id = Column(UUIDColumn, nullable=False, index=True)
     activity_type = Column(String(50), nullable=False)  # login, agent_created, flow_executed, etc.
     description = Column(Text, nullable=True)
     activity_metadata = Column(Text, nullable=True)  # JSON string

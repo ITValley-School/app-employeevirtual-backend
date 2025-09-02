@@ -16,6 +16,7 @@ from auth.config import (
     ACCESS_TOKEN_EXPIRE_MINUTES,
     REFRESH_TOKEN_EXPIRE_DAYS
 )
+from models.uuid_models import validate_uuid
 
 # Blacklist de tokens em memória
 _token_blacklist: Set[str] = set()
@@ -27,7 +28,20 @@ class JWTService:
         return hashlib.sha256(token.encode()).hexdigest()
     
     @staticmethod
-    def create_access_token(user_id: int, email: str) -> str:
+    def create_access_token(user_id: str, email: str) -> str:
+        """
+        Cria um token de acesso
+        
+        Args:
+            user_id: UUID do usuário
+            email: Email do usuário
+            
+        Returns:
+            Token JWT de acesso
+        """
+        if not validate_uuid(user_id):
+            raise ValueError("Invalid user_id UUID")
+            
         return JWTService._create_token(
             user_id=user_id,
             email=email,
@@ -36,7 +50,19 @@ class JWTService:
         )
     
     @staticmethod
-    def create_refresh_token(user_id: int) -> str:
+    def create_refresh_token(user_id: str) -> str:
+        """
+        Cria um token de refresh
+        
+        Args:
+            user_id: UUID do usuário
+            
+        Returns:
+            Token JWT de refresh
+        """
+        if not validate_uuid(user_id):
+            raise ValueError("Invalid user_id UUID")
+            
         return JWTService._create_token(
             user_id=user_id,
             email=None,
@@ -46,19 +72,32 @@ class JWTService:
     
     @staticmethod
     def _create_token(
-        user_id: int, 
+        user_id: str, 
         email: Optional[str], 
         token_type: str,
         expires_minutes: Optional[int] = None,
         expires_days: Optional[int] = None
     ) -> str:
+        """
+        Cria um token JWT
+        
+        Args:
+            user_id: UUID do usuário
+            email: Email do usuário (opcional)
+            token_type: Tipo do token
+            expires_minutes: Expiração em minutos
+            expires_days: Expiração em dias
+            
+        Returns:
+            Token JWT codificado
+        """
         if expires_days:
             expire = datetime.utcnow() + timedelta(days=expires_days)
         else:
             expire = datetime.utcnow() + timedelta(minutes=expires_minutes or 15)
         
         payload = {
-            "sub": str(user_id),
+            "sub": user_id,  # UUID como string
             "exp": expire,
             "iat": datetime.utcnow(),
             "nbf": datetime.utcnow(),
@@ -74,6 +113,16 @@ class JWTService:
     
     @staticmethod
     def verify_token(token: str, expected_type: str = JWT_TYPE_ACCESS) -> Optional[Dict[str, Any]]:
+        """
+        Verifica e decodifica um token JWT
+        
+        Args:
+            token: Token JWT a ser verificado
+            expected_type: Tipo esperado do token
+            
+        Returns:
+            Payload do token ou None se inválido
+        """
         try:
             token_hash = JWTService._get_token_hash(token)
             if token_hash in _token_blacklist:
@@ -99,9 +148,9 @@ class JWTService:
             if payload.get("iss") != JWT_ISSUER:
                 return None
             
-            iat = datetime.fromtimestamp(payload.get("iat", 0))
-            max_age = timedelta(hours=24)
-            if datetime.utcnow() - iat > max_age:
+            # Verificar se o user_id é um UUID válido
+            user_id = payload.get("sub")
+            if not user_id or not validate_uuid(user_id):
                 return None
             
             return payload
@@ -114,89 +163,143 @@ class JWTService:
             return None
     
     @staticmethod
-    def blacklist_token(token: str) -> None:
-        token_hash = JWTService._get_token_hash(token)
-        _token_blacklist.add(token_hash)
+    def get_user_id_from_token(token: str) -> Optional[str]:
+        """
+        Extrai o user_id de um token JWT
+        
+        Args:
+            token: Token JWT
+            
+        Returns:
+            UUID do usuário ou None se inválido
+        """
+        payload = JWTService.verify_token(token)
+        if payload:
+            user_id = payload.get("sub")
+            if validate_uuid(user_id):
+                return user_id
+        return None
     
     @staticmethod
-    def is_blacklisted(token: str) -> bool:
-        token_hash = JWTService._get_token_hash(token)
-        return token_hash in _token_blacklist
+    def get_email_from_token(token: str) -> Optional[str]:
+        """
+        Extrai o email de um token JWT de acesso
+        
+        Args:
+            token: Token JWT de acesso
+            
+        Returns:
+            Email do usuário ou None se não disponível
+        """
+        payload = JWTService.verify_token(token, JWT_TYPE_ACCESS)
+        if payload:
+            return payload.get("email")
+        return None
     
     @staticmethod
-    def extract_user_id(token: str) -> Optional[int]:
+    def blacklist_token(token: str) -> bool:
+        """
+        Adiciona um token à blacklist
+        
+        Args:
+            token: Token a ser invalidado
+            
+        Returns:
+            True se adicionado com sucesso
+        """
         try:
-            payload = jwt.decode(
-                token,
-                JWT_SECRET_KEY,
-                algorithms=[JWT_ALGORITHM],
-                options={"verify_exp": False}
-            )
-            
-            user_id_str = payload.get("sub")
-            if user_id_str and user_id_str.isdigit():
-                return int(user_id_str)
-            
-            return None
-            
+            token_hash = JWTService._get_token_hash(token)
+            _token_blacklist.add(token_hash)
+            return True
         except Exception:
-            return None
+            return False
     
     @staticmethod
-    def get_token_info(token: str) -> Dict[str, Any]:
+    def is_token_blacklisted(token: str) -> bool:
+        """
+        Verifica se um token está na blacklist
+        
+        Args:
+            token: Token a ser verificado
+            
+        Returns:
+            True se está na blacklist
+        """
         try:
-            payload = jwt.decode(
-                token,
-                JWT_SECRET_KEY,
-                algorithms=[JWT_ALGORITHM],
-                options={
-                    "verify_signature": False,
-                    "verify_exp": False,
-                    "verify_iat": False,
-                    "verify_nbf": False
-                }
-            )
-            
-            exp = payload.get("exp", 0)
-            is_expired = datetime.utcnow().timestamp() > exp
-            is_blacklisted = JWTService.is_blacklisted(token)
-            
-            return {
-                "user_id": payload.get("sub"),
-                "email": payload.get("email"),
-                "type": payload.get("type"),
-                "issued_at": datetime.fromtimestamp(payload.get("iat", 0)),
-                "expires_at": datetime.fromtimestamp(exp),
-                "is_expired": is_expired,
-                "is_blacklisted": is_blacklisted,
-                "is_valid": not (is_expired or is_blacklisted),
-                "jti": payload.get("jti"),
-                "issuer": payload.get("iss")
-            }
-            
-        except Exception as e:
-            return {
-                "error": str(e),
-                "valid": False
-            }
-
-def create_token_pair(user_id: int, email: str) -> Dict[str, Any]:
-    access_token = JWTService.create_access_token(user_id, email)
-    refresh_token = JWTService.create_refresh_token(user_id)
+            token_hash = JWTService._get_token_hash(token)
+            return token_hash in _token_blacklist
+        except Exception:
+            return True
     
-    return {
-        "access_token": access_token,
-        "refresh_token": refresh_token,
-        "token_type": "bearer",
-        "expires_in": ACCESS_TOKEN_EXPIRE_MINUTES * 60,
-        "user": {
-            "id": user_id,
-            "email": email
+    @staticmethod
+    def clear_blacklist() -> int:
+        """
+        Limpa a blacklist de tokens
+        
+        Returns:
+            Número de tokens removidos
+        """
+        count = len(_token_blacklist)
+        _token_blacklist.clear()
+        return count
+    
+    @staticmethod
+    def get_blacklist_size() -> int:
+        """
+        Retorna o tamanho atual da blacklist
+        
+        Returns:
+            Número de tokens na blacklist
+        """
+        return len(_token_blacklist)
+    
+    @staticmethod
+    def create_token_pair(user_id: str, email: str) -> Dict[str, str]:
+        """
+        Cria um par de tokens (access + refresh)
+        
+        Args:
+            user_id: UUID do usuário
+            email: Email do usuário
+            
+        Returns:
+            Dicionário com access_token e refresh_token
+        """
+        if not validate_uuid(user_id):
+            raise ValueError("Invalid user_id UUID")
+            
+        access_token = JWTService.create_access_token(user_id, email)
+        refresh_token = JWTService.create_refresh_token(user_id)
+        
+        return {
+            "access_token": access_token,
+            "refresh_token": refresh_token,
+            "token_type": "bearer"
         }
-    }
-
-def revoke_token_pair(access_token: str, refresh_token: str) -> None:
-    if access_token:
-        JWTService.blacklist_token(access_token)
-    if refresh_token:
-        JWTService.blacklist_token(refresh_token)
+    
+    @staticmethod
+    def refresh_access_token(refresh_token: str) -> Optional[str]:
+        """
+        Cria um novo access_token usando um refresh_token válido
+        
+        Args:
+            refresh_token: Token de refresh válido
+            
+        Returns:
+            Novo access_token ou None se refresh_token inválido
+        """
+        payload = JWTService.verify_token(refresh_token, JWT_TYPE_REFRESH)
+        if not payload:
+            return None
+        
+        user_id = payload.get("sub")
+        if not user_id or not validate_uuid(user_id):
+            return None
+        
+        # Criar novo access_token (sem email para refresh)
+        return JWTService._create_token(
+            user_id=user_id,
+            email=None,
+            token_type=JWT_TYPE_ACCESS,
+            expires_minutes=ACCESS_TOKEN_EXPIRE_MINUTES
+        )
