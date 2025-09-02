@@ -1,494 +1,374 @@
 """
-Serviço de dashboard e métricas para o sistema EmployeeVirtual
+Serviço de dashboard para o sistema EmployeeVirtual - Nova implementação
+Usa apenas repositories para acesso a dados
 """
-import json
-from datetime import datetime, date, timedelta
+from datetime import datetime, timedelta
 from typing import Optional, List, Dict, Any
 from sqlalchemy.orm import Session
-from sqlalchemy import and_, func, desc
 
+from data.dashboard_repository import DashboardRepository
+from data.agent_repository import AgentRepository
+from data.user_repository import UserRepository
 from models.dashboard_models import (
-    UserMetrics, AgentMetricsDB, FlowMetricsDB, SystemMetrics,
-    DashboardSummary, AgentMetrics as AgentMetricsModel, FlowMetrics as FlowMetricsModel,
-    UsageMetrics, TimeSeriesData, ChartData, DashboardResponse, MetricFilter
+    DashboardSummary, AgentMetrics, FlowMetrics, UserMetrics,
+    MetricType, PeriodType
 )
-from models.agent_models import Agent, AgentExecutionDB
-from models.flow_models import Flow, FlowExecution, FlowStatus
-from models.chat_models import Message
-from models.file_models import File
 
 
 class DashboardService:
-    """Serviço para dashboard e métricas"""
+    """Serviço para gerenciamento de dashboard e métricas - Nova implementação"""
     
     def __init__(self, db: Session):
-        self.db = db
+        self.dashboard_repository = DashboardRepository(db)
+        self.agent_repository = AgentRepository(db)
+        self.user_repository = UserRepository(db)
     
-    def get_user_dashboard(self, user_id: int) -> DashboardResponse:
+    def get_dashboard_summary(self, user_id: int) -> DashboardSummary:
         """
-        Busca dados completos do dashboard do usuário
+        Busca resumo geral do dashboard
         
         Args:
             user_id: ID do usuário
             
         Returns:
-            DashboardResponse: Dados completos do dashboard
+            DashboardSummary: Resumo do dashboard
         """
-        # Resumo geral
-        summary = self._get_dashboard_summary(user_id)
+        summary_data = self.dashboard_repository.get_dashboard_summary(user_id)
         
-        # Top agentes
-        top_agents = self._get_top_agents(user_id, limit=5)
-        
-        # Flows recentes
-        recent_flows = self._get_recent_flows(user_id, limit=5)
-        
-        # Gráfico de uso
-        usage_chart = self._get_usage_chart(user_id, days=30)
-        
-        # Gráfico de tempo economizado
-        time_saved_chart = self._get_time_saved_chart(user_id, days=30)
-        
-        return DashboardResponse(
-            summary=summary,
-            top_agents=top_agents,
-            recent_flows=recent_flows,
-            usage_chart=usage_chart,
-            time_saved_chart=time_saved_chart
+        # Registrar atividade
+        self.user_repository.create_activity(
+            user_id=user_id,
+            activity_type="dashboard_accessed",
+            description="Dashboard acessado"
         )
-    
-    def _get_dashboard_summary(self, user_id: int) -> DashboardSummary:
-        """Busca resumo do dashboard"""
-        today = date.today()
-        
-        # Contar agentes
-        total_agents = self.db.query(Agent).filter(Agent.user_id == user_id).count()
-        
-        # Contar flows por status
-        flow_counts = self.db.query(
-            Flow.status,
-            func.count(Flow.id)
-        ).filter(Flow.user_id == user_id).group_by(Flow.status).all()
-        
-        total_flows = sum(count for _, count in flow_counts)
-        active_flows = next((count for status, count in flow_counts if status == FlowStatus.ACTIVE), 0)
-        paused_flows = next((count for status, count in flow_counts if status == FlowStatus.PAUSED), 0)
-        error_flows = next((count for status, count in flow_counts if status == FlowStatus.ERROR), 0)
-        draft_flows = next((count for status, count in flow_counts if status == FlowStatus.DRAFT), 0)
-        
-        # Execuções hoje
-        executions_today = (
-            self.db.query(AgentExecutionDB).filter(
-                and_(
-                    AgentExecutionDB.user_id == user_id,
-                    func.date(AgentExecutionDB.created_at) == today
-                )
-            ).count() +
-            self.db.query(FlowExecution).filter(
-                and_(
-                    FlowExecution.user_id == user_id,
-                    func.date(FlowExecution.started_at) == today
-                )
-            ).count()
-        )
-        
-        # Execuções totais
-        executions_all_time = (
-            self.db.query(AgentExecutionDB).filter(AgentExecutionDB.user_id == user_id).count() +
-            self.db.query(FlowExecution).filter(FlowExecution.user_id == user_id).count()
-        )
-        
-        # Tempo economizado
-        today_metrics = self.db.query(UserMetrics).filter(
-            and_(
-                UserMetrics.user_id == user_id,
-                UserMetrics.metric_date == today
-            )
-        ).first()
-        
-        time_saved_today = today_metrics.time_saved if today_metrics else 0.0
-        
-        # Tempo economizado total
-        total_time_saved = self.db.query(
-            func.sum(UserMetrics.time_saved)
-        ).filter(UserMetrics.user_id == user_id).scalar() or 0.0
         
         return DashboardSummary(
-            total_agents=total_agents,
-            total_flows=total_flows,
-            total_executions_today=executions_today,
-            total_executions_all_time=executions_all_time,
-            active_flows=active_flows,
-            paused_flows=paused_flows,
-            error_flows=error_flows,
-            draft_flows=draft_flows,
-            time_saved_today=time_saved_today,
-            time_saved_all_time=total_time_saved
+            total_agents=summary_data['total_agents'],
+            total_flows=summary_data['total_flows'],
+            total_executions_today=summary_data['total_executions_today'],
+            total_executions_all_time=summary_data['total_executions_all_time'],
+            active_flows=summary_data['active_flows'],
+            paused_flows=summary_data['paused_flows'],
+            error_flows=summary_data['error_flows'],
+            draft_flows=summary_data['draft_flows'],
+            time_saved_today=summary_data['time_saved_today'],
+            time_saved_all_time=summary_data['time_saved_all_time']
         )
     
-    def _get_top_agents(self, user_id: int, limit: int = 5) -> List[AgentMetricsModel]:
-        """Busca top agentes por uso"""
-        agents = self.db.query(Agent).filter(
-            Agent.user_id == user_id
-        ).order_by(desc(Agent.usage_count)).limit(limit).all()
-        
-        result = []
-        today = date.today()
-        week_start = today - timedelta(days=7)
-        month_start = today - timedelta(days=30)
-        
-        for agent in agents:
-            # Execuções hoje
-            executions_today = self.db.query(AgentExecutionDB).filter(
-                and_(
-                    AgentExecutionDB.agent_id == agent.id,
-                    func.date(AgentExecutionDB.created_at) == today
-                )
-            ).count()
-            
-            # Execuções esta semana
-            executions_this_week = self.db.query(AgentExecutionDB).filter(
-                and_(
-                    AgentExecutionDB.agent_id == agent.id,
-                    func.date(AgentExecutionDB.created_at) >= week_start
-                )
-            ).count()
-            
-            # Execuções este mês
-            executions_this_month = self.db.query(AgentExecutionDB).filter(
-                and_(
-                    AgentExecutionDB.agent_id == agent.id,
-                    func.date(AgentExecutionDB.created_at) >= month_start
-                )
-            ).count()
-            
-            # Tempo médio de execução
-            avg_time = self.db.query(
-                func.avg(AgentExecutionDB.execution_time)
-            ).filter(AgentExecutionDB.agent_id == agent.id).scalar()
-            
-            # Taxa de sucesso
-            total_executions = self.db.query(AgentExecutionDB).filter(
-                AgentExecutionDB.agent_id == agent.id
-            ).count()
-            
-            successful_executions = self.db.query(AgentExecutionDB).filter(
-                and_(
-                    AgentExecutionDB.agent_id == agent.id,
-                    AgentExecutionDB.success == True
-                )
-            ).count()
-            
-            success_rate = (successful_executions / total_executions * 100) if total_executions > 0 else 0.0
-            
-            result.append(AgentMetricsModel(
-                agent_id=agent.id,
-                agent_name=agent.name,
-                total_executions=total_executions,
-                executions_today=executions_today,
-                executions_this_week=executions_this_week,
-                executions_this_month=executions_this_month,
-                average_execution_time=avg_time,
-                success_rate=success_rate,
-                last_used=agent.last_used
-            ))
-        
-        return result
-    
-    def _get_recent_flows(self, user_id: int, limit: int = 5) -> List[FlowMetricsModel]:
-        """Busca flows recentes"""
-        flows = self.db.query(Flow).filter(
-            Flow.user_id == user_id
-        ).order_by(desc(Flow.last_executed)).limit(limit).all()
-        
-        result = []
-        today = date.today()
-        week_start = today - timedelta(days=7)
-        month_start = today - timedelta(days=30)
-        
-        for flow in flows:
-            # Execuções hoje
-            executions_today = self.db.query(FlowExecution).filter(
-                and_(
-                    FlowExecution.flow_id == flow.id,
-                    func.date(FlowExecution.started_at) == today
-                )
-            ).count()
-            
-            # Execuções esta semana
-            executions_this_week = self.db.query(FlowExecution).filter(
-                and_(
-                    FlowExecution.flow_id == flow.id,
-                    func.date(FlowExecution.started_at) >= week_start
-                )
-            ).count()
-            
-            # Execuções este mês
-            executions_this_month = self.db.query(FlowExecution).filter(
-                and_(
-                    FlowExecution.flow_id == flow.id,
-                    func.date(FlowExecution.started_at) >= month_start
-                )
-            ).count()
-            
-            # Tempo médio de execução
-            avg_time = self.db.query(
-                func.avg(FlowExecution.execution_time)
-            ).filter(FlowExecution.flow_id == flow.id).scalar()
-            
-            # Taxa de sucesso
-            total_executions = flow.execution_count
-            
-            successful_executions = self.db.query(FlowExecution).filter(
-                and_(
-                    FlowExecution.flow_id == flow.id,
-                    FlowExecution.status == "completed"
-                )
-            ).count()
-            
-            success_rate = (successful_executions / total_executions * 100) if total_executions > 0 else 0.0
-            
-            result.append(FlowMetricsModel(
-                flow_id=flow.id,
-                flow_name=flow.name,
-                total_executions=total_executions,
-                executions_today=executions_today,
-                executions_this_week=executions_this_week,
-                executions_this_month=executions_this_month,
-                average_execution_time=avg_time,
-                success_rate=success_rate,
-                last_executed=flow.last_executed,
-                status=flow.status
-            ))
-        
-        return result
-    
-    def _get_usage_chart(self, user_id: int, days: int = 30) -> ChartData:
-        """Gera dados do gráfico de uso"""
-        end_date = date.today()
-        start_date = end_date - timedelta(days=days)
-        
-        # Buscar métricas diárias
-        metrics = self.db.query(UserMetrics).filter(
-            and_(
-                UserMetrics.user_id == user_id,
-                UserMetrics.metric_date >= start_date,
-                UserMetrics.metric_date <= end_date
-            )
-        ).order_by(UserMetrics.metric_date).all()
-        
-        # Criar dados para o gráfico
-        labels = []
-        agent_data = []
-        flow_data = []
-        chat_data = []
-        
-        # Preencher todos os dias
-        current_date = start_date
-        metrics_dict = {m.metric_date: m for m in metrics}
-        
-        while current_date <= end_date:
-            labels.append(current_date.strftime("%d/%m"))
-            
-            metric = metrics_dict.get(current_date)
-            if metric:
-                agent_data.append(metric.agent_executions)
-                flow_data.append(metric.flow_executions)
-                chat_data.append(metric.chat_messages)
-            else:
-                agent_data.append(0)
-                flow_data.append(0)
-                chat_data.append(0)
-            
-            current_date += timedelta(days=1)
-        
-        return ChartData(
-            labels=labels,
-            datasets=[
-                {
-                    "label": "Execuções de Agentes",
-                    "data": agent_data,
-                    "borderColor": "#3B82F6",
-                    "backgroundColor": "rgba(59, 130, 246, 0.1)"
-                },
-                {
-                    "label": "Execuções de Flows",
-                    "data": flow_data,
-                    "borderColor": "#10B981",
-                    "backgroundColor": "rgba(16, 185, 129, 0.1)"
-                },
-                {
-                    "label": "Mensagens de Chat",
-                    "data": chat_data,
-                    "borderColor": "#F59E0B",
-                    "backgroundColor": "rgba(245, 158, 11, 0.1)"
-                }
-            ]
-        )
-    
-    def _get_time_saved_chart(self, user_id: int, days: int = 30) -> ChartData:
-        """Gera dados do gráfico de tempo economizado"""
-        end_date = date.today()
-        start_date = end_date - timedelta(days=days)
-        
-        # Buscar métricas diárias
-        metrics = self.db.query(UserMetrics).filter(
-            and_(
-                UserMetrics.user_id == user_id,
-                UserMetrics.metric_date >= start_date,
-                UserMetrics.metric_date <= end_date
-            )
-        ).order_by(UserMetrics.metric_date).all()
-        
-        # Criar dados para o gráfico
-        labels = []
-        time_data = []
-        cumulative_data = []
-        cumulative_total = 0.0
-        
-        # Preencher todos os dias
-        current_date = start_date
-        metrics_dict = {m.metric_date: m for m in metrics}
-        
-        while current_date <= end_date:
-            labels.append(current_date.strftime("%d/%m"))
-            
-            metric = metrics_dict.get(current_date)
-            daily_time = metric.time_saved if metric else 0.0
-            
-            time_data.append(daily_time)
-            cumulative_total += daily_time
-            cumulative_data.append(cumulative_total)
-            
-            current_date += timedelta(days=1)
-        
-        return ChartData(
-            labels=labels,
-            datasets=[
-                {
-                    "label": "Tempo Economizado (horas)",
-                    "data": time_data,
-                    "borderColor": "#8B5CF6",
-                    "backgroundColor": "rgba(139, 92, 246, 0.1)",
-                    "type": "bar"
-                },
-                {
-                    "label": "Total Acumulado (horas)",
-                    "data": cumulative_data,
-                    "borderColor": "#EF4444",
-                    "backgroundColor": "rgba(239, 68, 68, 0.1)",
-                    "type": "line"
-                }
-            ]
-        )
-    
-    def update_user_metrics(self, user_id: int, metric_date: Optional[date] = None) -> bool:
+    def get_agent_metrics(self, user_id: int, agent_id: int = None, days: int = 30) -> List[AgentMetrics]:
         """
-        Atualiza métricas do usuário para uma data específica
+        Busca métricas de agentes
         
         Args:
             user_id: ID do usuário
-            metric_date: Data das métricas (padrão: hoje)
+            agent_id: ID específico do agente (opcional)
+            days: Período em dias
             
         Returns:
-            True se atualizado com sucesso
+            Lista de métricas de agentes
         """
-        if metric_date is None:
-            metric_date = date.today()
-        
-        # Buscar ou criar métrica
-        metric = self.db.query(UserMetrics).filter(
-            and_(
-                UserMetrics.user_id == user_id,
-                UserMetrics.metric_date == metric_date
-            )
-        ).first()
-        
-        if not metric:
-            metric = UserMetrics(
-                user_id=user_id,
-                metric_date=metric_date
-            )
-            self.db.add(metric)
-        
-        # Contar agentes
-        metric.total_agents = self.db.query(Agent).filter(Agent.user_id == user_id).count()
-        
-        # Contar flows
-        metric.total_flows = self.db.query(Flow).filter(Flow.user_id == user_id).count()
-        
-        # Contar execuções do dia
-        metric.agent_executions = self.db.query(AgentExecutionDB).filter(
-            and_(
-                AgentExecutionDB.user_id == user_id,
-                func.date(AgentExecutionDB.created_at) == metric_date
-            )
-        ).count()
-        
-        metric.flow_executions = self.db.query(FlowExecution).filter(
-            and_(
-                FlowExecution.user_id == user_id,
-                func.date(FlowExecution.started_at) == metric_date
-            )
-        ).count()
-        
-        # Contar uploads do dia
-        metric.file_uploads = self.db.query(File).filter(
-            and_(
-                File.user_id == user_id,
-                func.date(File.created_at) == metric_date
-            )
-        ).count()
-        
-        # Contar mensagens do dia
-        metric.chat_messages = self.db.query(Message).filter(
-            and_(
-                Message.user_id == user_id,
-                func.date(Message.created_at) == metric_date
-            )
-        ).count()
-        
-        # Calcular tempo economizado (estimativa)
-        # Cada execução de agente economiza ~5 minutos
-        # Cada execução de flow economiza ~30 minutos
-        time_saved_hours = (metric.agent_executions * 5 + metric.flow_executions * 30) / 60.0
-        metric.time_saved = time_saved_hours
-        
-        metric.updated_at = datetime.utcnow()
-        
-        self.db.commit()
-        
-        return True
-    
-    def get_usage_metrics(self, user_id: int, start_date: date, end_date: date) -> List[UsageMetrics]:
-        """
-        Busca métricas de uso por período
-        
-        Args:
-            user_id: ID do usuário
-            start_date: Data inicial
-            end_date: Data final
-            
-        Returns:
-            Lista de métricas
-        """
-        metrics = self.db.query(UserMetrics).filter(
-            and_(
-                UserMetrics.user_id == user_id,
-                UserMetrics.metric_date >= start_date,
-                UserMetrics.metric_date <= end_date
-            )
-        ).order_by(UserMetrics.metric_date).all()
+        metrics_data = self.dashboard_repository.get_agent_metrics(user_id, agent_id, days)
         
         return [
-            UsageMetrics(
-                date=metric.metric_date,
-                agent_executions=metric.agent_executions,
-                flow_executions=metric.flow_executions,
-                file_uploads=metric.file_uploads,
-                chat_messages=metric.chat_messages,
-                time_saved=metric.time_saved
+            AgentMetrics(
+                agent_id=metric['agent_id'],
+                agent_name=metric['agent_name'],
+                total_executions=metric['total_executions'],
+                executions_today=metric['executions_today'],
+                executions_this_week=metric['executions_this_week'],
+                avg_duration=metric['avg_duration'],
+                total_time_saved=metric['total_time_saved'],
+                successful_executions=metric['successful_executions'],
+                failed_executions=metric['failed_executions'],
+                success_rate=metric['success_rate']
             )
-            for metric in metrics
+            for metric in metrics_data
         ]
-
+    
+    def get_flow_metrics(self, user_id: int, flow_id: int = None, days: int = 30) -> List[FlowMetrics]:
+        """
+        Busca métricas de flows
+        
+        Args:
+            user_id: ID do usuário
+            flow_id: ID específico do flow (opcional)
+            days: Período em dias
+            
+        Returns:
+            Lista de métricas de flows
+        """
+        metrics_data = self.dashboard_repository.get_flow_metrics(user_id, flow_id, days)
+        
+        return [
+            FlowMetrics(
+                flow_id=metric['flow_id'],
+                flow_name=metric['flow_name'],
+                status=metric['status'],
+                total_executions=metric['total_executions'],
+                avg_duration=metric['avg_duration'],
+                total_time_saved=metric['total_time_saved'],
+                successful_executions=metric['successful_executions'],
+                failed_executions=metric['failed_executions'],
+                success_rate=metric['success_rate']
+            )
+            for metric in metrics_data
+        ]
+    
+    def get_user_metrics(self, user_id: int) -> UserMetrics:
+        """
+        Busca métricas consolidadas do usuário
+        
+        Args:
+            user_id: ID do usuário
+            
+        Returns:
+            UserMetrics: Métricas do usuário
+        """
+        metrics_data = self.dashboard_repository.get_user_metrics(user_id)
+        
+        if not metrics_data:
+            raise ValueError("Usuário não encontrado")
+        
+        return UserMetrics(
+            user_id=metrics_data['user_id'],
+            name=metrics_data['name'],
+            email=metrics_data['email'],
+            plan=metrics_data['plan'],
+            created_at=metrics_data['created_at'],
+            last_login=metrics_data['last_login'],
+            activity_summary=metrics_data['activity_summary'],
+            dashboard_summary=DashboardSummary(**metrics_data['dashboard_summary']),
+            file_metrics=metrics_data['file_metrics'],
+            chat_metrics=metrics_data['chat_metrics']
+        )
+    
+    def get_daily_metrics(self, user_id: int, metric_type: str = None, days: int = 30) -> List[Dict[str, Any]]:
+        """
+        Busca métricas diárias
+        
+        Args:
+            user_id: ID do usuário
+            metric_type: Tipo de métrica específica
+            days: Período em dias
+            
+        Returns:
+            Lista de métricas diárias
+        """
+        return self.dashboard_repository.get_daily_metrics(user_id, metric_type, days)
+    
+    def get_weekly_metrics(self, user_id: int, weeks: int = 12) -> List[Dict[str, Any]]:
+        """
+        Busca métricas semanais
+        
+        Args:
+            user_id: ID do usuário
+            weeks: Período em semanas
+            
+        Returns:
+            Lista de métricas semanais
+        """
+        return self.dashboard_repository.get_weekly_metrics(user_id, weeks)
+    
+    def get_file_metrics(self, user_id: int, days: int = 30) -> Dict[str, Any]:
+        """
+        Busca métricas de arquivos
+        
+        Args:
+            user_id: ID do usuário
+            days: Período em dias
+            
+        Returns:
+            Métricas de arquivos
+        """
+        return self.dashboard_repository.get_file_metrics(user_id, days)
+    
+    def get_chat_metrics(self, user_id: int, days: int = 30) -> Dict[str, Any]:
+        """
+        Busca métricas de chat
+        
+        Args:
+            user_id: ID do usuário
+            days: Período em dias
+            
+        Returns:
+            Métricas de chat
+        """
+        return self.dashboard_repository.get_chat_metrics(user_id, days)
+    
+    def get_performance_report(self, user_id: int, days: int = 30) -> Dict[str, Any]:
+        """
+        Gera relatório de performance
+        
+        Args:
+            user_id: ID do usuário
+            days: Período em dias
+            
+        Returns:
+            Relatório de performance
+        """
+        report = self.dashboard_repository.get_performance_report(user_id, days)
+        
+        # Registrar atividade
+        self.user_repository.create_activity(
+            user_id=user_id,
+            activity_type="report_generated",
+            description=f"Relatório de performance gerado para {days} dias"
+        )
+        
+        return report
+    
+    def get_agent_performance(self, user_id: int, agent_id: int, days: int = 30) -> Dict[str, Any]:
+        """
+        Busca performance detalhada de um agente
+        
+        Args:
+            user_id: ID do usuário
+            agent_id: ID do agente
+            days: Período em dias
+            
+        Returns:
+            Performance do agente
+        """
+        # Verificar se agente pertence ao usuário
+        agent = self.agent_repository.get_agent_by_id(agent_id, user_id)
+        if not agent:
+            raise ValueError("Agente não encontrado")
+        
+        # Buscar métricas do agente
+        agent_metrics = self.dashboard_repository.get_agent_metrics(user_id, agent_id, days)
+        if not agent_metrics:
+            return {
+                'agent_id': agent_id,
+                'agent_name': agent.name,
+                'no_data': True
+            }
+        
+        metric = agent_metrics[0]
+        
+        # Buscar execuções recentes
+        recent_executions = self.agent_repository.get_agent_executions(
+            agent_id, limit=10, status=None
+        )
+        
+        return {
+            'agent_id': agent_id,
+            'agent_name': agent.name,
+            'description': agent.description,
+            'total_executions': metric['total_executions'],
+            'executions_today': metric['executions_today'],
+            'executions_this_week': metric['executions_this_week'],
+            'avg_duration': metric['avg_duration'],
+            'total_time_saved': metric['total_time_saved'],
+            'success_rate': metric['success_rate'],
+            'recent_executions': [
+                {
+                    'id': exec.id,
+                    'status': exec.status,
+                    'duration': exec.duration,
+                    'time_saved': exec.time_saved,
+                    'created_at': exec.created_at
+                }
+                for exec in recent_executions
+            ]
+        }
+    
+    def get_productivity_insights(self, user_id: int, days: int = 30) -> Dict[str, Any]:
+        """
+        Gera insights de produtividade
+        
+        Args:
+            user_id: ID do usuário
+            days: Período em dias
+            
+        Returns:
+            Insights de produtividade
+        """
+        # Buscar dados base
+        dashboard_summary = self.dashboard_repository.get_dashboard_summary(user_id)
+        agent_metrics = self.dashboard_repository.get_agent_metrics(user_id, days=days)
+        daily_metrics = self.dashboard_repository.get_daily_metrics(user_id, days=days)
+        
+        # Calcular insights
+        total_time_saved = dashboard_summary['time_saved_all_time']
+        avg_daily_executions = sum(metric['total_executions'] for metric in agent_metrics) / max(days, 1)
+        
+        # Agente mais produtivo
+        most_productive_agent = None
+        if agent_metrics:
+            most_productive_agent = max(agent_metrics, key=lambda x: x['total_time_saved'])
+        
+        # Tendência (comparando primeira vs segunda metade do período)
+        mid_point = days // 2
+        first_half_executions = sum(
+            metric['count'] for metric in daily_metrics[-mid_point:]
+        ) if len(daily_metrics) >= mid_point else 0
+        
+        second_half_executions = sum(
+            metric['count'] for metric in daily_metrics[:mid_point]
+        ) if len(daily_metrics) >= mid_point else 0
+        
+        trend = "crescente" if first_half_executions > second_half_executions else "decrescente"
+        
+        return {
+            'period_days': days,
+            'total_time_saved_hours': total_time_saved,
+            'total_time_saved_days': round(total_time_saved / 24, 2),
+            'avg_daily_executions': round(avg_daily_executions, 1),
+            'most_productive_agent': {
+                'name': most_productive_agent['agent_name'],
+                'time_saved': most_productive_agent['total_time_saved']
+            } if most_productive_agent else None,
+            'trend': trend,
+            'recommendations': self._generate_recommendations(dashboard_summary, agent_metrics)
+        }
+    
+    def _generate_recommendations(self, dashboard_summary: Dict[str, Any], 
+                                agent_metrics: List[Dict[str, Any]]) -> List[str]:
+        """
+        Gera recomendações baseadas nas métricas
+        
+        Args:
+            dashboard_summary: Resumo do dashboard
+            agent_metrics: Métricas dos agentes
+            
+        Returns:
+            Lista de recomendações
+        """
+        recommendations = []
+        
+        # Recomendações baseadas em agentes com baixa performance
+        low_performance_agents = [
+            agent for agent in agent_metrics 
+            if agent['success_rate'] < 80 and agent['total_executions'] > 5
+        ]
+        
+        if low_performance_agents:
+            recommendations.append(
+                f"Revisar configuração de {len(low_performance_agents)} agente(s) com taxa de sucesso abaixo de 80%"
+            )
+        
+        # Recomendações baseadas em flows com erro
+        if dashboard_summary['error_flows'] > 0:
+            recommendations.append(
+                f"Corrigir {dashboard_summary['error_flows']} flow(s) com erro"
+            )
+        
+        # Recomendações baseadas em flows pausados
+        if dashboard_summary['paused_flows'] > 0:
+            recommendations.append(
+                f"Revisar {dashboard_summary['paused_flows']} flow(s) pausado(s)"
+            )
+        
+        # Recomendação para aumentar automação
+        if dashboard_summary['total_agents'] < 3:
+            recommendations.append(
+                "Considere criar mais agentes para automatizar outras tarefas"
+            )
+        
+        # Recomendação baseada em tempo economizado
+        if dashboard_summary['time_saved_today'] < 1:
+            recommendations.append(
+                "Execute mais automações para economizar mais tempo hoje"
+            )
+        
+        return recommendations if recommendations else ["Ótimo trabalho! Continue usando as automações."]

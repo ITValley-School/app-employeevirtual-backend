@@ -8,10 +8,9 @@ from datetime import datetime
 from typing import Optional, List, Dict, Any
 from sqlalchemy.orm import Session
 from pydantic_ai import Agent as PydanticAgent
-from data.user_repository import UserRepository
 
 from models.agent_models import (
-    AgentCreate, AgentKnowledge, AgentUpdate, AgentResponse, SystemAgent
+    AgentCreate, AgentUpdate, AgentResponse
 )
 from data.agent_repository import AgentRepository
 
@@ -25,7 +24,6 @@ class AgentService:
     def __init__(self, db: Session):
         self.db = db
         self.repository = AgentRepository(db)  # Usa o repository para dados
-        self.user_repository = UserRepository(db)        
     
     def create_agent(self, user_id: int, agent_data: AgentCreate) -> AgentResponse:
         """
@@ -38,13 +36,20 @@ class AgentService:
         Returns:
             AgentResponse: Dados do agente criado
         """
+        # Validações de negócio
+        if not agent_data.name or len(agent_data.name.strip()) < 2:
+            raise ValueError("Nome do agente deve ter pelo menos 2 caracteres")
+        
+        if not agent_data.system_prompt or len(agent_data.system_prompt.strip()) < 10:
+            raise ValueError("Prompt do sistema deve ter pelo menos 10 caracteres")
+        
         # Preparar dados para o repository
         agent_dict = {
             "user_id": user_id,
-            "name": agent_data.name,
+            "name": agent_data.name.strip(),
             "description": agent_data.description,
             "agent_type": agent_data.agent_type,
-            "system_prompt": agent_data.system_prompt,
+            "system_prompt": agent_data.system_prompt.strip(),
             "personality": agent_data.personality,
             "avatar_url": agent_data.avatar_url,
             "llm_provider": agent_data.llm_provider,
@@ -57,11 +62,11 @@ class AgentService:
         db_agent = self.repository.create_agent(agent_dict)
         
         # Registrar atividade
-        self.user_repository.create_activity(
-            user_id=user_id,
-            activity_type="agent_created", 
-            description=f"Agente '{agent_data.name}' criado"
-        )        
+        self._log_user_activity(
+            user_id, 
+            "agent_created", 
+            f"Agente '{agent_data.name}' criado"
+        )
         
         return AgentResponse.from_orm(db_agent)
     
@@ -113,27 +118,33 @@ class AgentService:
         Returns:
             AgentResponse atualizado ou None se não encontrado
         """
-        agent = self.repository.get_agent_by_id(agent_id, user_id)
+        # Validações de negócio
+        update_data = agent_data.dict(exclude_unset=True)
+        
+        if "name" in update_data and len(update_data["name"].strip()) < 2:
+            raise ValueError("Nome do agente deve ter pelo menos 2 caracteres")
+        
+        if "system_prompt" in update_data and len(update_data["system_prompt"].strip()) < 10:
+            raise ValueError("Prompt do sistema deve ter pelo menos 10 caracteres")
+        
+        # Limpar strings
+        if "name" in update_data:
+            update_data["name"] = update_data["name"].strip()
+        if "system_prompt" in update_data:
+            update_data["system_prompt"] = update_data["system_prompt"].strip()
+        
+        # Atualizar via repository
+        agent = self.repository.update_agent(agent_id, user_id, update_data)
         
         if not agent:
             return None
         
-        # Atualizar campos fornecidos
-        update_data = agent_data.dict(exclude_unset=True)
-        for field, value in update_data.items():
-            setattr(agent, field, value)
-        
-        agent.updated_at = datetime.utcnow()
-        
-        self.db.commit()
-        self.db.refresh(agent)
-        
         # Registrar atividade
-        self.user_repository.create_activity(
-            user_id=user_id,
-            activity_type="agent_updated", 
-            description=f"Agente '{agent_data.name}' atualizado"
-        )           
+        self._log_user_activity(
+            user_id, 
+            "agent_updated", 
+            f"Agente '{agent.name}' atualizado"
+        )
         
         return AgentResponse.from_orm(agent)
     
@@ -148,25 +159,25 @@ class AgentService:
         Returns:
             True se deletado com sucesso
         """
+        # Buscar agente para obter nome antes de deletar
         agent = self.repository.get_agent_by_id(agent_id, user_id)
-        
         if not agent:
             return False
         
         agent_name = agent.name
         
-        # Deletar agente (cascade irá deletar relacionados)
-        self.db.delete(agent)
-        self.db.commit()
+        # Deletar via repository
+        success = self.repository.delete_agent(agent_id, user_id)
         
-        # Registrar atividade
-        self.user_repository.create_activity(
-            user_id=user_id,
-            activity_type="agent_deleted", 
-            description=f"Agente '{agent_name}' deletado"
-        )        
-
-        return True
+        if success:
+            # Registrar atividade
+            self._log_user_activity(
+                user_id, 
+                "agent_deleted", 
+                f"Agente '{agent_name}' deletado"
+            )
+        
+        return success
     
     async def execute_agent(self, agent_id: int, user_id: int, user_message: str, context: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """
@@ -181,8 +192,12 @@ class AgentService:
         Returns:
             Resultado da execução
         """
-        agent = self.repository.get_agent_by_id(agent_id, user_id)
+        # Validações de negócio
+        if not user_message or len(user_message.strip()) < 1:
+            raise ValueError("Mensagem não pode estar vazia")
         
+        # Buscar agente via repository
+        agent = self.repository.get_agent_by_id(agent_id, user_id)
         if not agent:
             raise ValueError("Agente não encontrado")
         
@@ -204,44 +219,57 @@ class AgentService:
             
             # Executar agente PydanticAI
             model_string = f"{agent.llm_provider}:{agent.model}"
-            pydantic_agent = PydanticAgent(model_string, system_prompt=system_prompt)
             
-            result = await pydantic_agent.run(user_message)
+            # Configurações opcionais do modelo
+            model_settings = {}
+            if hasattr(agent, 'temperature') and agent.temperature is not None:
+                model_settings['temperature'] = agent.temperature
+            if hasattr(agent, 'max_tokens') and agent.max_tokens is not None:
+                model_settings['max_tokens'] = agent.max_tokens
+            
+            # Criar agente com ou sem configurações
+            if model_settings:
+                from pydantic_ai import ModelSettings
+                pydantic_agent = PydanticAgent(
+                    model_string, 
+                    system_prompt=system_prompt,
+                    model_settings=ModelSettings(**model_settings)
+                )
+            else:
+                pydantic_agent = PydanticAgent(model_string, system_prompt=system_prompt)
+            
+            result = await pydantic_agent.run(user_message.strip())
             
             execution_time = time.time() - start_time
             
-            # Salvar execução
-            execution = AgentExecutionDB(
-                agent_id=agent_id,
-                user_id=user_id,
-                user_message=user_message,
-                response=result.output,
-                model_used=model_string,
-                execution_time=execution_time,
-                success=True,
-                context=json.dumps(context) if context else None
-            )
+            # Salvar execução via repository
+            execution_data = {
+                "agent_id": agent_id,
+                "user_id": user_id,
+                "user_message": user_message.strip(),
+                "response": result.output,
+                "model_used": model_string,
+                "execution_time": execution_time,
+                "success": True,
+                "context": json.dumps(context) if context else None
+            }
             
-            self.db.add(execution)
+            self.repository.create_execution(execution_data)
             
             # Atualizar estatísticas do agente
-            agent.last_used = datetime.utcnow()
-            agent.usage_count += 1
-            
-            self.db.commit()
+            self.repository.update_agent_stats(agent_id)
             
             # Registrar atividade
-            self.user_repository.create_activity(
-                user_id=user_id,
-                activity_type="agent_executed", 
-                description=f"Agente '{agent.name}' executado"
-            )                 
-
+            self._log_user_activity(
+                user_id, 
+                "agent_executed", 
+                f"Agente '{agent.name}' executado"
+            )
             
             return {
                 "agent_id": agent_id,
                 "agent_name": agent.name,
-                "user_message": user_message,
+                "user_message": user_message.strip(),
                 "response": result.output,
                 "model_used": model_string,
                 "execution_time": execution_time,
@@ -252,26 +280,25 @@ class AgentService:
             execution_time = time.time() - start_time
             error_message = str(e)
             
-            # Salvar execução com erro
-            execution = AgentExecutionDB(
-                agent_id=agent_id,
-                user_id=user_id,
-                user_message=user_message,
-                response="",
-                model_used=f"{agent.llm_provider}:{agent.model}",
-                execution_time=execution_time,
-                success=False,
-                error_message=error_message,
-                context=json.dumps(context) if context else None
-            )
+            # Salvar execução com erro via repository
+            execution_data = {
+                "agent_id": agent_id,
+                "user_id": user_id,
+                "user_message": user_message.strip(),
+                "response": "",
+                "model_used": f"{agent.llm_provider}:{agent.model}",
+                "execution_time": execution_time,
+                "success": False,
+                "error_message": error_message,
+                "context": json.dumps(context) if context else None
+            }
             
-            self.db.add(execution)
-            self.db.commit()
+            self.repository.create_execution(execution_data)
             
             return {
                 "agent_id": agent_id,
                 "agent_name": agent.name,
-                "user_message": user_message,
+                "user_message": user_message.strip(),
                 "response": "",
                 "model_used": f"{agent.llm_provider}:{agent.model}",
                 "execution_time": execution_time,
@@ -291,13 +318,14 @@ class AgentService:
         Returns:
             Lista de execuções
         """
-        executions = self.db.query(AgentExecutionDB).filter(
-            and_(
-                AgentExecutionDB.agent_id == agent_id,
-                AgentExecutionDB.user_id == user_id
-            )
-        ).order_by(desc(AgentExecutionDB.created_at)).limit(limit).all()
+        # Validar limite
+        if limit < 1 or limit > 100:
+            limit = 50
         
+        # Buscar via repository
+        executions = self.repository.get_agent_executions(agent_id, user_id, limit)
+        
+        # Converter para dict
         return [
             {
                 "id": execution.id,
@@ -326,29 +354,34 @@ class AgentService:
         """
         # Verificar se agente existe e pertence ao usuário
         agent = self.repository.get_agent_by_id(agent_id, user_id)
-        
         if not agent:
             raise ValueError("Agente não encontrado")
         
-        knowledge = AgentKnowledge(
-            agent_id=agent_id,
-            file_name=file_data["file_name"],
-            file_type=file_data["file_type"],
-            file_size=file_data["file_size"],
-            file_url=file_data["file_url"],
-            orion_file_id=file_data.get("orion_file_id")
-        )
+        # Validações de negócio
+        required_fields = ["file_name", "file_type", "file_size", "file_url"]
+        for field in required_fields:
+            if field not in file_data or not file_data[field]:
+                raise ValueError(f"Campo obrigatório: {field}")
         
-        self.db.add(knowledge)
-        self.db.commit()
-        self.db.refresh(knowledge)
+        # Preparar dados para repository
+        knowledge_data = {
+            "agent_id": agent_id,
+            "file_name": file_data["file_name"],
+            "file_type": file_data["file_type"],
+            "file_size": file_data["file_size"],
+            "file_url": file_data["file_url"],
+            "orion_file_id": file_data.get("orion_file_id")
+        }
+        
+        # Criar via repository
+        knowledge = self.repository.create_knowledge(knowledge_data)
         
         # Registrar atividade
-        self.user_repository.create_activity(
-            user_id=user_id,
-            activity_type="agent_knowledge_added", 
-            description=f"Conhecimento adicionado ao agente '{agent.name}'"
-        )           
+        self._log_user_activity(
+            user_id, 
+            "agent_knowledge_added", 
+            f"Conhecimento adicionado ao agente '{agent.name}'"
+        )
         
         return {
             "id": knowledge.id,
@@ -359,6 +392,38 @@ class AgentService:
             "created_at": knowledge.created_at
         }
     
+    def get_agent_knowledge(self, agent_id: int, user_id: int) -> List[Dict[str, Any]]:
+        """
+        Busca base de conhecimento do agente
+        
+        Args:
+            agent_id: ID do agente
+            user_id: ID do usuário
+            
+        Returns:
+            Lista de arquivos de conhecimento
+        """
+        # Verificar se agente existe e pertence ao usuário
+        agent = self.repository.get_agent_by_id(agent_id, user_id)
+        if not agent:
+            raise ValueError("Agente não encontrado")
+        
+        # Buscar conhecimento via repository
+        knowledge_files = self.repository.get_agent_knowledge(agent_id)
+        
+        return [
+            {
+                "id": k.id,
+                "file_name": k.file_name,
+                "file_type": k.file_type,
+                "file_size": k.file_size,
+                "processed": k.processed,
+                "created_at": k.created_at,
+                "processed_at": k.processed_at
+            }
+            for k in knowledge_files
+        ]
+    
     def get_system_agents(self) -> List[Dict[str, Any]]:
         """
         Busca agentes do sistema
@@ -366,9 +431,8 @@ class AgentService:
         Returns:
             Lista de agentes do sistema
         """
-        system_agents = self.db.query(SystemAgent).filter(
-            SystemAgent.is_active == True
-        ).all()
+        # Buscar via repository
+        system_agents = self.repository.get_system_agents()
         
         return [
             {
@@ -397,5 +461,19 @@ class AgentService:
         # Por enquanto, retorna None (sem RAG)
         return None
     
-
-
+    def _log_user_activity(self, user_id: int, activity_type: str, description: str):
+        """
+        Registra atividade do usuário
+        
+        Args:
+            user_id: ID do usuário
+            activity_type: Tipo da atividade
+            description: Descrição da atividade
+        """
+        activity_data = {
+            "user_id": user_id,
+            "activity_type": activity_type,
+            "description": description
+        }
+        
+        self.repository.log_user_activity(activity_data)

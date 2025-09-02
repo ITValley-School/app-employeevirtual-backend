@@ -18,7 +18,7 @@ class OrionService:
     async def _get_client(self) -> httpx.AsyncClient:
         """Obtém cliente HTTP reutilizável"""
         if self.client is None or self.client.is_closed:
-            self.client = httpx.AsyncClient()
+            self.client = httpx.AsyncClient(timeout=30.0)
         return self.client
     
     async def call_service(self, service_type: str, file_url: Optional[str] = None, 
@@ -28,14 +28,14 @@ class OrionService:
         
         Args:
             service_type: Tipo de serviço (transcription, ocr, analysis, etc.)
-            file_url: URL do arquivo
+            file_url: URL do arquivo a ser processado
             file_content: Conteúdo do arquivo em base64
-            parameters: Parâmetros específicos do serviço
+            parameters: Parâmetros adicionais para o serviço
             
         Returns:
             Resultado do serviço
         """
-        session = await self._get_session()
+        client = await self._get_client()
         
         endpoint_map = {
             "transcription": "/api/transcription",
@@ -72,60 +72,81 @@ class OrionService:
             }
         
         try:
-            async with session.post(url, json=payload) as response:
-                if response.status == 200:
-                    result = await response.json()
-                    return {
-                        "status": "success",
-                        "result": result,
-                        "orion_task_id": result.get("task_id"),
-                        "processing_time": result.get("processing_time")
-                    }
-                else:
-                    error_text = await response.text()
-                    return {
-                        "status": "error",
-                        "error_message": f"Erro HTTP {response.status}: {error_text}"
-                    }
-                    
-        except Exception as e:
+            response = await client.post(url, json=payload)
+            if response.status_code == 200:
+                result = response.json()
+                return {
+                    "status": "success",
+                    "result": result,
+                    "execution_time": result.get("execution_time", 0),
+                    "service_type": service_type
+                }
+            else:
+                error_text = response.text
+                return {
+                    "status": "error",
+                    "error_message": f"Erro na API: {response.status_code}",
+                    "error_details": error_text,
+                    "service_type": service_type
+                }
+                
+        except httpx.TimeoutException:
             return {
                 "status": "error",
-                "error_message": f"Erro na chamada do Orion: {str(e)}"
+                "error_message": "Timeout na requisição",
+                "service_type": service_type
+            }
+        except httpx.RequestError as e:
+            return {
+                "status": "error",
+                "error_message": f"Erro de conexão: {str(e)}",
+                "service_type": service_type
+            }
+        except Exception as e:
+            return {
+                "status": "error", 
+                "error_message": f"Erro inesperado: {str(e)}",
+                "service_type": service_type
             }
     
-    async def transcribe_audio(self, file_url: str, language: str = "pt-BR") -> Dict[str, Any]:
+    async def transcribe_audio(self, file_url: str, language: str = "pt-BR", 
+                              format_output: bool = True) -> Dict[str, Any]:
         """
-        Transcreve áudio
+        Transcreve arquivo de áudio
         
         Args:
             file_url: URL do arquivo de áudio
             language: Idioma da transcrição
+            format_output: Se deve formatar a saída
             
         Returns:
             Resultado da transcrição
         """
-        return await self.call_service(
-            service_type="transcription",
-            file_url=file_url,
-            parameters={"language": language}
-        )
+        parameters = {
+            "language": language,
+            "format_output": format_output,
+            "include_timestamps": True
+        }
+        
+        return await self.call_service("transcription", file_url=file_url, parameters=parameters)
     
-    async def transcribe_youtube(self, youtube_url: str, language: str = "pt-BR") -> Dict[str, Any]:
+    async def transcribe_youtube(self, video_url: str, language: str = "pt-BR") -> Dict[str, Any]:
         """
         Transcreve vídeo do YouTube
         
         Args:
-            youtube_url: URL do vídeo do YouTube
+            video_url: URL do vídeo do YouTube
             language: Idioma da transcrição
             
         Returns:
             Resultado da transcrição
         """
-        return await self.call_service(
-            service_type="youtube_transcription",
-            parameters={"youtube_url": youtube_url, "language": language}
-        )
+        parameters = {
+            "language": language,
+            "include_metadata": True
+        }
+        
+        return await self.call_service("youtube_transcription", file_url=video_url, parameters=parameters)
     
     async def extract_text_from_image(self, file_url: str) -> Dict[str, Any]:
         """
@@ -137,186 +158,214 @@ class OrionService:
         Returns:
             Texto extraído
         """
-        return await self.call_service(
-            service_type="ocr",
-            file_url=file_url
-        )
-    
-    async def analyze_pdf(self, file_url: str, analysis_type: str = "full") -> Dict[str, Any]:
-        """
-        Analisa documento PDF
+        parameters = {
+            "detect_language": True,
+            "include_confidence": True
+        }
         
-        Args:
-            file_url: URL do PDF
-            analysis_type: Tipo de análise (full, summary, extract)
-            
-        Returns:
-            Resultado da análise
-        """
-        return await self.call_service(
-            service_type="pdf_analysis",
-            file_url=file_url,
-            parameters={"analysis_type": analysis_type}
-        )
+        return await self.call_service("ocr", file_url=file_url, parameters=parameters)
     
-    async def upload_to_datalake(self, file_content: bytes, file_name: str, 
-                                user_id: int, metadata: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    async def upload_and_process_file(self, file_content: bytes, filename: str, 
+                                     user_id: int, metadata: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """
-        Faz upload de arquivo para o Data Lake
+        Faz upload e processa arquivo no Orion
         
         Args:
             file_content: Conteúdo do arquivo
-            file_name: Nome do arquivo
+            filename: Nome do arquivo
             user_id: ID do usuário
             metadata: Metadados do arquivo
             
         Returns:
-            Informações do upload
+            Resultado do upload e processamento
         """
-        session = await self._get_session()
+        client = await self._get_client()
         
         # Codificar arquivo em base64
-        file_base64 = base64.b64encode(file_content).decode('utf-8')
+        file_b64 = base64.b64encode(file_content).decode('utf-8')
+        
+        url = f"{self.base_url}/api/files/upload"
         
         payload = {
-            "file_name": file_name,
-            "file_content": file_base64,
+            "filename": filename,
+            "file_content": file_b64,
             "user_id": user_id,
             "metadata": metadata or {},
-            "upload_timestamp": datetime.utcnow().isoformat()
+            "auto_process": True
         }
         
-        url = f"{self.base_url}/api/datalake/upload"
-        
         try:
-            async with session.post(url, json=payload) as response:
-                if response.status == 200:
-                    result = await response.json()
-                    return {
-                        "status": "success",
-                        "file_id": result.get("file_id"),
-                        "datalake_url": result.get("datalake_url"),
-                        "datalake_path": result.get("datalake_path")
-                    }
-                else:
-                    error_text = await response.text()
-                    return {
-                        "status": "error",
-                        "error_message": f"Erro no upload: HTTP {response.status}: {error_text}"
-                    }
-                    
+            response = await client.post(url, json=payload)
+            if response.status_code == 200:
+                return {
+                    "status": "success",
+                    "result": response.json()
+                }
+            else:
+                return {
+                    "status": "error",
+                    "error_message": f"Erro no upload: {response.status_code}",
+                    "error_details": response.text
+                }
+                
         except Exception as e:
             return {
                 "status": "error",
-                "error_message": f"Erro no upload para Data Lake: {str(e)}"
+                "error_message": f"Erro no upload: {str(e)}"
             }
     
-    async def get_task_status(self, task_id: str) -> Dict[str, Any]:
+    async def get_processing_status(self, task_id: str) -> Dict[str, Any]:
         """
-        Verifica status de uma tarefa no Orion
+        Verifica status de processamento
         
         Args:
             task_id: ID da tarefa
             
         Returns:
-            Status da tarefa
+            Status do processamento
         """
-        session = await self._get_session()
+        client = await self._get_client()
         
         url = f"{self.base_url}/api/tasks/{task_id}/status"
         
         try:
-            async with session.get(url) as response:
-                if response.status == 200:
-                    result = await response.json()
-                    return {
-                        "status": "success",
-                        "task_status": result.get("status"),
-                        "progress": result.get("progress"),
-                        "result": result.get("result"),
-                        "error_message": result.get("error_message")
-                    }
-                else:
-                    error_text = await response.text()
-                    return {
-                        "status": "error",
-                        "error_message": f"Erro ao verificar status: HTTP {response.status}: {error_text}"
-                    }
-                    
+            response = await client.get(url)
+            if response.status_code == 200:
+                return {
+                    "status": "success",
+                    "result": response.json()
+                }
+            else:
+                return {
+                    "status": "error",
+                    "error_message": f"Erro ao consultar status: {response.status_code}"
+                }
+                
         except Exception as e:
             return {
                 "status": "error",
-                "error_message": f"Erro ao verificar status da tarefa: {str(e)}"
+                "error_message": f"Erro ao consultar status: {str(e)}"
             }
     
-    async def vectorize_document(self, file_url: str, chunk_size: int = 1000, 
-                                overlap: int = 200) -> Dict[str, Any]:
+    async def analyze_document(self, file_url: str, analysis_type: str = "comprehensive") -> Dict[str, Any]:
         """
-        Vetoriza documento para RAG
+        Analisa documento com IA
         
         Args:
             file_url: URL do documento
-            chunk_size: Tamanho dos chunks
-            overlap: Sobreposição entre chunks
+            analysis_type: Tipo de análise (comprehensive, summary, entities, etc.)
             
         Returns:
-            IDs dos vetores criados
+            Resultado da análise
         """
-        return await self.call_service(
-            service_type="document_analysis",
-            file_url=file_url,
-            parameters={
-                "action": "vectorize",
-                "chunk_size": chunk_size,
-                "overlap": overlap
-            }
-        )
-    
-    async def search_vectors(self, query: str, vector_ids: list, top_k: int = 5) -> Dict[str, Any]:
-        """
-        Busca semântica nos vetores
-        
-        Args:
-            query: Query de busca
-            vector_ids: IDs dos vetores para buscar
-            top_k: Número de resultados
-            
-        Returns:
-            Resultados da busca
-        """
-        session = await self._get_session()
-        
-        payload = {
-            "query": query,
-            "vector_ids": vector_ids,
-            "top_k": top_k
+        parameters = {
+            "analysis_type": analysis_type,
+            "extract_entities": True,
+            "generate_summary": True,
+            "detect_language": True
         }
         
-        url = f"{self.base_url}/api/vectors/search"
+        return await self.call_service("document_analysis", file_url=file_url, parameters=parameters)
+    
+    async def analyze_image(self, file_url: str, include_objects: bool = True, 
+                           include_faces: bool = False) -> Dict[str, Any]:
+        """
+        Analisa imagem com IA
+        
+        Args:
+            file_url: URL da imagem
+            include_objects: Detectar objetos
+            include_faces: Detectar faces
+            
+        Returns:
+            Resultado da análise
+        """
+        client = await self._get_client()
+        
+        url = f"{self.base_url}/api/image-analysis"
+        
+        payload = {
+            "file_url": file_url,
+            "parameters": {
+                "include_objects": include_objects,
+                "include_faces": include_faces,
+                "include_text": True,
+                "confidence_threshold": 0.7
+            }
+        }
         
         try:
-            async with session.post(url, json=payload) as response:
-                if response.status == 200:
-                    result = await response.json()
-                    return {
-                        "status": "success",
-                        "results": result.get("results", [])
-                    }
-                else:
-                    error_text = await response.text()
-                    return {
-                        "status": "error",
-                        "error_message": f"Erro na busca: HTTP {response.status}: {error_text}"
-                    }
-                    
+            response = await client.post(url, json=payload)
+            if response.status_code == 200:
+                return {
+                    "status": "success",
+                    "result": response.json()
+                }
+            else:
+                return {
+                    "status": "error",
+                    "error_message": f"Erro na análise: {response.status_code}"
+                }
+                
         except Exception as e:
             return {
                 "status": "error",
-                "error_message": f"Erro na busca semântica: {str(e)}"
+                "error_message": f"Erro na análise: {str(e)}"
             }
     
     async def close(self):
-        """Fecha a sessão HTTP"""
-        if self.session and not self.session.closed:
-            await self.session.close()
-
+        """Fecha cliente HTTP"""
+        if self.client and not self.client.is_closed:
+            await self.client.aclose()
+    
+    def get_available_services(self) -> Dict[str, Dict[str, Any]]:
+        """
+        Retorna lista de serviços disponíveis
+        
+        Returns:
+            Dicionário com serviços e suas descrições
+        """
+        return {
+            "transcription": {
+                "name": "Transcrição de Áudio",
+                "description": "Transcreve arquivos de áudio para texto",
+                "formats": ["mp3", "wav", "m4a", "flac"],
+                "parameters": ["language", "format_output", "include_timestamps"]
+            },
+            "youtube_transcription": {
+                "name": "Transcrição YouTube",
+                "description": "Transcreve vídeos do YouTube",
+                "formats": ["youtube_url"],
+                "parameters": ["language", "include_metadata"]
+            },
+            "ocr": {
+                "name": "OCR (Reconhecimento de Texto)",
+                "description": "Extrai texto de imagens e documentos",
+                "formats": ["png", "jpg", "jpeg", "pdf"],
+                "parameters": ["detect_language", "include_confidence"]
+            },
+            "pdf_analysis": {
+                "name": "Análise de PDF",
+                "description": "Análise completa de documentos PDF",
+                "formats": ["pdf"],
+                "parameters": ["extract_tables", "extract_images", "analyze_structure"]
+            },
+            "document_analysis": {
+                "name": "Análise de Documentos",
+                "description": "Análise inteligente de documentos",
+                "formats": ["pdf", "docx", "txt"],
+                "parameters": ["analysis_type", "extract_entities", "generate_summary"]
+            },
+            "image_analysis": {
+                "name": "Análise de Imagens",
+                "description": "Análise de conteúdo visual",
+                "formats": ["png", "jpg", "jpeg"],
+                "parameters": ["include_objects", "include_faces", "include_text"]
+            },
+            "video_analysis": {
+                "name": "Análise de Vídeos",
+                "description": "Análise de conteúdo de vídeo",
+                "formats": ["mp4", "avi", "mov"],
+                "parameters": ["extract_frames", "analyze_audio", "include_timestamps"]
+            }
+        }

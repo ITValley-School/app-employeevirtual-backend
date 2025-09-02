@@ -1,28 +1,31 @@
 """
-Serviço de chat/conversação para o sistema EmployeeVirtual
+Serviço de chat/conversação para o sistema EmployeeVirtual - Nova implementação
+Usa apenas repository para acesso a dados
 """
 import json
 from datetime import datetime
 from typing import Optional, List, Dict, Any
 from sqlalchemy.orm import Session
-from sqlalchemy import and_, func, desc
 
+from data.chat_repository import ChatRepository
+from data.agent_repository import AgentRepository
+from data.user_repository import UserRepository
 from models.chat_models import (
-    Conversation, Message, ConversationContext, MessageReaction,
     ConversationCreate, ConversationUpdate, ConversationResponse,
     MessageCreate, MessageResponse, ChatRequest, ChatResponse,
     ConversationWithMessages, ConversationSummary, MessageType, ConversationStatus
 )
-from models.user_models import UserActivity
-from services.agent_service import AgentService
+from services.orion_service_new import OrionService
 
 
 class ChatService:
-    """Serviço para gerenciamento de chat/conversação"""
+    """Serviço para gerenciamento de chat/conversação - Nova implementação"""
     
     def __init__(self, db: Session):
-        self.db = db
-        self.agent_service = AgentService(db)
+        self.chat_repository = ChatRepository(db)
+        self.agent_repository = AgentRepository(db)
+        self.user_repository = UserRepository(db)
+        self.orion_service = OrionService()
     
     def create_conversation(self, user_id: int, conversation_data: ConversationCreate) -> ConversationResponse:
         """
@@ -36,38 +39,35 @@ class ChatService:
             ConversationResponse: Dados da conversação criada
         """
         # Verificar se agente existe e pertence ao usuário
-        agent = self.agent_service.get_agent_by_id(conversation_data.agent_id, user_id)
+        agent = self.agent_repository.get_agent_by_id(conversation_data.agent_id, user_id)
         if not agent:
             raise ValueError("Agente não encontrado")
         
-        db_conversation = Conversation(
+        # Criar conversação
+        conversation = self.chat_repository.create_conversation(
             user_id=user_id,
             agent_id=conversation_data.agent_id,
             title=conversation_data.title or f"Conversa com {agent.name}"
         )
         
-        self.db.add(db_conversation)
-        self.db.commit()
-        self.db.refresh(db_conversation)
-        
         # Registrar atividade
-        self._log_user_activity(
-            user_id, 
-            "conversation_created", 
-            f"Nova conversa iniciada com agente '{agent.name}'"
+        self.user_repository.create_activity(
+            user_id=user_id,
+            activity_type="conversation_created",
+            description=f"Nova conversa iniciada com agente '{agent.name}'"
         )
         
         return ConversationResponse(
-            id=db_conversation.id,
-            user_id=db_conversation.user_id,
-            agent_id=db_conversation.agent_id,
+            id=conversation.id,
+            user_id=conversation.user_id,
+            agent_id=conversation.agent_id,
             agent_name=agent.name,
-            title=db_conversation.title,
-            status=db_conversation.status,
+            title=conversation.title,
+            status=conversation.status,
             message_count=0,
-            created_at=db_conversation.created_at,
-            updated_at=db_conversation.updated_at,
-            last_message_at=db_conversation.last_message_at
+            created_at=conversation.created_at,
+            updated_at=conversation.updated_at,
+            last_message_at=conversation.last_message_at
         )
     
     def get_user_conversations(self, user_id: int, limit: int = 50) -> List[ConversationSummary]:
@@ -81,259 +81,271 @@ class ChatService:
         Returns:
             Lista de resumos de conversações
         """
-        # Query com join para buscar nome do agente e última mensagem
-        conversations = self.db.query(
-            Conversation.id,
-            Conversation.title,
-            Conversation.created_at,
-            Conversation.last_message_at,
-            func.count(Message.id).label('message_count')
-        ).outerjoin(Message).filter(
-            and_(
-                Conversation.user_id == user_id,
-                Conversation.status == ConversationStatus.ACTIVE
-            )
-        ).group_by(
-            Conversation.id,
-            Conversation.title,
-            Conversation.created_at,
-            Conversation.last_message_at
-        ).order_by(desc(Conversation.last_message_at)).limit(limit).all()
+        summaries = self.chat_repository.get_conversation_summaries(user_id, limit)
         
         result = []
-        for conv in conversations:
-            # Buscar última mensagem
-            last_message = self.db.query(Message).filter(
-                Message.conversation_id == conv.id
-            ).order_by(desc(Message.created_at)).first()
-            
+        for summary in summaries:
             # Buscar nome do agente
-            conversation_obj = self.db.query(Conversation).filter(
-                Conversation.id == conv.id
-            ).first()
-            
-            agent = self.agent_service.get_agent_by_id(conversation_obj.agent_id)
+            agent = self.agent_repository.get_agent_by_id(summary['agent_id'])
+            agent_name = agent.name if agent else "Agente não encontrado"
             
             result.append(ConversationSummary(
-                id=conv.id,
-                title=conv.title or f"Conversa com {agent.name if agent else 'Agente'}",
-                agent_name=agent.name if agent else "Agente",
-                message_count=conv.message_count,
-                last_message_preview=last_message.content[:100] + "..." if last_message and len(last_message.content) > 100 else (last_message.content if last_message else ""),
-                last_message_at=conv.last_message_at or conv.created_at,
-                created_at=conv.created_at
+                id=summary['id'],
+                title=summary['title'],
+                agent_name=agent_name,
+                message_count=summary['message_count'],
+                last_message_at=summary['last_message_at'],
+                created_at=summary['created_at']
             ))
         
         return result
     
-    def get_conversation_with_messages(self, conversation_id: int, user_id: int, limit: int = 100) -> Optional[ConversationWithMessages]:
+    def get_conversation_with_messages(self, conversation_id: int, user_id: int, 
+                                     message_limit: int = 50) -> Optional[ConversationWithMessages]:
         """
-        Busca conversação com mensagens
+        Busca conversação com suas mensagens
         
         Args:
             conversation_id: ID da conversação
             user_id: ID do usuário
-            limit: Limite de mensagens
+            message_limit: Limite de mensagens
             
         Returns:
             ConversationWithMessages ou None se não encontrada
         """
-        conversation = self.db.query(Conversation).filter(
-            and_(
-                Conversation.id == conversation_id,
-                Conversation.user_id == user_id
-            )
-        ).first()
-        
+        conversation = self.chat_repository.get_conversation_by_id(conversation_id, user_id)
         if not conversation:
             return None
         
         # Buscar mensagens
-        messages = self.db.query(Message).filter(
-            Message.conversation_id == conversation_id
-        ).order_by(Message.created_at).limit(limit).all()
+        messages = self.chat_repository.get_conversation_messages(
+            conversation_id, limit=message_limit, order_desc=False
+        )
         
         # Buscar nome do agente
-        agent = self.agent_service.get_agent_by_id(conversation.agent_id)
+        agent = self.agent_repository.get_agent_by_id(conversation.agent_id)
+        agent_name = agent.name if agent else "Agente não encontrado"
         
-        # Contar mensagens
-        message_count = self.db.query(Message).filter(
-            Message.conversation_id == conversation_id
-        ).count()
+        # Converter mensagens
+        message_responses = []
+        for msg in messages:
+            message_responses.append(MessageResponse(
+                id=msg.id,
+                content=msg.content,
+                message_type=msg.message_type,
+                sender_id=msg.sender_id,
+                agent_id=msg.agent_id,
+                message_metadata=msg.message_metadata,
+                created_at=msg.created_at
+            ))
         
         return ConversationWithMessages(
             id=conversation.id,
             user_id=conversation.user_id,
             agent_id=conversation.agent_id,
-            agent_name=agent.name if agent else "Agente",
+            agent_name=agent_name,
             title=conversation.title,
             status=conversation.status,
-            message_count=message_count,
+            messages=message_responses,
             created_at=conversation.created_at,
             updated_at=conversation.updated_at,
-            last_message_at=conversation.last_message_at,
-            messages=[
-                MessageResponse(
-                    id=msg.id,
-                    conversation_id=msg.conversation_id,
-                    user_id=msg.user_id,
-                    agent_id=msg.agent_id,
-                    content=msg.content,
-                    message_type=msg.message_type,
-                    metadata=json.loads(msg.message_metadata) if msg.message_metadata else None,
-                    created_at=msg.created_at,
-                    edited_at=msg.edited_at,
-                    is_edited=msg.is_edited
-                )
-                for msg in messages
-            ]
+            last_message_at=conversation.last_message_at
         )
     
-    async def send_message(self, user_id: int, chat_request: ChatRequest) -> ChatResponse:
+    def send_message(self, user_id: int, message_data: MessageCreate) -> MessageResponse:
         """
-        Envia mensagem e obtém resposta do agente
+        Envia uma mensagem em uma conversação
         
         Args:
             user_id: ID do usuário
-            chat_request: Dados da mensagem
+            message_data: Dados da mensagem
+            
+        Returns:
+            MessageResponse: Mensagem criada
+        """
+        # Verificar se conversação existe e pertence ao usuário
+        conversation = self.chat_repository.get_conversation_by_id(message_data.conversation_id, user_id)
+        if not conversation:
+            raise ValueError("Conversação não encontrada")
+        
+        # Criar mensagem do usuário
+        user_message = self.chat_repository.create_message(
+            conversation_id=message_data.conversation_id,
+            content=message_data.content,
+            message_type=MessageType.USER,
+            sender_id=user_id,
+            message_metadata=message_data.message_metadata
+        )
+        
+        # Registrar atividade
+        self.user_repository.create_activity(
+            user_id=user_id,
+            activity_type="message_sent",
+            description=f"Mensagem enviada na conversa '{conversation.title}'"
+        )
+        
+        return MessageResponse(
+            id=user_message.id,
+            content=user_message.content,
+            message_type=user_message.message_type,
+            sender_id=user_message.sender_id,
+            agent_id=user_message.agent_id,
+            message_metadata=user_message.message_metadata,
+            created_at=user_message.created_at
+        )
+    
+    async def process_chat_request(self, user_id: int, chat_request: ChatRequest) -> ChatResponse:
+        """
+        Processa uma requisição de chat completa
+        
+        Args:
+            user_id: ID do usuário
+            chat_request: Dados da requisição
             
         Returns:
             ChatResponse: Resposta do chat
         """
-        # Verificar se agente existe
-        agent = self.agent_service.get_agent_by_id(chat_request.agent_id, user_id)
-        if not agent:
-            raise ValueError("Agente não encontrado")
-        
-        # Buscar ou criar conversação
-        if chat_request.conversation_id:
-            conversation = self.db.query(Conversation).filter(
-                and_(
-                    Conversation.id == chat_request.conversation_id,
-                    Conversation.user_id == user_id
-                )
-            ).first()
-            
+        try:
+            # Buscar conversação
+            conversation = self.chat_repository.get_conversation_by_id(chat_request.conversation_id, user_id)
             if not conversation:
                 raise ValueError("Conversação não encontrada")
-        else:
-            # Criar nova conversação
-            conversation = Conversation(
-                user_id=user_id,
-                agent_id=chat_request.agent_id,
-                title=f"Conversa com {agent.name}"
+            
+            # Buscar agente
+            agent = self.agent_repository.get_agent_by_id(conversation.agent_id, user_id)
+            if not agent:
+                raise ValueError("Agente não encontrado")
+            
+            # Criar mensagem do usuário
+            user_message = self.chat_repository.create_message(
+                conversation_id=chat_request.conversation_id,
+                content=chat_request.message,
+                message_type=MessageType.USER,
+                sender_id=user_id
             )
-            self.db.add(conversation)
-            self.db.flush()  # Para obter o ID
-        
-        # Salvar mensagem do usuário
-        user_message = Message(
-            conversation_id=conversation.id,
-            user_id=user_id,
-            content=chat_request.message,
-            message_type=MessageType.USER,
-            message_metadata=json.dumps(chat_request.context) if chat_request.context else None
-        )
-        
-        self.db.add(user_message)
-        self.db.flush()
-        
-        # Executar agente
-        agent_result = await self.agent_service.execute_agent(
-            agent_id=chat_request.agent_id,
-            user_id=user_id,
-            user_message=chat_request.message,
-            context=chat_request.context
-        )
-        
-        # Salvar resposta do agente
-        agent_message = Message(
-            conversation_id=conversation.id,
-            user_id=user_id,
-            agent_id=chat_request.agent_id,
-            content=agent_result["response"],
-            message_type=MessageType.AGENT,
-            message_metadata=json.dumps({
-                "execution_time": agent_result.get("execution_time"),
-                "model_used": agent_result.get("model_used"),
-                "success": agent_result.get("success")
+            
+            # Buscar histórico de mensagens para contexto
+            recent_messages = self.chat_repository.get_recent_messages(
+                chat_request.conversation_id, minutes=60
+            )
+            
+            # Preparar contexto para o agente
+            context_messages = []
+            for msg in recent_messages[-10:]:  # Últimas 10 mensagens
+                role = "user" if msg.message_type == MessageType.USER else "assistant"
+                context_messages.append({
+                    "role": role,
+                    "content": msg.content
+                })
+            
+            # Adicionar mensagem atual
+            context_messages.append({
+                "role": "user",
+                "content": chat_request.message
             })
-        )
-        
-        self.db.add(agent_message)
-        
-        # Atualizar conversação
-        conversation.last_message_at = datetime.utcnow()
-        conversation.updated_at = datetime.utcnow()
-        
-        self.db.commit()
-        self.db.refresh(user_message)
-        self.db.refresh(agent_message)
-        
-        # Registrar atividade
-        self._log_user_activity(
-            user_id, 
-            "chat_message_sent", 
-            f"Mensagem enviada para agente '{agent.name}'"
-        )
-        
-        return ChatResponse(
-            conversation_id=conversation.id,
-            user_message=MessageResponse.from_orm(user_message),
-            agent_response=MessageResponse.from_orm(agent_message),
-            agent_name=agent.name,
-            execution_time=agent_result.get("execution_time"),
-            tokens_used=agent_result.get("tokens_used")
-        )
+            
+            # Chamar serviço Orion para processar com o agente
+            orion_response = await self.orion_service.process_with_agent(
+                agent_id=agent.id,
+                messages=context_messages,
+                user_id=user_id,
+                conversation_id=chat_request.conversation_id
+            )
+            
+            # Criar mensagem de resposta do agente
+            agent_message = self.chat_repository.create_message(
+                conversation_id=chat_request.conversation_id,
+                content=orion_response.get('response', 'Erro ao processar resposta'),
+                message_type=MessageType.AGENT,
+                agent_id=agent.id,
+                message_metadata={
+                    'processing_time': orion_response.get('processing_time', 0),
+                    'model_used': orion_response.get('model_used', ''),
+                    'tokens_used': orion_response.get('tokens_used', 0)
+                }
+            )
+            
+            # Registrar atividade
+            self.user_repository.create_activity(
+                user_id=user_id,
+                activity_type="chat_processed",
+                description=f"Chat processado com agente '{agent.name}'"
+            )
+            
+            return ChatResponse(
+                conversation_id=chat_request.conversation_id,
+                user_message=MessageResponse(
+                    id=user_message.id,
+                    content=user_message.content,
+                    message_type=user_message.message_type,
+                    sender_id=user_message.sender_id,
+                    agent_id=user_message.agent_id,
+                    message_metadata=user_message.message_metadata,
+                    created_at=user_message.created_at
+                ),
+                agent_response=MessageResponse(
+                    id=agent_message.id,
+                    content=agent_message.content,
+                    message_type=agent_message.message_type,
+                    sender_id=agent_message.sender_id,
+                    agent_id=agent_message.agent_id,
+                    message_metadata=agent_message.message_metadata,
+                    created_at=agent_message.created_at
+                ),
+                processing_time=orion_response.get('processing_time', 0)
+            )
+            
+        except Exception as e:
+            # Em caso de erro, ainda criar mensagem de erro
+            error_message = self.chat_repository.create_message(
+                conversation_id=chat_request.conversation_id,
+                content=f"Erro ao processar mensagem: {str(e)}",
+                message_type=MessageType.SYSTEM,
+                message_metadata={'error': True, 'error_message': str(e)}
+            )
+            
+            raise e
     
-    def update_conversation(self, conversation_id: int, user_id: int, conversation_data: ConversationUpdate) -> Optional[ConversationResponse]:
+    def update_conversation(self, conversation_id: int, user_id: int, 
+                          conversation_data: ConversationUpdate) -> Optional[ConversationResponse]:
         """
-        Atualiza conversação
+        Atualiza dados da conversação
         
         Args:
             conversation_id: ID da conversação
             user_id: ID do usuário
-            conversation_data: Dados a serem atualizados
+            conversation_data: Dados para atualização
             
         Returns:
-            ConversationResponse atualizada ou None se não encontrada
+            ConversationResponse ou None se não encontrada
         """
-        conversation = self.db.query(Conversation).filter(
-            and_(
-                Conversation.id == conversation_id,
-                Conversation.user_id == user_id
-            )
-        ).first()
+        # Preparar dados para atualização
+        update_data = {}
+        if conversation_data.title is not None:
+            update_data['title'] = conversation_data.title
+        if conversation_data.status is not None:
+            update_data['status'] = conversation_data.status
         
+        # Atualizar conversação
+        conversation = self.chat_repository.update_conversation(conversation_id, user_id, **update_data)
         if not conversation:
             return None
         
-        # Atualizar campos fornecidos
-        update_data = conversation_data.dict(exclude_unset=True)
-        for field, value in update_data.items():
-            setattr(conversation, field, value)
-        
-        conversation.updated_at = datetime.utcnow()
-        
-        self.db.commit()
-        self.db.refresh(conversation)
-        
         # Buscar nome do agente
-        agent = self.agent_service.get_agent_by_id(conversation.agent_id)
+        agent = self.agent_repository.get_agent_by_id(conversation.agent_id)
+        agent_name = agent.name if agent else "Agente não encontrado"
         
         # Contar mensagens
-        message_count = self.db.query(Message).filter(
-            Message.conversation_id == conversation_id
-        ).count()
+        messages = self.chat_repository.get_conversation_messages(conversation_id, limit=1)
         
         return ConversationResponse(
             id=conversation.id,
             user_id=conversation.user_id,
             agent_id=conversation.agent_id,
-            agent_name=agent.name if agent else "Agente",
+            agent_name=agent_name,
             title=conversation.title,
             status=conversation.status,
-            message_count=message_count,
+            message_count=len(messages),
             created_at=conversation.created_at,
             updated_at=conversation.updated_at,
             last_message_at=conversation.last_message_at
@@ -341,38 +353,49 @@ class ChatService:
     
     def delete_conversation(self, conversation_id: int, user_id: int) -> bool:
         """
-        Deleta conversação (soft delete)
+        Remove uma conversação
         
         Args:
             conversation_id: ID da conversação
             user_id: ID do usuário
             
         Returns:
-            True se deletada com sucesso
+            True se removida com sucesso
         """
-        conversation = self.db.query(Conversation).filter(
-            and_(
-                Conversation.id == conversation_id,
-                Conversation.user_id == user_id
+        success = self.chat_repository.delete_conversation(conversation_id, user_id)
+        
+        if success:
+            # Registrar atividade
+            self.user_repository.create_activity(
+                user_id=user_id,
+                activity_type="conversation_deleted",
+                description="Conversação removida"
             )
-        ).first()
         
-        if not conversation:
-            return False
+        return success
+    
+    def archive_conversation(self, conversation_id: int, user_id: int) -> bool:
+        """
+        Arquiva uma conversação
         
-        conversation.status = ConversationStatus.DELETED
-        conversation.updated_at = datetime.utcnow()
+        Args:
+            conversation_id: ID da conversação
+            user_id: ID do usuário
+            
+        Returns:
+            True se arquivada com sucesso
+        """
+        success = self.chat_repository.archive_conversation(conversation_id, user_id)
         
-        self.db.commit()
+        if success:
+            # Registrar atividade
+            self.user_repository.create_activity(
+                user_id=user_id,
+                activity_type="conversation_archived",
+                description="Conversação arquivada"
+            )
         
-        # Registrar atividade
-        self._log_user_activity(
-            user_id, 
-            "conversation_deleted", 
-            f"Conversação '{conversation.title}' deletada"
-        )
-        
-        return True
+        return success
     
     def add_message_reaction(self, message_id: int, user_id: int, reaction_type: str) -> bool:
         """
@@ -386,130 +409,103 @@ class ChatService:
         Returns:
             True se adicionada com sucesso
         """
-        # Verificar se mensagem existe e pertence ao usuário
-        message = self.db.query(Message).filter(
-            and_(
-                Message.id == message_id,
-                Message.user_id == user_id
-            )
-        ).first()
-        
-        if not message:
+        try:
+            self.chat_repository.create_message_reaction(message_id, user_id, reaction_type)
+            return True
+        except Exception:
             return False
-        
-        # Verificar se já existe reação do usuário para esta mensagem
-        existing_reaction = self.db.query(MessageReaction).filter(
-            and_(
-                MessageReaction.message_id == message_id,
-                MessageReaction.user_id == user_id
-            )
-        ).first()
-        
-        if existing_reaction:
-            # Atualizar reação existente
-            existing_reaction.reaction_type = reaction_type
-        else:
-            # Criar nova reação
-            reaction = MessageReaction(
-                message_id=message_id,
-                user_id=user_id,
-                reaction_type=reaction_type
-            )
-            self.db.add(reaction)
-        
-        self.db.commit()
-        
-        return True
     
-    def get_conversation_context(self, conversation_id: int, user_id: int) -> Dict[str, Any]:
+    def remove_message_reaction(self, message_id: int, user_id: int) -> bool:
+        """
+        Remove reação de uma mensagem
+        
+        Args:
+            message_id: ID da mensagem
+            user_id: ID do usuário
+            
+        Returns:
+            True se removida com sucesso
+        """
+        return self.chat_repository.remove_message_reaction(message_id, user_id)
+    
+    def get_conversation_context(self, conversation_id: int, user_id: int, 
+                               context_type: str = None) -> List[Dict[str, Any]]:
         """
         Busca contexto da conversação
         
         Args:
             conversation_id: ID da conversação
             user_id: ID do usuário
+            context_type: Tipo de contexto específico
             
         Returns:
-            Dicionário com contexto
+            Lista de contextos
         """
         # Verificar se conversação pertence ao usuário
-        conversation = self.db.query(Conversation).filter(
-            and_(
-                Conversation.id == conversation_id,
-                Conversation.user_id == user_id
-            )
-        ).first()
-        
+        conversation = self.chat_repository.get_conversation_by_id(conversation_id, user_id)
         if not conversation:
-            return {}
+            return []
         
-        # Buscar contextos
-        contexts = self.db.query(ConversationContext).filter(
-            ConversationContext.conversation_id == conversation_id
-        ).all()
+        contexts = self.chat_repository.get_conversation_context(conversation_id, context_type)
         
-        return {
-            context.context_key: context.context_value
+        return [
+            {
+                'id': context.id,
+                'context_type': context.context_type,
+                'context_data': context.context_data,
+                'created_at': context.created_at
+            }
             for context in contexts
-        }
+        ]
     
-    def set_conversation_context(self, conversation_id: int, user_id: int, context_key: str, context_value: str) -> bool:
+    def get_chat_metrics(self, user_id: int, days: int = 30) -> Dict[str, Any]:
         """
-        Define contexto da conversação
+        Busca métricas de chat do usuário
         
         Args:
-            conversation_id: ID da conversação
             user_id: ID do usuário
-            context_key: Chave do contexto
-            context_value: Valor do contexto
+            days: Período em dias
             
         Returns:
-            True se definido com sucesso
+            Métricas de chat
         """
-        # Verificar se conversação pertence ao usuário
-        conversation = self.db.query(Conversation).filter(
-            and_(
-                Conversation.id == conversation_id,
-                Conversation.user_id == user_id
-            )
-        ).first()
-        
-        if not conversation:
-            return False
-        
-        # Buscar contexto existente
-        existing_context = self.db.query(ConversationContext).filter(
-            and_(
-                ConversationContext.conversation_id == conversation_id,
-                ConversationContext.context_key == context_key
-            )
-        ).first()
-        
-        if existing_context:
-            # Atualizar contexto existente
-            existing_context.context_value = context_value
-            existing_context.updated_at = datetime.utcnow()
-        else:
-            # Criar novo contexto
-            context = ConversationContext(
-                conversation_id=conversation_id,
-                context_key=context_key,
-                context_value=context_value
-            )
-            self.db.add(context)
-        
-        self.db.commit()
-        
-        return True
+        return self.chat_repository.get_user_chat_metrics(user_id, days)
     
-    def _log_user_activity(self, user_id: int, activity_type: str, description: str):
-        """Registra atividade do usuário"""
-        activity = UserActivity(
-            user_id=user_id,
-            activity_type=activity_type,
-            description=description
-        )
+    def search_conversations(self, user_id: int, query: str, limit: int = 50) -> List[ConversationSummary]:
+        """
+        Busca conversações por texto
         
-        self.db.add(activity)
-        # Não fazer commit aqui, deixar para o método principal
-
+        Args:
+            user_id: ID do usuário
+            query: Texto para busca
+            limit: Limite de resultados
+            
+        Returns:
+            Lista de conversações encontradas
+        """
+        # Para busca simples, usar o método de listar e filtrar no código
+        conversations = self.chat_repository.get_user_conversations(user_id, limit=limit)
+        
+        # Filtrar conversações que contenham o texto na busca
+        filtered = []
+        query_lower = query.lower()
+        
+        for conv in conversations:
+            if (query_lower in conv.title.lower() if conv.title else False):
+                # Buscar nome do agente
+                agent = self.agent_repository.get_agent_by_id(conv.agent_id)
+                agent_name = agent.name if agent else "Agente não encontrado"
+                
+                # Contar mensagens (aproximado)
+                messages = self.chat_repository.get_conversation_messages(conv.id, limit=1)
+                
+                filtered.append(ConversationSummary(
+                    id=conv.id,
+                    title=conv.title,
+                    agent_name=agent_name,
+                    message_count=len(messages),
+                    last_message_at=conv.last_message_at,
+                    created_at=conv.created_at
+                ))
+        
+        return filtered

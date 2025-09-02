@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from typing import Dict, Any
 
 from models.user_models import UserCreate, UserLogin, UserResponse, UserUpdate
-from services.user_service_new import UserService
+from services.user_service import UserService
 from data.database import get_db
 
 router = APIRouter()
