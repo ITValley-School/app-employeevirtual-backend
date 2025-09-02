@@ -72,6 +72,7 @@ class FlowBase(BaseModel):
     name: str = Field(..., min_length=2, max_length=100, description="Nome do flow")
     description: Optional[str] = Field(None, max_length=1000, description="Descrição do flow")
     tags: Optional[List[str]] = Field(default_factory=list, description="Tags para organização")
+    config: Optional[Dict[str, Any]] = Field(default_factory=dict, description="Configurações específicas do flow")
     
 class FlowCreate(FlowBase):
     """Modelo para criação de flow"""
@@ -95,15 +96,30 @@ class FlowResponse(FlowBase):
     execution_count: int = 0
     estimated_time: Optional[int] = None  # em segundos
     steps: List[FlowStepResponse] = []
+    step_count: Optional[int] = None
+    config: Optional[Dict[str, Any]] = None
     
     class Config:
         from_attributes = True
 
+class FlowWithSteps(FlowResponse):
+    """Modelo de resposta do flow com suas etapas"""
+    steps: List[FlowStepResponse]
+    
+    class Config:
+        from_attributes = True
+        
 class FlowExecutionRequest(BaseModel):
     """Modelo para solicitação de execução de flow"""
     flow_id: int
     input_data: Optional[Dict[str, Any]] = Field(default_factory=dict, description="Dados de entrada")
     auto_continue: bool = Field(default=True, description="Continuar automaticamente após pausas")
+    
+class FlowExecutionCreate(BaseModel):
+    """Modelo para criação de execução de flow"""
+    flow_id: int
+    user_id: int
+    trigger_data: Optional[Dict[str, Any]] = Field(default_factory=dict, description="Dados de entrada")
     
 class FlowExecutionStepResult(BaseModel):
     """Resultado de uma etapa da execução"""
@@ -124,14 +140,20 @@ class FlowExecutionResponse(BaseModel):
     flow_name: str
     user_id: int
     status: ExecutionStatus
-    input_data: Dict[str, Any]
+    trigger_data: Optional[Dict[str, Any]] = None
+    input_data: Optional[Dict[str, Any]] = None
     output_data: Optional[Dict[str, Any]] = None
+    result: Optional[Dict[str, Any]] = None
     current_step: Optional[int] = None
-    total_steps: int
-    completed_steps: int
+    total_steps: Optional[int] = None
+    completed_steps: Optional[int] = None
     error_message: Optional[str] = None
     execution_time: Optional[float] = None
-    started_at: datetime
+    duration: Optional[float] = None
+    time_saved: Optional[float] = None
+    started_at: Optional[datetime] = None
+    created_at: Optional[datetime] = None
+    ended_at: Optional[datetime] = None
     completed_at: Optional[datetime] = None
     steps_results: List[FlowExecutionStepResult] = []
     

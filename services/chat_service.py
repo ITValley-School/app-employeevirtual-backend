@@ -15,7 +15,7 @@ from models.chat_models import (
     MessageCreate, MessageResponse, ChatRequest, ChatResponse,
     ConversationWithMessages, ConversationSummary, MessageType, ConversationStatus
 )
-from services.orion_service_new import OrionService
+from services.orion_service import OrionService
 
 
 class ChatService:

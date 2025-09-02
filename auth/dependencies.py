@@ -8,7 +8,7 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 
 from models.user_models import UserResponse
-from services.user_service_new import UserService
+from services.user_service import UserService
 from data.database import get_db
 
 from auth.jwt_service import JWTService
