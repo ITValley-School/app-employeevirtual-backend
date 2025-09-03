@@ -6,7 +6,7 @@ from pydantic import BaseModel, Field, EmailStr
 from typing import Optional, List
 from datetime import datetime
 from enum import Enum
-from sqlalchemy import Column, String, DateTime, Boolean, Text, Enum as SQLEnum
+from sqlalchemy import Column, String, DateTime, Boolean, Text, Enum as SQLEnum, text
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.sql import func
 
@@ -89,7 +89,7 @@ class User(Base):
     __tablename__ = "users"
     __table_args__ = SCHEMA_CONFIG
     
-    id = Column(UUIDColumn, primary_key=True, default=generate_uuid, index=True)
+    id = Column(UUIDColumn, primary_key=True, server_default=text("NEWID()"), index=True)
     name = Column(String(100), nullable=False)
     email = Column(String(255), unique=True, index=True, nullable=False)
     password_hash = Column(String(255), nullable=False)
@@ -109,7 +109,7 @@ class UserSession(Base):
     __tablename__ = "user_sessions"
     __table_args__ = {'schema': 'empl'}
     
-    id = Column(UUIDColumn, primary_key=True, index=True)
+    id = Column(UUIDColumn, primary_key=True, server_default=text("NEWID()"), index=True)
     user_id = Column(UUIDColumn, nullable=False, index=True)
     token = Column(String(500), unique=True, index=True, nullable=False)
     expires_at = Column(DateTime(timezone=True), nullable=False)
@@ -124,7 +124,7 @@ class UserActivity(Base):
     __tablename__ = "user_activities"
     __table_args__ = {'schema': 'empl'}
     
-    id = Column(UUIDColumn, primary_key=True, index=True)
+    id = Column(UUIDColumn, primary_key=True, server_default=text("NEWID()"), index=True)
     user_id = Column(UUIDColumn, nullable=False, index=True)
     activity_type = Column(String(50), nullable=False)  # login, agent_created, flow_executed, etc.
     description = Column(Text, nullable=True)

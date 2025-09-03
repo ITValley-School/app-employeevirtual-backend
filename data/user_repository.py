@@ -87,8 +87,11 @@ class UserRepository:
         """Cria uma nova sessão de usuário"""
         if not validate_uuid(user_id):
             raise ValueError("Invalid user_id UUID")
+        
+        from models.uuid_models import generate_uuid
             
         db_session = UserSession(
+            id=generate_uuid(),  # Gerar UUID manualmente
             user_id=user_id,
             token=token,
             expires_at=expires_at
@@ -154,7 +157,10 @@ class UserRepository:
             import json
             activity_metadata = json.dumps(metadata)
         
+        from models.uuid_models import generate_uuid
+        
         db_activity = UserActivity(
+            id=generate_uuid(),  # Gerar UUID manualmente
             user_id=user_id,
             activity_type=activity_type,
             description=description,
