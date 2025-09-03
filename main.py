@@ -2,13 +2,12 @@
 Aplicação principal do sistema EmployeeVirtual
 """
 from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
 import logging
-import os
 
 from api.router_config import register_routers
 from data.migrations import auto_migrate, get_status, test_db
+from middlewares.cors_middleware import add_cors_middleware
 
 # Importa todos os modelos para registro na base
 import models
@@ -24,20 +23,8 @@ logging.getLogger("azure").setLevel(logging.WARNING)
 # Inicializa FastAPI
 app = FastAPI()
 
-# Configura CORS
-def get_cors_origins():
-    origins = os.getenv('CORS_ORIGINS')
-    if origins:
-        return [origin.strip() for origin in origins.split(',')]
-    return ["*"]  # Default para desenvolvimento
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=get_cors_origins(),
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+# Configura CORS via middleware dedicado
+add_cors_middleware(app)
 
 # Registrar todos os routers automaticamente
 register_routers(app)
