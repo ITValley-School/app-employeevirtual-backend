@@ -358,29 +358,5 @@ async def get_user_activities(
         "total": len(activities)
     }
 
-@router.get("/metrics")
-async def get_user_metrics(
-    current_user: UserResponse = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
-    """
-    Retorna métricas do usuário atual
-    
-    Args:
-        current_user: Usuário atual autenticado
-        db: Sessão do banco de dados
-        
-    Returns:
-        Métricas do usuário
-    """
-    user_service = UserService(db)
-    metrics = user_service.get_user_metrics(current_user.id)
-    
-    if not metrics:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Métricas não encontradas"
-        )
-    
-    return metrics
+ 
 

@@ -227,46 +227,7 @@ async def execute_flow(
             detail=f"Erro na execução do flow: {str(e)}"
         )
 
-@router.post("/{flow_id}/execute-simple")
-async def execute_flow_simple(
-    flow_id: int,
-    execution_data: FlowExecutionRequest,
-    current_user: UserResponse = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
-    """
-    Executa um flow de forma simples
-    
-    Args:
-        flow_id: ID do flow
-        execution_data: Dados da execução
-        current_user: Usuário atual
-        db: Sessão do banco de dados
-        
-    Returns:
-        Resultado da execução simplificado
-    """
-    flow_service = FlowService(db)
-    
-    try:
-        result = await flow_service.execute_flow_simple(
-            flow_id=flow_id,
-            user_id=current_user.id,
-            input_data=execution_data.input_data
-        )
-        
-        return result
-        
-    except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=str(e)
-        )
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Erro na execução do flow: {str(e)}"
-        )
+ 
 
 @router.get("/{flow_id}/executions")
 async def get_flow_executions(

@@ -227,59 +227,7 @@ async def execute_agent(
             detail=f"Erro na execução do agente: {str(e)}"
         )
 
-@router.post("/{agent_id}/execute-simple")
-async def execute_agent_simple(
-    agent_id: int,
-    execution_data: AgentExecutionRequest,
-    current_user: UserResponse = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
-    """
-    Executa um agente de forma simples (sem tools avançados)
-    
-    Args:
-        agent_id: ID do agente
-        execution_data: Dados da execução
-        current_user: Usuário atual
-        db: Sessão do banco de dados
-        
-    Returns:
-        Resultado da execução simplificado
-    """
-    agent_service = AgentService(db)
-    
-    try:
-        result = await agent_service.execute_agent_simple(
-            agent_id=agent_id,
-            user_id=current_user.id,
-            user_message=execution_data.user_message
-        )
-        
-        return result
-        
-    except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=str(e)
-        )
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Erro na execução do agente: {str(e)}"
-        )
-
-@router.get("/models/supported")
-async def get_supported_models(
-    db: Session = Depends(get_db)
-):
-    """
-    Retorna lista de modelos LLM suportados
-    
-    Returns:
-        Dicionário com provedores e modelos suportados
-    """
-    agent_service = AgentService(db)
-    return agent_service.get_supported_models()
+ 
 
 @router.post("/validate")
 async def validate_agent_config(
@@ -420,52 +368,5 @@ async def get_agent_knowledge(
         "total": len(knowledge_files)
     }
 
-@router.post("/chat")
-async def quick_chat(
-    agent_id: int,
-    message: str,
-    context: Optional[Dict[str, Any]] = None,
-    current_user: UserResponse = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
-    """
-    Chat rápido com agente (sem salvar conversação)
-    
-    Args:
-        agent_id: ID do agente
-        message: Mensagem do usuário
-        context: Contexto adicional
-        current_user: Usuário atual
-        db: Sessão do banco de dados
-        
-    Returns:
-        Resposta do agente
-    """
-    agent_service = AgentService(db)
-    
-    try:
-        result = await agent_service.execute_agent(
-            agent_id=agent_id,
-            user_id=current_user.id,
-            user_message=message,
-            context=context or {}
-        )
-        
-        return {
-            "agent_response": result["response"],
-            "execution_time": result.get("execution_time"),
-            "model_used": result.get("model_used"),
-            "success": result.get("success")
-        }
-        
-    except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=str(e)
-        )
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Erro no chat: {str(e)}"
-        )
+ 
 

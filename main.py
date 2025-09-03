@@ -2,70 +2,84 @@
 Aplicação principal do sistema EmployeeVirtual
 """
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from dotenv import load_dotenv
+import logging
+import os
 
-# Apenas CORS middleware - o que importa
-from middlewares.cors_middleware import add_cors_middleware
-
-# Import do configurador de routers - uma linha só
 from api.router_config import register_routers
+from data.migrations import auto_migrate, get_status, test_db
 
-# Criar aplicação FastAPI
-app = FastAPI(
-    title="EmployeeVirtual API",
-    description="API completa para o sistema EmployeeVirtual - Agentes de IA, Automações e Chat",
-    version="1.0.0",
-    docs_url="/docs",
-    redoc_url="/redoc"
+# Importa todos os modelos para registro na base
+import models
+
+# Carrega variáveis de ambiente
+load_dotenv()
+
+# Configura logs
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+logging.getLogger("azure").setLevel(logging.WARNING)
+
+# Inicializa FastAPI
+app = FastAPI()
+
+# Configura CORS
+def get_cors_origins():
+    origins = os.getenv('CORS_ORIGINS')
+    if origins:
+        return [origin.strip() for origin in origins.split(',')]
+    return ["*"]  # Default para desenvolvimento
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=get_cors_origins(),
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
-# Adicionar apenas CORS middleware - como sempre funcionou
-add_cors_middleware(app)
-
-# Registrar todos os routers automaticamente - uma linha só
+# Registrar todos os routers automaticamente
 register_routers(app)
 
-@app.get("/")
-async def root():
+@app.on_event("startup")
+async def startup_event():
     """
-    Endpoint raiz da API
+    Evento executado na inicialização da aplicação
+    """
+    logger.info("🚀 Iniciando EmployeeVirtual API...")
     
-    Returns:
-        Informações básicas da API
-    """
-    return {
-        "message": "EmployeeVirtual API",
-        "version": "1.0.0",
-        "status": "running",
-        "docs": "/docs",
-        "redoc": "/redoc"
-    }
+    # Testar conexão com banco
+    if test_db():
+        logger.info("✅ Conexão com banco estabelecida")
+        
+        # Executar auto-migração
+        try:
+            logger.info("🔄 Executando auto-migração do banco...")
+            success = auto_migrate()
+            
+            if success:
+                logger.info("✅ Auto-migração concluída com sucesso!")
+                
+                # Mostrar status final
+                status = get_status()
+                logger.info(f"📊 Status do banco: {status}")
+                
+            else:
+                logger.error("❌ Falha na auto-migração!")
+                
+        except Exception as e:
+            logger.error(f"💥 Erro durante auto-migração: {e}")
+    else:
+        logger.error("❌ Falha na conexão com banco de dados")
+    
+    logger.info("🎯 EmployeeVirtual API pronta para uso!")
 
-@app.get("/health")
-async def health_check():
+@app.on_event("shutdown")
+async def shutdown_event():
     """
-    Endpoint de health check - SIMPLES sem banco
-    
-    Returns:
-        Status básico da aplicação
+    Evento executado no encerramento da aplicação
     """
-    return {
-        "status": "healthy",
-        "message": "EmployeeVirtual API is running",
-        "version": "1.0.0"
-    }
+    logger.info("🛑 Encerrando EmployeeVirtual API...")
 
-@app.get("/api/info")
-async def api_info():
-    """
-    Informações da API
-    
-    Returns:
-        Informações detalhadas da API
-    """
-    return {
-        "name": "EmployeeVirtual API",
-        "version": "1.0.0",
-        "description": "API completa para o sistema EmployeeVirtual",
-        "status": "running"
-    }
 

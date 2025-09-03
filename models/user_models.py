@@ -7,12 +7,11 @@ from typing import Optional, List
 from datetime import datetime
 from enum import Enum
 from sqlalchemy import Column, String, DateTime, Boolean, Text, Enum as SQLEnum, text
-from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.sql import func
 
 from models.uuid_models import UUIDColumn, generate_uuid, uuid_field, required_uuid_field
+from data.base import Base
 
-Base = declarative_base()
 
 # Configuração de schema baseada no tipo de banco
 USE_SCHEMA = not os.getenv("DATABASE_URL", "").startswith("sqlite")

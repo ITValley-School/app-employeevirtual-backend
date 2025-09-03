@@ -261,7 +261,7 @@ class UserRepository:
         last_activity = self.db.query(UserActivity).filter(
             UserActivity.user_id == user_id
         ).order_by(desc(UserActivity.created_at)).first()
-        
+    
         return {
             "user_id": user_id,
             "name": user.name,

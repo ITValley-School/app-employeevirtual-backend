@@ -6,10 +6,9 @@ from typing import Optional, List, Dict, Any
 from datetime import datetime
 from enum import Enum
 from sqlalchemy import Column, Integer, String, DateTime, Boolean, Text, Float, Enum as SQLEnum, ForeignKey, JSON
-from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.sql import func
+from data.base import Base
 
-Base = declarative_base()
 
 class FlowStatus(str, Enum):
     """Status do flow"""

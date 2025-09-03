@@ -26,8 +26,8 @@
 ### 🌐 **2. API de Agentes Melhorada (`agent_api.py`)**
 
 #### **Novos Endpoints:**
-- **`POST /agents/{agent_id}/execute-simple`**: Execução simples
-- **`GET /agents/models/supported`**: Modelos LLM suportados
+- Removido `POST /agents/{agent_id}/execute-simple` (duplicado)
+- Removido `GET /agents/models/supported` (usar `GET /api/llm/providers`)
 - **`POST /agents/validate`**: Validação de configuração
 
 ### 🔗 **3. Serviço ORION (`orion_service.py`)**

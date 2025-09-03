@@ -6,10 +6,9 @@ from typing import Optional, List, Dict, Any
 from datetime import datetime, date
 from enum import Enum
 from sqlalchemy import Column, Integer, String, DateTime, Float, Text, Date
-from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.sql import func
+from data.base import Base
 
-Base = declarative_base()
 
 class MetricType(str, Enum):
     """Tipos de métricas"""

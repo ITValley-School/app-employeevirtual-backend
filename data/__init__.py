@@ -1,23 +1,14 @@
 """
-Data layer package - Repositórios para acesso a dados
+Camada Data - inicialização leve do pacote.
+
+Evita reexports pesados para não causar import circular quando
+`data.base` é importado dentro dos modelos.
 """
 
 from .database import get_db, SessionLocal, engine
-from .agent_repository import AgentRepository
-from .user_repository import UserRepository
-from .chat_repository import ChatRepository
-from .file_repository import FileRepository
-from .flow_repository import FlowRepository
-from .dashboard_repository import DashboardRepository
 
 __all__ = [
     'get_db',
-    'SessionLocal', 
+    'SessionLocal',
     'engine',
-    'AgentRepository',
-    'UserRepository',
-    'ChatRepository',
-    'FileRepository',
-    'FlowRepository',
-    'DashboardRepository'
 ]
