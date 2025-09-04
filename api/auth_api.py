@@ -2,6 +2,7 @@
 API de autenticação para o sistema EmployeeVirtual
 """
 from fastapi import APIRouter, Depends, HTTPException, status
+from datetime import datetime, timedelta
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 from typing import Dict, Any
@@ -10,6 +11,7 @@ from models.user_models import UserCreate, UserLogin, UserResponse, UserUpdate
 from services.user_service import UserService
 from data.database import get_db
 from auth.jwt_service import JWTService
+from auth.config import ACCESS_TOKEN_EXPIRE_MINUTES
 from auth.dependencies import get_current_user
 
 router = APIRouter()
@@ -68,11 +70,16 @@ async def login_user(login_data: UserLogin, db: Session = Depends(get_db)):
                 detail="Email ou senha incorretos"
             )
         
+        user = result["user"]
+        tokens = JWTService.create_token_pair(user.id, user.email)
+        expires_at = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+        
         return {
-            "access_token": result["token"],
-            "token_type": "bearer",
-            "expires_at": result["expires_at"],
-            "user": result["user"]
+            "access_token": tokens["access_token"],
+            "refresh_token": tokens["refresh_token"],
+            "token_type": tokens["token_type"],
+            "expires_at": expires_at,
+            "user": user
         }
         
     except ValueError as e:

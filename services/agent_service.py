@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 from pydantic_ai import Agent as PydanticAgent
 
 from models.agent_models import (
-    AgentCreate, AgentUpdate, AgentResponse
+    AgentCreate, AgentUpdate, AgentResponse, AgentType, AgentStatus, LLMProvider
 )
 from data.agent_repository import AgentRepository
 
@@ -25,7 +25,7 @@ class AgentService:
         self.db = db
         self.repository = AgentRepository(db)  # Usa o repository para dados
     
-    def create_agent(self, user_id: int, agent_data: AgentCreate) -> AgentResponse:
+    def create_agent(self, user_id: str, agent_data: AgentCreate) -> AgentResponse:
         """
         Cria um novo agente personalizado
         
@@ -69,8 +69,74 @@ class AgentService:
         )
         
         return AgentResponse.from_orm(db_agent)
+
+    def validate_agent_config(self, agent_data: AgentCreate) -> Dict[str, Any]:
+        """
+        Valida configuração de agente sem criar no banco
+        
+        Args:
+            agent_data: Dados do agente
+        
+        Returns:
+            Dict com validação: { valid, errors, warnings, normalized }
+        """
+        errors: List[str] = []
+        warnings: List[str] = []
+
+        # Validações básicas
+        if not agent_data.name or len(agent_data.name.strip()) < 2:
+            errors.append("Nome do agente deve ter pelo menos 2 caracteres")
+
+        if not agent_data.system_prompt or len(agent_data.system_prompt.strip()) < 10:
+            errors.append("Prompt do sistema deve ter pelo menos 10 caracteres")
+
+        if not agent_data.llm_provider:
+            errors.append("Provedor LLM é obrigatório")
+
+        if not agent_data.model or len(str(agent_data.model).strip()) == 0:
+            errors.append("Modelo LLM é obrigatório")
+
+        # Faixa de temperatura
+        if agent_data.temperature is not None:
+            try:
+                temp = float(agent_data.temperature)
+                if temp < 0.0 or temp > 2.0:
+                    errors.append("Temperature deve estar entre 0.0 e 2.0")
+            except (TypeError, ValueError):
+                errors.append("Temperature inválida")
+
+        # max_tokens opcional, mas pode sugerir limite
+        if agent_data.max_tokens is not None:
+            try:
+                mt = int(agent_data.max_tokens)
+                if mt <= 0:
+                    errors.append("max_tokens deve ser positivo")
+                elif mt > 8000:
+                    warnings.append("max_tokens alto; pode aumentar custo/latência")
+            except (TypeError, ValueError):
+                errors.append("max_tokens inválido")
+
+        normalized = {
+            "name": agent_data.name.strip() if agent_data.name else agent_data.name,
+            "description": agent_data.description,
+            "agent_type": agent_data.agent_type,
+            "system_prompt": agent_data.system_prompt.strip() if agent_data.system_prompt else agent_data.system_prompt,
+            "personality": agent_data.personality,
+            "avatar_url": agent_data.avatar_url,
+            "llm_provider": str(agent_data.llm_provider),
+            "model": str(agent_data.model),
+            "temperature": agent_data.temperature,
+            "max_tokens": agent_data.max_tokens,
+        }
+
+        return {
+            "valid": len(errors) == 0,
+            "errors": errors,
+            "warnings": warnings,
+            "normalized": normalized,
+        }
     
-    def get_user_agents(self, user_id: int, include_system: bool = True) -> List[AgentResponse]:
+    def get_user_agents(self, user_id: str, include_system: bool = True) -> List[AgentResponse]:
         """
         Busca agentes do usuário
         
@@ -85,9 +151,15 @@ class AgentService:
         agents = self.repository.get_agents_by_user(user_id, include_system)
         
         # Converter para response models
-        return [AgentResponse.from_orm(agent) for agent in agents]
+        # Converter agentes para response models, tratando enums
+        response_agents = []
+        for agent in agents:
+            agent = self._convert_agent_enums(agent)
+            response_agents.append(AgentResponse.from_orm(agent))
+        
+        return response_agents
     
-    def get_agent_by_id(self, agent_id: int, user_id: Optional[int] = None) -> Optional[AgentResponse]:
+    def get_agent_by_id(self, agent_id: str, user_id: Optional[str] = None) -> Optional[AgentResponse]:
         """
         Busca agente por ID
         
@@ -104,9 +176,28 @@ class AgentService:
         if not agent:
             return None
         
+        # Converter strings para enums se necessário
+        if isinstance(agent.agent_type, str):
+            try:
+                agent.agent_type = AgentType(agent.agent_type)
+            except ValueError:
+                agent.agent_type = AgentType.CUSTOM
+        
+        if isinstance(agent.status, str):
+            try:
+                agent.status = AgentStatus(agent.status)
+            except ValueError:
+                agent.status = AgentStatus.ACTIVE
+                
+        if isinstance(agent.llm_provider, str):
+            try:
+                agent.llm_provider = LLMProvider(agent.llm_provider)
+            except ValueError:
+                agent.llm_provider = LLMProvider.OPENAI
+        
         return AgentResponse.from_orm(agent)
     
-    def update_agent(self, agent_id: int, user_id: int, agent_data: AgentUpdate) -> Optional[AgentResponse]:
+    def update_agent(self, agent_id: str, user_id: str, agent_data: AgentUpdate) -> Optional[AgentResponse]:
         """
         Atualiza agente
         
@@ -146,9 +237,28 @@ class AgentService:
             f"Agente '{agent.name}' atualizado"
         )
         
+        # Converter strings para enums se necessário
+        if isinstance(agent.agent_type, str):
+            try:
+                agent.agent_type = AgentType(agent.agent_type)
+            except ValueError:
+                agent.agent_type = AgentType.CUSTOM
+        
+        if isinstance(agent.status, str):
+            try:
+                agent.status = AgentStatus(agent.status)
+            except ValueError:
+                agent.status = AgentStatus.ACTIVE
+                
+        if isinstance(agent.llm_provider, str):
+            try:
+                agent.llm_provider = LLMProvider(agent.llm_provider)
+            except ValueError:
+                agent.llm_provider = LLMProvider.OPENAI
+        
         return AgentResponse.from_orm(agent)
     
-    def delete_agent(self, agent_id: int, user_id: int) -> bool:
+    def delete_agent(self, agent_id: str, user_id: str) -> bool:
         """
         Deleta agente
         
@@ -179,7 +289,7 @@ class AgentService:
         
         return success
     
-    async def execute_agent(self, agent_id: int, user_id: int, user_message: str, context: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    async def execute_agent(self, agent_id: str, user_id: str, user_message: str, context: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """
         Executa um agente
         
@@ -306,7 +416,7 @@ class AgentService:
                 "error_message": error_message
             }
     
-    def get_agent_executions(self, agent_id: int, user_id: int, limit: int = 50) -> List[Dict[str, Any]]:
+    def get_agent_executions(self, agent_id: str, user_id: str, limit: int = 50) -> List[Dict[str, Any]]:
         """
         Busca execuções do agente
         
@@ -340,7 +450,7 @@ class AgentService:
             for execution in executions
         ]
     
-    def add_knowledge_to_agent(self, agent_id: int, user_id: int, file_data: Dict[str, Any]) -> Dict[str, Any]:
+    def add_knowledge_to_agent(self, agent_id: str, user_id: str, file_data: Dict[str, Any]) -> Dict[str, Any]:
         """
         Adiciona conhecimento ao agente
         
@@ -392,7 +502,7 @@ class AgentService:
             "created_at": knowledge.created_at
         }
     
-    def get_agent_knowledge(self, agent_id: int, user_id: int) -> List[Dict[str, Any]]:
+    def get_agent_knowledge(self, agent_id: str, user_id: str) -> List[Dict[str, Any]]:
         """
         Busca base de conhecimento do agente
         
@@ -446,7 +556,7 @@ class AgentService:
             for agent in system_agents
         ]
     
-    async def _get_agent_knowledge_context(self, agent_id: int, query: str) -> Optional[str]:
+    async def _get_agent_knowledge_context(self, agent_id: str, query: str) -> Optional[str]:
         """
         Busca contexto da base de conhecimento do agente
         
@@ -461,7 +571,29 @@ class AgentService:
         # Por enquanto, retorna None (sem RAG)
         return None
     
-    def _log_user_activity(self, user_id: int, activity_type: str, description: str):
+    def _convert_agent_enums(self, agent):
+        """Converte strings para enums se necessário"""
+        if isinstance(agent.agent_type, str):
+            try:
+                agent.agent_type = AgentType(agent.agent_type)
+            except ValueError:
+                agent.agent_type = AgentType.CUSTOM
+        
+        if isinstance(agent.status, str):
+            try:
+                agent.status = AgentStatus(agent.status)
+            except ValueError:
+                agent.status = AgentStatus.ACTIVE
+                
+        if isinstance(agent.llm_provider, str):
+            try:
+                agent.llm_provider = LLMProvider(agent.llm_provider)
+            except ValueError:
+                agent.llm_provider = LLMProvider.OPENAI
+        
+        return agent
+    
+    def _log_user_activity(self, user_id: str, activity_type: str, description: str):
         """
         Registra atividade do usuário
         

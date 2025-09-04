@@ -1,6 +1,7 @@
 """
 Repository para acesso a dados de agentes - Camada Data
 """
+import uuid
 from typing import Optional, List, Dict, Any
 from sqlalchemy.orm import Session
 from sqlalchemy import and_, func, desc
@@ -36,13 +37,16 @@ class AgentRepository:
         Returns:
             Agent: Instância do agente criado
         """
+        # Gerar UUID para o agente
+        agent_data["id"] = str(uuid.uuid4())
+        
         db_agent = Agent(**agent_data)
         self.db.add(db_agent)
         self.db.commit()
         self.db.refresh(db_agent)
         return db_agent
     
-    def get_agent_by_id(self, agent_id: int, user_id: Optional[int] = None) -> Optional[Agent]:
+    def get_agent_by_id(self, agent_id: str, user_id: Optional[str] = None) -> Optional[Agent]:
         """
         Busca agente por ID
         
@@ -60,7 +64,7 @@ class AgentRepository:
         
         return query.first()
     
-    def get_agents_by_user(self, user_id: int, include_system: bool = True) -> List[Agent]:
+    def get_agents_by_user(self, user_id: str, include_system: bool = True) -> List[Agent]:
         """
         Busca agentes do usuário
         
@@ -78,7 +82,7 @@ class AgentRepository:
         
         return query.order_by(desc(Agent.created_at)).all()
     
-    def update_agent(self, agent_id: int, user_id: int, update_data: Dict[str, Any]) -> Optional[Agent]:
+    def update_agent(self, agent_id: str, user_id: str, update_data: Dict[str, Any]) -> Optional[Agent]:
         """
         Atualiza agente
         
@@ -107,7 +111,7 @@ class AgentRepository:
         
         return agent
     
-    def delete_agent(self, agent_id: int, user_id: int) -> bool:
+    def delete_agent(self, agent_id: str, user_id: str) -> bool:
         """
         Deleta agente
         
@@ -129,7 +133,7 @@ class AgentRepository:
         self.db.commit()
         return True
     
-    def update_agent_stats(self, agent_id: int, usage_increment: int = 1) -> None:
+    def update_agent_stats(self, agent_id: str, usage_increment: int = 1) -> None:
         """
         Atualiza estatísticas do agente
         
@@ -157,13 +161,17 @@ class AgentRepository:
         Returns:
             AgentExecutionDB: Execução criada
         """
+        # Gerar UUID para a execução se não fornecido
+        if "id" not in execution_data:
+            execution_data["id"] = str(uuid.uuid4())
+            
         execution = AgentExecutionDB(**execution_data)
         self.db.add(execution)
         self.db.commit()
         self.db.refresh(execution)
         return execution
     
-    def get_agent_executions(self, agent_id: int, user_id: int, limit: int = 50) -> List[AgentExecutionDB]:
+    def get_agent_executions(self, agent_id: str, user_id: str, limit: int = 50) -> List[AgentExecutionDB]:
         """
         Busca execuções do agente
         
@@ -196,13 +204,17 @@ class AgentRepository:
         Returns:
             AgentKnowledge: Conhecimento criado
         """
+        # Gerar UUID para o conhecimento se não fornecido
+        if "id" not in knowledge_data:
+            knowledge_data["id"] = str(uuid.uuid4())
+            
         knowledge = AgentKnowledge(**knowledge_data)
         self.db.add(knowledge)
         self.db.commit()
         self.db.refresh(knowledge)
         return knowledge
     
-    def get_agent_knowledge(self, agent_id: int) -> List[AgentKnowledge]:
+    def get_agent_knowledge(self, agent_id: str) -> List[AgentKnowledge]:
         """
         Busca conhecimento do agente
         

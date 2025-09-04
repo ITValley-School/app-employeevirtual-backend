@@ -72,8 +72,8 @@ class AgentUpdate(BaseModel):
     
 class AgentResponse(AgentBase):
     """Modelo de resposta do agente"""
-    id: int
-    user_id: int
+    id: str  # UUID string
+    user_id: str  # UUID string
     status: AgentStatus
     llm_provider: LLMProvider
     model: str
@@ -94,7 +94,7 @@ class AgentExecutionRequest(BaseModel):
     
 class AgentExecutionResponse(BaseModel):
     """Modelo de resposta da execução"""
-    agent_id: int
+    agent_id: str  # UUID string
     agent_name: str
     user_message: str
     response: str
@@ -107,7 +107,7 @@ class AgentExecutionResponse(BaseModel):
     
 class AgentKnowledgeBase(BaseModel):
     """Modelo para base de conhecimento do agente"""
-    agent_id: int
+    agent_id: str  # UUID string
     file_name: str
     file_type: str
     file_size: int
@@ -121,16 +121,16 @@ class Agent(Base):
     __tablename__ = "agents"
     __table_args__ = {'schema': 'empl'}
     
-    id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, nullable=False, index=True)
+    id = Column(UUIDColumn, primary_key=True, index=True)
+    user_id = Column(UUIDColumn, nullable=False, index=True)
     name = Column(String(100), nullable=False)
     description = Column(Text, nullable=True)
-    agent_type = Column(SQLEnum(AgentType), default=AgentType.CUSTOM, nullable=False)
+    agent_type = Column(String(50), default=AgentType.CUSTOM, nullable=False)
     system_prompt = Column(Text, nullable=False)
     personality = Column(Text, nullable=True)
     avatar_url = Column(String(500), nullable=True)
-    status = Column(SQLEnum(AgentStatus), default=AgentStatus.ACTIVE, nullable=False)
-    llm_provider = Column(SQLEnum(LLMProvider), default=LLMProvider.OPENAI, nullable=False)
+    status = Column(String(20), default=AgentStatus.ACTIVE, nullable=False)
+    llm_provider = Column(String(50), default=LLMProvider.OPENAI, nullable=False)
     model = Column(String(100), nullable=False)
     temperature = Column(Float, default=0.7, nullable=False)
     max_tokens = Column(Integer, nullable=True)
@@ -148,7 +148,7 @@ class AgentKnowledge(Base):
     __table_args__ = {'schema': 'empl'}
     
     id = Column(Integer, primary_key=True, index=True)
-    agent_id = Column(Integer, ForeignKey('empl.agents.id'), nullable=False, index=True)
+    agent_id = Column(UUIDColumn, ForeignKey('empl.agents.id'), nullable=False, index=True)
     file_name = Column(String(255), nullable=False)
     file_type = Column(String(50), nullable=False)
     file_size = Column(Integer, nullable=False)
@@ -168,8 +168,8 @@ class AgentExecutionDB(Base):
     __table_args__ = {'schema': 'empl'}
     
     id = Column(Integer, primary_key=True, index=True)
-    agent_id = Column(Integer, ForeignKey('empl.agents.id'), nullable=False, index=True)
-    user_id = Column(Integer, nullable=False, index=True)
+    agent_id = Column(UUIDColumn, ForeignKey('empl.agents.id'), nullable=False, index=True)
+    user_id = Column(UUIDColumn, nullable=False, index=True)
     user_message = Column(Text, nullable=False)
     response = Column(Text, nullable=False)
     model_used = Column(String(100), nullable=False)
@@ -191,7 +191,7 @@ class SystemAgent(Base):
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String(100), nullable=False, unique=True)
     description = Column(Text, nullable=False)
-    agent_type = Column(SQLEnum(AgentType), nullable=False)
+    agent_type = Column(String(50), nullable=False)
     system_prompt = Column(Text, nullable=False)
     avatar_url = Column(String(500), nullable=True)
     orion_endpoint = Column(String(200), nullable=True)  # Endpoint específico no Orion

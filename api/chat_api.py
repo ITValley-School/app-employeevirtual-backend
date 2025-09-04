@@ -8,6 +8,7 @@ from typing import List, Dict, Any, Optional
 from models.chat_models import Message, ChatResponse, ConversationResponse, ConversationCreate, MessageResponse
 from models.user_models import UserResponse
 from services.chat_service import ChatService
+from services.agent_service import AgentService
 from auth.dependencies import get_current_user
 from data.database import get_db
 
@@ -478,5 +479,62 @@ async def quick_chat(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Erro no chat rápido: {str(e)}"
+        )
+
+@router.post("/agent", response_model=Dict[str, Any])
+async def chat_with_agent(
+    message: str,
+    agent_id: str,
+    context: Optional[Dict[str, Any]] = None,
+    current_user: UserResponse = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Chat direto com um agente específico (suporta UUIDs)
+    
+    Args:
+        message: Mensagem do usuário
+        agent_id: ID do agente (UUID)
+        context: Contexto adicional
+        current_user: Usuário atual
+        db: Sessão do banco de dados
+        
+    Returns:
+        Resposta do agente
+    """
+    agent_service = AgentService(db)
+    
+    try:
+        # Verificar se o agente existe e pertence ao usuário
+        agent = agent_service.get_agent_by_id(agent_id, current_user.id)
+        if not agent:
+            # Tentar buscar como agente do sistema
+            system_agents = agent_service.get_system_agents()
+            agent_found = None
+            for sys_agent in system_agents:
+                if str(sys_agent.get('id')) == agent_id:
+                    agent_found = sys_agent
+                    break
+            
+            if not agent_found:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="Agente não encontrado"
+                )
+        
+        # Executar agente
+        response = await agent_service.execute_agent(
+            agent_id=agent_id,
+            user_id=current_user.id,
+            user_message=message,
+            context=context or {}
+        )
+        
+        return response
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Erro ao executar agente: {str(e)}"
         )
 

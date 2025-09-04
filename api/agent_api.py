@@ -86,7 +86,7 @@ async def get_system_agents(db: Session = Depends(get_db)):
 
 @router.get("/{agent_id}", response_model=AgentResponse)
 async def get_agent(
-    agent_id: int,
+    agent_id: str,
     current_user: UserResponse = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
@@ -118,7 +118,7 @@ async def get_agent(
 
 @router.put("/{agent_id}", response_model=AgentResponse)
 async def update_agent(
-    agent_id: int,
+    agent_id: str,
     agent_data: AgentUpdate,
     current_user: UserResponse = Depends(get_current_user),
     db: Session = Depends(get_db)
@@ -152,7 +152,7 @@ async def update_agent(
 
 @router.delete("/{agent_id}")
 async def delete_agent(
-    agent_id: int,
+    agent_id: str,
     current_user: UserResponse = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
@@ -184,7 +184,7 @@ async def delete_agent(
 
 @router.post("/{agent_id}/execute")
 async def execute_agent(
-    agent_id: int,
+    agent_id: str,
     execution_data: AgentExecutionRequest,
     current_user: UserResponse = Depends(get_current_user),
     db: Session = Depends(get_db)
@@ -232,6 +232,7 @@ async def execute_agent(
 @router.post("/validate")
 async def validate_agent_config(
     agent_data: AgentCreate,
+    current_user: UserResponse = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
@@ -249,7 +250,7 @@ async def validate_agent_config(
 
 @router.get("/{agent_id}/executions")
 async def get_agent_executions(
-    agent_id: int,
+    agent_id: str,
     limit: int = 50,
     current_user: UserResponse = Depends(get_current_user),
     db: Session = Depends(get_db)
@@ -277,7 +278,7 @@ async def get_agent_executions(
 
 @router.post("/{agent_id}/knowledge")
 async def add_knowledge_to_agent(
-    agent_id: int,
+    agent_id: str,
     file_data: Dict[str, Any],
     current_user: UserResponse = Depends(get_current_user),
     db: Session = Depends(get_db)
@@ -321,7 +322,7 @@ async def add_knowledge_to_agent(
 
 @router.get("/{agent_id}/knowledge")
 async def get_agent_knowledge(
-    agent_id: int,
+    agent_id: str,
     current_user: UserResponse = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
