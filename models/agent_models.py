@@ -147,7 +147,7 @@ class AgentKnowledge(Base):
     __tablename__ = "agent_knowledge"
     __table_args__ = {'schema': 'empl'}
     
-    id = Column(Integer, primary_key=True, index=True)
+    id = Column(UUIDColumn, primary_key=True, server_default=text("NEWID()"), index=True)
     agent_id = Column(UUIDColumn, ForeignKey('empl.agents.id'), nullable=False, index=True)
     file_name = Column(String(255), nullable=False)
     file_type = Column(String(50), nullable=False)
@@ -167,7 +167,7 @@ class AgentExecutionDB(Base):
     __tablename__ = "agent_executions"
     __table_args__ = {'schema': 'empl'}
     
-    id = Column(Integer, primary_key=True, index=True)
+    id = Column(UUIDColumn, primary_key=True, server_default=text("NEWID()"), index=True)
     agent_id = Column(UUIDColumn, ForeignKey('empl.agents.id'), nullable=False, index=True)
     user_id = Column(UUIDColumn, nullable=False, index=True)
     user_message = Column(Text, nullable=False)
@@ -188,7 +188,7 @@ class SystemAgent(Base):
     __tablename__ = "system_agents"
     __table_args__ = {'schema': 'empl'}
     
-    id = Column(Integer, primary_key=True, index=True)
+    id = Column(UUIDColumn, primary_key=True, server_default=text("NEWID()"), index=True)
     name = Column(String(100), nullable=False, unique=True)
     description = Column(Text, nullable=False)
     agent_type = Column(String(50), nullable=False)

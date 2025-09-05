@@ -5,9 +5,10 @@ from pydantic import BaseModel, Field
 from typing import Optional, List, Dict, Any
 from datetime import datetime
 from enum import Enum
-from sqlalchemy import Column, Integer, String, DateTime, Boolean, Text, Float, Enum as SQLEnum, ForeignKey, JSON
+from sqlalchemy import Column, Integer, String, DateTime, Boolean, Text, Float, Enum as SQLEnum, ForeignKey, JSON, text
 from sqlalchemy.sql import func
 from data.base import Base
+from models.uuid_models import UUIDColumn
 
 
 class FlowStatus(str, Enum):
@@ -165,8 +166,8 @@ class Flow(Base):
     __tablename__ = "flows"
     __table_args__ = {'schema': 'empl'}
     
-    id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, nullable=False, index=True)
+    id = Column(UUIDColumn, primary_key=True, server_default=text("NEWID()"), index=True)
+    user_id = Column(UUIDColumn, nullable=False, index=True)
     name = Column(String(100), nullable=False)
     description = Column(Text, nullable=True)
     status = Column(SQLEnum(FlowStatus), default=FlowStatus.DRAFT, nullable=False)
@@ -185,8 +186,8 @@ class FlowStep(Base):
     __tablename__ = "flow_steps"
     __table_args__ = {'schema': 'empl'}
     
-    id = Column(Integer, primary_key=True, index=True)
-    flow_id = Column(Integer, ForeignKey('empl.flows.id'), nullable=False, index=True)
+    id = Column(UUIDColumn, primary_key=True, server_default=text("NEWID()"), index=True)
+    flow_id = Column(UUIDColumn, ForeignKey('empl.flows.id'), nullable=False, index=True)
     name = Column(String(100), nullable=False)
     step_type = Column(SQLEnum(StepType), nullable=False)
     order = Column(Integer, nullable=False)
@@ -203,9 +204,9 @@ class FlowExecution(Base):
     __tablename__ = "flow_executions"
     __table_args__ = {'schema': 'empl'}
     
-    id = Column(Integer, primary_key=True, index=True)
-    flow_id = Column(Integer, ForeignKey('empl.flows.id'), nullable=False, index=True)
-    user_id = Column(Integer, nullable=False, index=True)
+    id = Column(UUIDColumn, primary_key=True, server_default=text("NEWID()"), index=True)
+    flow_id = Column(UUIDColumn, ForeignKey('empl.flows.id'), nullable=False, index=True)
+    user_id = Column(UUIDColumn, nullable=False, index=True)
     status = Column(SQLEnum(ExecutionStatus), default=ExecutionStatus.PENDING, nullable=False)
     input_data = Column(Text, nullable=True)  # JSON string
     output_data = Column(Text, nullable=True)  # JSON string
@@ -225,9 +226,9 @@ class FlowExecutionStep(Base):
     __tablename__ = "flow_execution_steps"
     __table_args__ = {'schema': 'empl'}
     
-    id = Column(Integer, primary_key=True, index=True)
-    execution_id = Column(Integer, ForeignKey('empl.flow_executions.id'), nullable=False, index=True)
-    step_id = Column(Integer, ForeignKey('empl.flow_steps.id'), nullable=False, index=True)
+    id = Column(UUIDColumn, primary_key=True, server_default=text("NEWID()"), index=True)
+    execution_id = Column(UUIDColumn, ForeignKey('empl.flow_executions.id'), nullable=False, index=True)
+    step_id = Column(UUIDColumn, ForeignKey('empl.flow_steps.id'), nullable=False, index=True)
     status = Column(SQLEnum(ExecutionStatus), default=ExecutionStatus.PENDING, nullable=False)
     input_data = Column(Text, nullable=True)  # JSON string
     output_data = Column(Text, nullable=True)  # JSON string
@@ -244,7 +245,7 @@ class FlowTemplate(Base):
     __tablename__ = "flow_templates"
     __table_args__ = {'schema': 'empl'}
     
-    id = Column(Integer, primary_key=True, index=True)
+    id = Column(UUIDColumn, primary_key=True, server_default=text("NEWID()"), index=True)
     name = Column(String(100), nullable=False)
     description = Column(Text, nullable=False)
     category = Column(String(50), nullable=False)

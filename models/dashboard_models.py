@@ -5,9 +5,10 @@ from pydantic import BaseModel, Field
 from typing import Optional, List, Dict, Any
 from datetime import datetime, date
 from enum import Enum
-from sqlalchemy import Column, Integer, String, DateTime, Float, Text, Date
+from sqlalchemy import Column, Integer, String, DateTime, Float, Text, Date, text
 from sqlalchemy.sql import func
 from data.base import Base
+from models.uuid_models import UUIDColumn
 
 
 class MetricType(str, Enum):
@@ -114,8 +115,8 @@ class UserMetrics(Base):
     __tablename__ = "user_metrics"
     __table_args__ = {'schema': 'empl'}
     
-    id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, nullable=False, index=True)
+    id = Column(UUIDColumn, primary_key=True, server_default=text("NEWID()"), index=True)
+    user_id = Column(UUIDColumn, nullable=False, index=True)
     metric_date = Column(Date, nullable=False, index=True)
     total_agents = Column(Integer, default=0, nullable=False)
     total_flows = Column(Integer, default=0, nullable=False)
@@ -135,9 +136,9 @@ class AgentMetricsDB(Base):
     __tablename__ = "agent_metrics"
     __table_args__ = {'schema': 'empl'}
     
-    id = Column(Integer, primary_key=True, index=True)
-    agent_id = Column(Integer, nullable=False, index=True)
-    user_id = Column(Integer, nullable=False, index=True)
+    id = Column(UUIDColumn, primary_key=True, server_default=text("NEWID()"), index=True)
+    agent_id = Column(UUIDColumn, nullable=False, index=True)
+    user_id = Column(UUIDColumn, nullable=False, index=True)
     metric_date = Column(Date, nullable=False, index=True)
     executions = Column(Integer, default=0, nullable=False)
     total_execution_time = Column(Float, default=0.0, nullable=False)
@@ -155,9 +156,9 @@ class FlowMetricsDB(Base):
     __tablename__ = "flow_metrics"
     __table_args__ = {'schema': 'empl'}
     
-    id = Column(Integer, primary_key=True, index=True)
-    flow_id = Column(Integer, nullable=False, index=True)
-    user_id = Column(Integer, nullable=False, index=True)
+    id = Column(UUIDColumn, primary_key=True, server_default=text("NEWID()"), index=True)
+    flow_id = Column(UUIDColumn, nullable=False, index=True)
+    user_id = Column(UUIDColumn, nullable=False, index=True)
     metric_date = Column(Date, nullable=False, index=True)
     executions = Column(Integer, default=0, nullable=False)
     total_execution_time = Column(Float, default=0.0, nullable=False)
@@ -175,7 +176,7 @@ class SystemMetrics(Base):
     __tablename__ = "system_metrics"
     __table_args__ = {'schema': 'empl'}
     
-    id = Column(Integer, primary_key=True, index=True)
+    id = Column(UUIDColumn, primary_key=True, server_default=text("NEWID()"), index=True)
     metric_date = Column(Date, nullable=False, index=True)
     total_users = Column(Integer, default=0, nullable=False)
     active_users = Column(Integer, default=0, nullable=False)

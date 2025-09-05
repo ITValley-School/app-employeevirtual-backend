@@ -5,9 +5,10 @@ from pydantic import BaseModel, Field
 from typing import Optional, List, Dict, Any
 from datetime import datetime
 from enum import Enum
-from sqlalchemy import Column, Integer, String, DateTime, Boolean, Text, Enum as SQLEnum, ForeignKey
+from sqlalchemy import Column, String, DateTime, Boolean, Text, Enum as SQLEnum, ForeignKey, text
 from sqlalchemy.sql import func
 from data.base import Base
+from models.uuid_models import UUIDColumn
 
 
 class MessageType(str, Enum):
@@ -30,15 +31,15 @@ class MessageBase(BaseModel):
     
 class MessageCreate(MessageBase):
     """Modelo para criação de mensagem"""
-    conversation_id: int = Field(..., description="ID da conversação")
+    conversation_id: str = Field(..., description="ID da conversação")
     metadata: Optional[Dict[str, Any]] = Field(default_factory=dict, description="Metadados da mensagem")
     
 class MessageResponse(MessageBase):
     """Modelo de resposta da mensagem"""
-    id: int
-    conversation_id: int
-    user_id: int
-    agent_id: Optional[int] = None
+    id: str
+    conversation_id: str
+    user_id: str
+    agent_id: Optional[str] = None
     metadata: Optional[Dict[str, Any]] = None
     created_at: datetime
     edited_at: Optional[datetime] = None
@@ -53,7 +54,7 @@ class ConversationBase(BaseModel):
     
 class ConversationCreate(ConversationBase):
     """Modelo para criação de conversação"""
-    agent_id: int = Field(..., description="ID do agente")
+    agent_id: str = Field(..., description="ID do agente")
     
 class ConversationUpdate(BaseModel):
     """Modelo para atualização de conversação"""
@@ -62,9 +63,9 @@ class ConversationUpdate(BaseModel):
     
 class ConversationResponse(ConversationBase):
     """Modelo de resposta da conversação"""
-    id: int
-    user_id: int
-    agent_id: int
+    id: str
+    user_id: str
+    agent_id: str
     agent_name: str
     status: ConversationStatus
     message_count: int = 0
@@ -81,14 +82,14 @@ class ConversationWithMessages(ConversationResponse):
 
 class ChatRequest(BaseModel):
     """Solicitação de chat"""
-    agent_id: int = Field(..., description="ID do agente")
+    agent_id: str = Field(..., description="ID do agente")
     message: str = Field(..., min_length=1, description="Mensagem do usuário")
-    conversation_id: Optional[int] = Field(None, description="ID da conversação (opcional para nova conversa)")
+    conversation_id: Optional[str] = Field(None, description="ID da conversação (opcional para nova conversa)")
     context: Optional[Dict[str, Any]] = Field(default_factory=dict, description="Contexto adicional")
     
 class ChatResponse(BaseModel):
     """Resposta do chat"""
-    conversation_id: int
+    conversation_id: str
     user_message: MessageResponse
     agent_response: MessageResponse
     agent_name: str
@@ -97,7 +98,7 @@ class ChatResponse(BaseModel):
     
 class ConversationSummary(BaseModel):
     """Resumo da conversação"""
-    id: int
+    id: str
     title: str
     agent_name: str
     message_count: int
@@ -111,9 +112,9 @@ class Conversation(Base):
     __tablename__ = "conversations"
     __table_args__ = {'schema': 'empl'}
     
-    id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, nullable=False, index=True)
-    agent_id = Column(Integer, ForeignKey('empl.agents.id'), nullable=False, index=True)
+    id = Column(UUIDColumn, primary_key=True, server_default=text("NEWID()"), index=True)
+    user_id = Column(UUIDColumn, nullable=False, index=True)
+    agent_id = Column(UUIDColumn, ForeignKey('empl.agents.id'), nullable=False, index=True)
     title = Column(String(200), nullable=True)
     status = Column(SQLEnum(ConversationStatus), default=ConversationStatus.ACTIVE, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
@@ -128,10 +129,10 @@ class Message(Base):
     __tablename__ = "messages"
     __table_args__ = {'schema': 'empl'}
     
-    id = Column(Integer, primary_key=True, index=True)
-    conversation_id = Column(Integer, ForeignKey('empl.conversations.id'), nullable=False, index=True)
-    user_id = Column(Integer, nullable=False, index=True)
-    agent_id = Column(Integer, ForeignKey('empl.agents.id'), nullable=True, index=True)
+    id = Column(UUIDColumn, primary_key=True, server_default=text("NEWID()"), index=True)
+    conversation_id = Column(UUIDColumn, ForeignKey('empl.conversations.id'), nullable=False, index=True)
+    user_id = Column(UUIDColumn, nullable=False, index=True)
+    agent_id = Column(UUIDColumn, ForeignKey('empl.agents.id'), nullable=True, index=True)
     content = Column(Text, nullable=False)
     message_type = Column(SQLEnum(MessageType), nullable=False)
     message_metadata = Column(Text, nullable=True)  # JSON string
@@ -147,8 +148,8 @@ class ConversationContext(Base):
     __tablename__ = "conversation_contexts"
     __table_args__ = {'schema': 'empl'}
     
-    id = Column(Integer, primary_key=True, index=True)
-    conversation_id = Column(Integer, ForeignKey('empl.conversations.id'), nullable=False, index=True)
+    id = Column(UUIDColumn, primary_key=True, server_default=text("NEWID()"), index=True)
+    conversation_id = Column(UUIDColumn, ForeignKey('empl.conversations.id'), nullable=False, index=True)
     context_key = Column(String(100), nullable=False)
     context_value = Column(Text, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
@@ -162,9 +163,9 @@ class MessageReaction(Base):
     __tablename__ = "message_reactions"
     __table_args__ = {'schema': 'empl'}
     
-    id = Column(Integer, primary_key=True, index=True)
-    message_id = Column(Integer, ForeignKey('empl.messages.id'), nullable=False, index=True)
-    user_id = Column(Integer, nullable=False, index=True)
+    id = Column(UUIDColumn, primary_key=True, server_default=text("NEWID()"), index=True)
+    message_id = Column(UUIDColumn, ForeignKey('empl.messages.id'), nullable=False, index=True)
+    user_id = Column(UUIDColumn, nullable=False, index=True)
     reaction_type = Column(String(20), nullable=False)  # like, dislike, helpful, etc.
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     
