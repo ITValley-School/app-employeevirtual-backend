@@ -29,38 +29,38 @@ add_cors_middleware(app)
 # Registrar todos os routers automaticamente
 register_routers(app)
 
-@app.on_event("startup")
-async def startup_event():
-    """
-    Evento executado na inicialização da aplicação
-    """
-    logger.info("🚀 Iniciando EmployeeVirtual API...")
+# @app.on_event("startup")
+# async def startup_event():
+#     """
+#     Evento executado na inicialização da aplicação
+#     """
+#     logger.info("🚀 Iniciando EmployeeVirtual API...")
     
-    # Testar conexão com banco
-    if test_db():
-        logger.info("✅ Conexão com banco estabelecida")
+#     # Testar conexão com banco
+#     if test_db():
+#         logger.info("✅ Conexão com banco estabelecida")
         
-        # Executar auto-migração
-        try:
-            logger.info("🔄 Executando auto-migração do banco...")
-            success = auto_migrate()
+#         # Executar auto-migração
+#         try:
+#             logger.info("🔄 Executando auto-migração do banco...")
+#             success = auto_migrate()
             
-            if success:
-                logger.info("✅ Auto-migração concluída com sucesso!")
+#             if success:
+#                 logger.info("✅ Auto-migração concluída com sucesso!")
                 
-                # Mostrar status final
-                status = get_status()
-                logger.info(f"📊 Status do banco: {status}")
+#                 # Mostrar status final
+#                 status = get_status()
+#                 logger.info(f"📊 Status do banco: {status}")
                 
-            else:
-                logger.error("❌ Falha na auto-migração!")
+#             else:
+#                 logger.error("❌ Falha na auto-migração!")
                 
-        except Exception as e:
-            logger.error(f"💥 Erro durante auto-migração: {e}")
-    else:
-        logger.error("❌ Falha na conexão com banco de dados")
+#         except Exception as e:
+#             logger.error(f"💥 Erro durante auto-migração: {e}")
+#     else:
+#         logger.error("❌ Falha na conexão com banco de dados")
     
-    logger.info("🎯 EmployeeVirtual API pronta para uso!")
+#     logger.info("🎯 EmployeeVirtual API pronta para uso!")
 
 @app.on_event("shutdown")
 async def shutdown_event():

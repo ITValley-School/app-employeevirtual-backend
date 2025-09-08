@@ -4,6 +4,7 @@ Camada de lógica de negócio - NÃO faz consultas SQL diretas
 """
 import json
 import time
+import os
 from datetime import datetime
 from typing import Optional, List, Dict, Any
 from sqlalchemy.orm import Session
@@ -328,25 +329,46 @@ class AgentService:
                 system_prompt += f"\n\nConhecimento específico:\n{knowledge_context}"
             
             # Executar agente PydanticAI
-            model_string = f"{agent.llm_provider}:{agent.model}"
-            
-            # Configurações opcionais do modelo
-            model_settings = {}
-            if hasattr(agent, 'temperature') and agent.temperature is not None:
-                model_settings['temperature'] = agent.temperature
-            if hasattr(agent, 'max_tokens') and agent.max_tokens is not None:
-                model_settings['max_tokens'] = agent.max_tokens
-            
-            # Criar agente com ou sem configurações
-            if model_settings:
-                from pydantic_ai import ModelSettings
-                pydantic_agent = PydanticAgent(
-                    model_string, 
-                    system_prompt=system_prompt,
-                    model_settings=ModelSettings(**model_settings)
-                )
+            # Validar se o modelo está definido
+            if not agent.model or agent.model.strip() == "":
+                # Usar modelo padrão baseado no provedor
+                default_models = {
+                    "openai": "gpt-4o-mini",
+                    "anthropic": "claude-3-5-sonnet-latest", 
+                    "google": "gemini-2.0-flash-exp",
+                    "groq": "llama-3.1-8b-instant",
+                    "mistral": "mistral-large-latest",
+                    "cohere": "command-r-plus",
+                    "deepseek": "deepseek-chat"
+                }
+                model_name = default_models.get(agent.llm_provider, "gpt-4o-mini")
+                print(f"⚠️ Modelo não definido para agente {agent_id}, usando padrão: {model_name}")
+                
+                # Corrigir no banco de dados para futuras execuções
+                try:
+                    agent.model = model_name
+                    self.db.commit()
+                    print(f"✅ Modelo corrigido no banco de dados: {model_name}")
+                except Exception as e:
+                    print(f"⚠️ Erro ao corrigir modelo no banco: {e}")
             else:
-                pydantic_agent = PydanticAgent(model_string, system_prompt=system_prompt)
+                model_name = agent.model.strip()
+            
+            # Construir model_string limpo (sem parâmetros)
+            # Converter enum para string (o enum LLMProvider já tem valores como strings)
+            provider_str = agent.llm_provider.value if hasattr(agent.llm_provider, 'value') else str(agent.llm_provider)
+            
+            model_string = f"{provider_str}:{model_name}"
+            
+            print(f"🔧 Model string construído: {model_string}")
+            print(f"🔧 Parâmetros: temperature={agent.temperature}, max_tokens={agent.max_tokens}")
+            
+            # Configurar variáveis de ambiente para o Pydantic AI
+            await self._configure_llm_environment(agent, user_id)
+            
+            # Criar agente Pydantic AI (versão 0.3.6)
+            # Usar apenas o model_string limpo - parâmetros são ignorados pelo Pydantic AI
+            pydantic_agent = PydanticAgent(model_string, system_prompt=system_prompt)
             
             result = await pydantic_agent.run(user_message.strip())
             
@@ -609,3 +631,61 @@ class AgentService:
         }
         
         self.repository.log_user_activity(activity_data)
+    
+    async def _configure_llm_environment(self, agent, user_id: str):
+        """
+        Configura variáveis de ambiente para o Pydantic AI
+        
+        Args:
+            agent: Agente com configurações LLM
+            user_id: ID do usuário
+        """
+        try:
+            # Importar serviço de chaves LLM
+            from services.llm_key_service import LLMKeyService
+            llm_key_service = LLMKeyService(self.db)
+            
+            # Tentar obter chave do agente
+            key_info = await llm_key_service.get_key_for_agent(agent.id, user_id)
+            
+            if key_info:
+                # Configurar variável de ambiente com a chave
+                provider = key_info['provider'].upper()
+                api_key = key_info['api_key']
+                
+                if provider == 'OPENAI':
+                    os.environ['OPENAI_API_KEY'] = api_key
+                    print(f"✅ OPENAI_API_KEY configurada para agente {agent.id}")
+                elif provider == 'ANTHROPIC':
+                    os.environ['ANTHROPIC_API_KEY'] = api_key
+                    print(f"✅ ANTHROPIC_API_KEY configurada para agente {agent.id}")
+                elif provider == 'GOOGLE':
+                    os.environ['GOOGLE_API_KEY'] = api_key
+                    print(f"✅ GOOGLE_API_KEY configurada para agente {agent.id}")
+                elif provider == 'GROQ':
+                    os.environ['GROQ_API_KEY'] = api_key
+                    print(f"✅ GROQ_API_KEY configurada para agente {agent.id}")
+                elif provider == 'MISTRAL':
+                    os.environ['MISTRAL_API_KEY'] = api_key
+                    print(f"✅ MISTRAL_API_KEY configurada para agente {agent.id}")
+                elif provider == 'COHERE':
+                    os.environ['COHERE_API_KEY'] = api_key
+                    print(f"✅ COHERE_API_KEY configurada para agente {agent.id}")
+                elif provider == 'DEEPSEEK':
+                    os.environ['DEEPSEEK_API_KEY'] = api_key
+                    print(f"✅ DEEPSEEK_API_KEY configurada para agente {agent.id}")
+                else:
+                    print(f"⚠️ Provedor {provider} não suportado para configuração automática")
+            else:
+                # Verificar se já existe variável de ambiente
+                provider = str(agent.llm_provider).upper()
+                env_var = f"{provider}_API_KEY"
+                
+                if os.getenv(env_var):
+                    print(f"✅ {env_var} já configurada nas variáveis de ambiente")
+                else:
+                    print(f"⚠️ Nenhuma chave encontrada para agente {agent.id} e {env_var} não está configurada")
+                    
+        except Exception as e:
+            print(f"⚠️ Erro ao configurar ambiente LLM: {e}")
+            # Continuar execução mesmo com erro de configuração
