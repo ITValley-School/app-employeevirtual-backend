@@ -19,7 +19,7 @@ class ChatRepository:
         self.db = db
     
     # CRUD Conversações
-    def create_conversation(self, user_id: int, agent_id: int, title: str = None) -> Conversation:
+    def create_conversation(self, user_id: str, agent_id: str, title: str = None) -> Conversation:
         """Cria uma nova conversação"""
         db_conversation = Conversation(
             user_id=user_id,
@@ -31,14 +31,14 @@ class ChatRepository:
         self.db.refresh(db_conversation)
         return db_conversation
     
-    def get_conversation_by_id(self, conversation_id: int, user_id: int = None) -> Optional[Conversation]:
+    def get_conversation_by_id(self, conversation_id: str, user_id: str = None) -> Optional[Conversation]:
         """Busca conversação por ID"""
         query = self.db.query(Conversation).filter(Conversation.id == conversation_id)
         if user_id:
             query = query.filter(Conversation.user_id == user_id)
         return query.first()
     
-    def get_user_conversations(self, user_id: int, skip: int = 0, limit: int = 50, 
+    def get_user_conversations(self, user_id: str, skip: int = 0, limit: int = 50, 
                               status: ConversationStatus = None) -> List[Conversation]:
         """Busca conversações do usuário"""
         query = self.db.query(Conversation).filter(Conversation.user_id == user_id)
@@ -111,7 +111,7 @@ class ChatRepository:
         self.db.commit()
         return True
     
-    def delete_conversation(self, conversation_id: int, user_id: int) -> bool:
+    def delete_conversation(self, conversation_id: str, user_id: str) -> bool:
         """Remove conversação"""
         conversation = self.get_conversation_by_id(conversation_id, user_id)
         if not conversation:
@@ -137,17 +137,24 @@ class ChatRepository:
         return True
     
     # CRUD Mensagens
-    def create_message(self, conversation_id: int, content: str, message_type: MessageType,
-                      sender_id: int = None, agent_id: int = None, 
+    def create_message(self, conversation_id: str, content: str, message_type: MessageType,
+                      sender_id: str = None, agent_id: str = None, 
                       message_metadata: Optional[Dict[str, Any]] = None) -> Message:
         """Cria uma nova mensagem"""
+        import json
+        
+        # Converter metadata para JSON string se fornecido
+        metadata_json = None
+        if message_metadata:
+            metadata_json = json.dumps(message_metadata)
+        
         db_message = Message(
             conversation_id=conversation_id,
+            user_id=sender_id,
             content=content,
             message_type=message_type,
-            sender_id=sender_id,
             agent_id=agent_id,
-            message_metadata=message_metadata or {}
+            message_metadata=metadata_json
         )
         self.db.add(db_message)
         self.db.commit()

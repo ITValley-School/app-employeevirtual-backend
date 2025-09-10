@@ -13,7 +13,8 @@ from data.user_repository import UserRepository
 from models.chat_models import (
     ConversationCreate, ConversationUpdate, ConversationResponse,
     MessageCreate, MessageResponse, ChatRequest, ChatResponse,
-    ConversationWithMessages, ConversationSummary, MessageType, ConversationStatus
+    ConversationWithMessages, ConversationSummary, MessageType, ConversationStatus,
+    Message
 )
 from services.orion_service import OrionService
 
@@ -27,7 +28,7 @@ class ChatService:
         self.user_repository = UserRepository(db)
         self.orion_service = OrionService()
     
-    def create_conversation(self, user_id: int, conversation_data: ConversationCreate) -> ConversationResponse:
+    def create_conversation(self, user_id: str, conversation_data: ConversationCreate) -> ConversationResponse:
         """
         Cria uma nova conversação
         
@@ -509,3 +510,99 @@ class ChatService:
                 ))
         
         return filtered
+
+    def get_conversation_messages(self, conversation_id: str, user_id: int, limit: int = 100):
+        """
+        Busca mensagens de uma conversa específica
+        
+        Args:
+            conversation_id: ID da conversa
+            user_id: ID do usuário
+            limit: Limite de mensagens
+            
+        Returns:
+            Lista de mensagens
+        """
+        # Verificar se a conversa pertence ao usuário
+        conversation = self.chat_repository.get_conversation_by_id(conversation_id, user_id)
+        if not conversation:
+            raise ValueError("Conversa não encontrada ou não pertence ao usuário")
+        
+        return self.chat_repository.get_conversation_messages(conversation_id, limit=limit)
+
+    def create_message(self, conversation_id: str, user_id: str, content: str, 
+                      message_type: str, agent_id: str = None) -> Message:
+        """
+        Cria uma nova mensagem na conversa
+        
+        Args:
+            conversation_id: ID da conversa
+            user_id: ID do usuário
+            content: Conteúdo da mensagem
+            message_type: Tipo da mensagem ('user' ou 'agent')
+            agent_id: ID do agente (opcional, para mensagens do agente)
+            
+        Returns:
+            Message: Mensagem criada
+        """
+        from models.chat_models import MessageType
+        
+        # Verificar se a conversa pertence ao usuário
+        conversation = self.chat_repository.get_conversation_by_id(conversation_id, user_id)
+        if not conversation:
+            raise ValueError("Conversa não encontrada ou não pertence ao usuário")
+        
+        # Converter string para enum
+        msg_type = MessageType.USER if message_type == "user" else MessageType.AGENT
+        
+        # Criar mensagem
+        message = self.chat_repository.create_message(
+            conversation_id=conversation_id,
+            content=content,
+            message_type=msg_type,
+            sender_id=user_id,
+            agent_id=agent_id,
+            message_metadata=None  # Não passar dicionário vazio
+        )
+        
+        return message
+
+    def update_conversation_timestamp(self, conversation_id: str):
+        """
+        Atualiza o timestamp da última mensagem da conversa
+        
+        Args:
+            conversation_id: ID da conversa
+        """
+        # O timestamp já é atualizado automaticamente no repository.create_message
+        # Este método é mantido para compatibilidade
+        pass
+
+    def delete_conversation(self, conversation_id: str, user_id: str) -> bool:
+        """
+        Remove uma conversa e todas suas mensagens
+        
+        Args:
+            conversation_id: ID da conversa
+            user_id: ID do usuário
+            
+        Returns:
+            bool: True se removida com sucesso, False caso contrário
+        """
+        # Verificar se a conversa pertence ao usuário
+        conversation = self.chat_repository.get_conversation_by_id(conversation_id, user_id)
+        if not conversation:
+            raise ValueError("Conversa não encontrada ou não pertence ao usuário")
+        
+        # Deletar conversa (mensagens são deletadas em cascade)
+        success = self.chat_repository.delete_conversation(conversation_id, user_id)
+        
+        if success:
+            # Registrar atividade
+            self.user_repository.create_activity(
+                user_id=user_id,
+                activity_type="conversation_deleted",
+                description=f"Conversa '{conversation.title}' foi removida"
+            )
+        
+        return success
