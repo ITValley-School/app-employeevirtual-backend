@@ -6,11 +6,11 @@ from dotenv import load_dotenv
 import logging
 
 from api.router_config import register_routers
-from data.migrations import auto_migrate, get_status, test_db
+# from data.migrations import auto_migrate, get_status, test_db  # Comentado para evitar problemas de importação
 from middlewares.cors_middleware import add_cors_middleware
 
 # Importa todos os modelos para registro na base
-import models
+# import models  # Removido para evitar problemas de importação circular
 
 # Carrega variáveis de ambiente
 load_dotenv()

@@ -4,11 +4,9 @@ API para Agentes do Sistema - Catálogo
 from typing import List, Optional, Dict, Any
 from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, status, Query
-from sqlalchemy.orm import Session
 
 from services.system_agent_service import CatalogService
 from dependencies.service_providers import get_catalog_service
-from data.database import get_db
 from models.system_agent_models import (
     SystemAgentResponse, CategoryResponse, SystemAgentSummaryResponse, 
     UserSystemAgentResponse, UserCategoryWithAgentsResponse,

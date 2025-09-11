@@ -8,7 +8,7 @@ from models.agent_models import AgentCreate, AgentUpdate, AgentResponse, AgentEx
 from models.user_models import UserResponse
 from services.agent_service import AgentService
 from auth.dependencies import get_current_user
-from dependencies import get_agent_service
+from dependencies.service_providers import get_agent_service
 
 router = APIRouter()
 

@@ -4,7 +4,7 @@ API de chat para o sistema EmployeeVirtual
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from typing import List, Dict, Any, Optional
 
-from models.chat_models import Message, ChatResponse, ConversationResponse, ConversationCreate, MessageResponse, ConversationWithMessages
+from models.chat_models import ChatResponse, ConversationResponse, ConversationCreate, MessageResponse, ConversationWithMessages
 from models.user_models import UserResponse
 from services.chat_service import ChatService
 from auth.dependencies import get_current_user
@@ -103,7 +103,7 @@ async def get_conversations(
 async def get_conversation_history(
     conversation_id: str,
     current_user: UserResponse = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    chat_service: ChatService = Depends(get_chat_service)
 ):
     """
     Busca o histórico completo de uma conversa
@@ -111,12 +111,11 @@ async def get_conversation_history(
     Args:
         conversation_id: ID da conversa
         current_user: Usuário atual
-        db: Sessão do banco de dados
+        chat_service: Serviço de chat
         
     Returns:
         Conversa com mensagens
     """
-    chat_service = ChatService(db)
     
     try:
         conversation = await chat_service.get_conversation_with_messages(conversation_id, current_user.id)
