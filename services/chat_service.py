@@ -1,8 +1,9 @@
 """
 Serviço de chat/conversação para o sistema EmployeeVirtual - Nova implementação
-Usa apenas repository para acesso a dados
+Usa arquitetura híbrida: SQL Server (metadados) + MongoDB (histórico de chat)
 """
 import json
+import uuid
 from datetime import datetime
 from typing import Optional, List, Dict, Any
 from sqlalchemy.orm import Session
@@ -10,12 +11,18 @@ from sqlalchemy.orm import Session
 from data.chat_repository import ChatRepository
 from data.agent_repository import AgentRepository
 from data.user_repository import UserRepository
+from data.mongodb import (
+    create_chat_conversation, add_messages_to_conversation, 
+    get_conversation_history, update_conversation_context,
+    get_user_conversations, update_conversation_metadata,
+    delete_conversation, get_conversation_analytics
+)
 from models.chat_models import (
     ConversationCreate, ConversationUpdate, ConversationResponse,
     MessageCreate, MessageResponse, ChatRequest, ChatResponse,
     ConversationWithMessages, ConversationSummary, MessageType, ConversationStatus
 )
-from services.orion_service import OrionService
+from pydantic_ai import Agent as PydanticAgent
 
 
 class ChatService:
@@ -25,11 +32,11 @@ class ChatService:
         self.chat_repository = ChatRepository(db)
         self.agent_repository = AgentRepository(db)
         self.user_repository = UserRepository(db)
-        self.orion_service = OrionService()
+        # Pydantic AI será inicializado por agente
     
-    def create_conversation(self, user_id: str, conversation_data: ConversationCreate) -> ConversationResponse:
+    async def create_conversation(self, user_id: str, conversation_data: ConversationCreate) -> ConversationResponse:
         """
-        Cria uma nova conversação
+        Cria uma nova conversação usando arquitetura híbrida
         
         Args:
             user_id: ID do usuário
@@ -43,12 +50,23 @@ class ChatService:
         if not agent:
             raise ValueError("Agente não encontrado")
         
-        # Criar conversação
+        # Criar conversação no SQL Server (metadados)
         conversation = self.chat_repository.create_conversation(
             user_id=user_id,
             agent_id=conversation_data.agent_id,
             title=conversation_data.title or f"Conversa com {agent.name}"
         )
+        
+        # Criar documento no MongoDB (histórico de chat)
+        mongo_data = {
+            "conversation_id": str(conversation.id),
+            "user_id": user_id,
+            "agent_id": str(conversation_data.agent_id),
+            "title": conversation.title,
+            "context": conversation_data.context or {}
+        }
+        
+        await create_chat_conversation(mongo_data)
         
         # Registrar atividade
         self.user_repository.create_activity(
@@ -70,9 +88,9 @@ class ChatService:
             last_message_at=conversation.last_message_at
         )
     
-    def get_user_conversations(self, user_id: int, limit: int = 50) -> List[ConversationSummary]:
+    async def get_user_conversations(self, user_id: str, limit: int = 50) -> List[ConversationResponse]:
         """
-        Busca conversações do usuário
+        Busca conversações do usuário usando MongoDB
         
         Args:
             user_id: ID do usuário
@@ -81,29 +99,40 @@ class ChatService:
         Returns:
             Lista de resumos de conversações
         """
-        summaries = self.chat_repository.get_conversation_summaries(user_id, limit)
+        # Buscar conversas do MongoDB
+        mongo_conversations = await get_user_conversations(user_id, limit)
         
         result = []
-        for summary in summaries:
-            # Buscar nome do agente
-            agent = self.agent_repository.get_agent_by_id(summary['agent_id'])
+        for conv in mongo_conversations:
+            # Buscar nome do agente do SQL Server
+            agent = self.agent_repository.get_agent_by_id(conv['agent_id'])
             agent_name = agent.name if agent else "Agente não encontrado"
             
-            result.append(ConversationSummary(
-                id=summary['id'],
-                title=summary['title'],
+            # Extrair message_count corretamente
+            message_count = conv.get('message_count', 0)
+            if isinstance(message_count, dict):
+                # Se for um objeto MongoDB, usar valor padrão
+                message_count = 0
+            
+            result.append(ConversationResponse(
+                id=conv['conversation_id'],
+                user_id=user_id,
+                agent_id=conv['agent_id'],
+                title=conv['title'],
                 agent_name=agent_name,
-                message_count=summary['message_count'],
-                last_message_at=summary['last_message_at'],
-                created_at=summary['created_at']
+                status=ConversationStatus.ACTIVE,  # Assumir ativo por padrão
+                message_count=message_count,
+                created_at=conv['last_activity'],
+                updated_at=conv['last_activity'],
+                last_message_at=conv['last_activity']
             ))
         
         return result
     
-    def get_conversation_with_messages(self, conversation_id: int, user_id: int, 
+    async def get_conversation_with_messages(self, conversation_id: str, user_id: str, 
                                      message_limit: int = 50) -> Optional[ConversationWithMessages]:
         """
-        Busca conversação com suas mensagens
+        Busca conversação com suas mensagens usando MongoDB
         
         Args:
             conversation_id: ID da conversação
@@ -113,30 +142,37 @@ class ChatService:
         Returns:
             ConversationWithMessages ou None se não encontrada
         """
+        # Buscar histórico do MongoDB
+        mongo_data = await get_conversation_history(conversation_id, message_limit)
+        if not mongo_data:
+            return None
+        
+        # Buscar metadados do SQL Server
         conversation = self.chat_repository.get_conversation_by_id(conversation_id, user_id)
         if not conversation:
             return None
-        
-        # Buscar mensagens
-        messages = self.chat_repository.get_conversation_messages(
-            conversation_id, limit=message_limit, order_desc=False
-        )
         
         # Buscar nome do agente
         agent = self.agent_repository.get_agent_by_id(conversation.agent_id)
         agent_name = agent.name if agent else "Agente não encontrado"
         
-        # Converter mensagens
+        # Converter mensagens do MongoDB
         message_responses = []
-        for msg in messages:
+        for msg in mongo_data.get("messages", []):
+            # Garantir que user_id sempre tenha um valor válido
+            msg_user_id = msg.get("user_id") or user_id
+            if not msg_user_id:
+                msg_user_id = str(uuid.uuid4())  # Fallback se ainda for None
+            
             message_responses.append(MessageResponse(
-                id=msg.id,
-                content=msg.content,
-                message_type=msg.message_type,
-                sender_id=msg.sender_id,
-                agent_id=msg.agent_id,
-                message_metadata=msg.message_metadata,
-                created_at=msg.created_at
+                id=msg.get("id", str(uuid.uuid4())),
+                conversation_id=conversation_id,
+                user_id=msg_user_id,
+                content=msg["content"],
+                message_type=msg["message_type"],
+                agent_id=msg.get("agent_id") if msg["message_type"] == "agent" else None,
+                metadata=msg.get("metadata", {}),
+                created_at=msg.get("timestamp", datetime.utcnow())
             ))
         
         return ConversationWithMessages(
@@ -152,9 +188,9 @@ class ChatService:
             last_message_at=conversation.last_message_at
         )
     
-    def send_message(self, user_id: int, message_data: MessageCreate) -> MessageResponse:
+    async def send_message(self, user_id: str, message_data: MessageCreate) -> MessageResponse:
         """
-        Envia uma mensagem em uma conversação
+        Envia uma mensagem em uma conversação usando MongoDB
         
         Args:
             user_id: ID do usuário
@@ -168,13 +204,30 @@ class ChatService:
         if not conversation:
             raise ValueError("Conversação não encontrada")
         
-        # Criar mensagem do usuário
-        user_message = self.chat_repository.create_message(
-            conversation_id=message_data.conversation_id,
-            content=message_data.content,
-            message_type=MessageType.USER,
-            sender_id=user_id,
-            message_metadata=message_data.message_metadata
+        # Criar mensagem do usuário no MongoDB
+        message_id = str(uuid.uuid4())
+        user_message_data = {
+            "id": message_id,
+            "content": message_data.content,
+            "message_type": "user",
+            "user_id": user_id,
+            "metadata": message_data.message_metadata or {}
+        }
+        
+        # Salvar mensagem no MongoDB
+        success = await add_messages_to_conversation(
+            str(message_data.conversation_id), 
+            [user_message_data]
+        )
+        
+        if not success:
+            raise ValueError("Erro ao salvar mensagem no MongoDB")
+        
+        # Atualizar metadados no SQL Server
+        self.chat_repository.update_conversation(
+            message_data.conversation_id,
+            user_id,
+            last_message_at=datetime.utcnow()
         )
         
         # Registrar atividade
@@ -185,18 +238,19 @@ class ChatService:
         )
         
         return MessageResponse(
-            id=user_message.id,
-            content=user_message.content,
-            message_type=user_message.message_type,
-            sender_id=user_message.sender_id,
-            agent_id=user_message.agent_id,
-            message_metadata=user_message.message_metadata,
-            created_at=user_message.created_at
+            id=message_id,
+            conversation_id=message_data.conversation_id,
+            user_id=user_id,
+            content=message_data.content,
+            message_type=MessageType.USER,
+            agent_id=None,
+            metadata=message_data.metadata,
+            created_at=datetime.utcnow()
         )
     
-    async def process_chat_request(self, user_id: int, chat_request: ChatRequest) -> ChatResponse:
+    async def process_chat_request(self, user_id: str, chat_request: ChatRequest) -> ChatResponse:
         """
-        Processa uma requisição de chat completa
+        Processa uma requisição de chat completa usando MongoDB
         
         Args:
             user_id: ID do usuário
@@ -216,26 +270,17 @@ class ChatService:
             if not agent:
                 raise ValueError("Agente não encontrado")
             
-            # Criar mensagem do usuário
-            user_message = self.chat_repository.create_message(
-                conversation_id=chat_request.conversation_id,
-                content=chat_request.message,
-                message_type=MessageType.USER,
-                sender_id=user_id
-            )
-            
-            # Buscar histórico de mensagens para contexto
-            recent_messages = self.chat_repository.get_recent_messages(
-                chat_request.conversation_id, minutes=60
-            )
+            # Buscar histórico de mensagens do MongoDB para contexto
+            mongo_data = await get_conversation_history(str(chat_request.conversation_id), 20)
+            recent_messages = mongo_data.get("messages", []) if mongo_data else []
             
             # Preparar contexto para o agente
             context_messages = []
             for msg in recent_messages[-10:]:  # Últimas 10 mensagens
-                role = "user" if msg.message_type == MessageType.USER else "assistant"
+                role = "user" if msg.get("message_type") == "user" else "assistant"
                 context_messages.append({
                     "role": role,
-                    "content": msg.content
+                    "content": msg.get("content", "")
                 })
             
             # Adicionar mensagem atual
@@ -244,24 +289,87 @@ class ChatService:
                 "content": chat_request.message
             })
             
-            # Chamar serviço Orion para processar com o agente
-            orion_response = await self.orion_service.process_with_agent(
-                agent_id=agent.id,
-                messages=context_messages,
-                user_id=user_id,
-                conversation_id=chat_request.conversation_id
+            # Criar agente Pydantic AI com as configurações do agente
+            pydantic_agent = PydanticAgent(
+                model=agent.model,
+                system_prompt=agent.system_prompt
             )
             
-            # Criar mensagem de resposta do agente
-            agent_message = self.chat_repository.create_message(
-                conversation_id=chat_request.conversation_id,
-                content=orion_response.get('response', 'Erro ao processar resposta'),
-                message_type=MessageType.AGENT,
-                agent_id=agent.id,
-                message_metadata={
-                    'processing_time': orion_response.get('processing_time', 0),
-                    'model_used': orion_response.get('model_used', ''),
-                    'tokens_used': orion_response.get('tokens_used', 0)
+            # Processar mensagem com o agente
+            try:
+                # Usar apenas a mensagem atual para simplificar
+                result = await pydantic_agent.run(chat_request.message)
+                response_content = result.data
+                
+                orion_response = {
+                    "status": "success",
+                    "response": response_content,
+                    "metadata": {
+                        "model_used": agent.model,
+                        "tokens_used": len(chat_request.message) + len(response_content),
+                        "execution_time": 1.0,
+                        "timestamp": datetime.utcnow().isoformat()
+                    }
+                }
+                
+            except Exception as e:
+                # Log do erro para debug
+                print(f"❌ Erro no Pydantic AI: {str(e)}")
+                orion_response = {
+                    "status": "error",
+                    "error_message": f"Erro ao processar com agente: {str(e)}"
+                }
+            
+            # Preparar mensagens para salvar no MongoDB
+            user_message_id = str(uuid.uuid4())
+            agent_message_id = str(uuid.uuid4())
+            
+            messages_to_save = [
+                {
+                    "id": user_message_id,
+                    "content": chat_request.message,
+                    "message_type": "user",
+                    "user_id": user_id,
+                    "metadata": {
+                        "timestamp": datetime.utcnow()
+                    }
+                },
+                {
+                    "id": agent_message_id,
+                    "content": orion_response.get('response', 'Erro ao processar resposta'),
+                    "message_type": "agent",
+                    "agent_id": str(agent.id),
+                    "metadata": {
+                        "processing_time": orion_response.get('processing_time', 0),
+                        "model_used": orion_response.get('model_used', ''),
+                        "tokens_used": orion_response.get('tokens_used', 0),
+                        "timestamp": datetime.utcnow()
+                    }
+                }
+            ]
+            
+            # Salvar mensagens no MongoDB (atômico)
+            success = await add_messages_to_conversation(
+                str(chat_request.conversation_id), 
+                messages_to_save
+            )
+            
+            if not success:
+                raise ValueError("Erro ao salvar mensagens no MongoDB")
+            
+            # Atualizar metadados no SQL Server
+            self.chat_repository.update_conversation(
+                chat_request.conversation_id,
+                user_id,
+                last_message_at=datetime.utcnow()
+            )
+            
+            # Atualizar metadados no MongoDB
+            await update_conversation_metadata(
+                str(chat_request.conversation_id),
+                {
+                    "total_tokens": orion_response.get('tokens_used', 0),
+                    "total_cost": orion_response.get('cost', 0.0)
                 }
             )
             
@@ -275,33 +383,52 @@ class ChatService:
             return ChatResponse(
                 conversation_id=chat_request.conversation_id,
                 user_message=MessageResponse(
-                    id=user_message.id,
-                    content=user_message.content,
-                    message_type=user_message.message_type,
-                    sender_id=user_message.sender_id,
-                    agent_id=user_message.agent_id,
-                    message_metadata=user_message.message_metadata,
-                    created_at=user_message.created_at
+                    id=user_message_id,
+                    conversation_id=chat_request.conversation_id,
+                    user_id=user_id,
+                    content=chat_request.message,
+                    message_type=MessageType.USER,
+                    agent_id=None,
+                    metadata={"timestamp": datetime.utcnow()},
+                    created_at=datetime.utcnow()
                 ),
                 agent_response=MessageResponse(
-                    id=agent_message.id,
-                    content=agent_message.content,
-                    message_type=agent_message.message_type,
-                    sender_id=agent_message.sender_id,
-                    agent_id=agent_message.agent_id,
-                    message_metadata=agent_message.message_metadata,
-                    created_at=agent_message.created_at
+                    id=agent_message_id,
+                    conversation_id=chat_request.conversation_id,
+                    user_id=user_id,
+                    content=orion_response.get('response', 'Erro ao processar resposta'),
+                    message_type=MessageType.AGENT,
+                    agent_id=str(agent.id),
+                    metadata={
+                        'processing_time': orion_response.get('processing_time', 0),
+                        'model_used': orion_response.get('model_used', ''),
+                        'tokens_used': orion_response.get('tokens_used', 0),
+                        'timestamp': datetime.utcnow()
+                    },
+                    created_at=datetime.utcnow()
                 ),
-                processing_time=orion_response.get('processing_time', 0)
+                agent_name=agent.name,
+                execution_time=orion_response.get('processing_time', 0),
+                tokens_used=orion_response.get('tokens_used', 0)
             )
             
         except Exception as e:
-            # Em caso de erro, ainda criar mensagem de erro
-            error_message = self.chat_repository.create_message(
-                conversation_id=chat_request.conversation_id,
-                content=f"Erro ao processar mensagem: {str(e)}",
-                message_type=MessageType.SYSTEM,
-                message_metadata={'error': True, 'error_message': str(e)}
+            # Em caso de erro, criar mensagem de erro no MongoDB
+            error_message_id = str(uuid.uuid4())
+            error_message_data = {
+                "id": error_message_id,
+                "content": f"Erro ao processar mensagem: {str(e)}",
+                "message_type": "system",
+                "metadata": {
+                    'error': True, 
+                    'error_message': str(e),
+                    'timestamp': datetime.utcnow()
+                }
+            }
+            
+            await add_messages_to_conversation(
+                str(chat_request.conversation_id), 
+                [error_message_data]
             )
             
             raise e

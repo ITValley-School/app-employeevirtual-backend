@@ -4,9 +4,11 @@ API para Agentes do Sistema - Catálogo
 from typing import List, Optional, Dict, Any
 from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, status, Query
+from sqlalchemy.orm import Session
 
 from services.system_agent_service import CatalogService
 from dependencies.service_providers import get_catalog_service
+from data.database import get_db
 from models.system_agent_models import (
     SystemAgentResponse, CategoryResponse, SystemAgentSummaryResponse, 
     UserSystemAgentResponse, UserCategoryWithAgentsResponse,
@@ -18,7 +20,7 @@ from models.system_agent_models import (
     UserPlan
 )
 from models.user_models import UserResponse
-from api.auth_api import get_current_user_dependency
+from auth.dependencies import get_current_user
 
 # Router principal para catálogo
 router = APIRouter(prefix="/system-agents", tags=["System Agents"])
@@ -30,7 +32,7 @@ router = APIRouter(prefix="/system-agents", tags=["System Agents"])
 @router.get("/catalog", response_model=List[UserCategoryWithAgentsResponse])
 async def get_catalog(
     catalog_service: CatalogService = Depends(get_catalog_service),
-    current_user: UserResponse = Depends(get_current_user_dependency)
+    current_user: UserResponse = Depends(get_current_user)
 ):
     """
     Busca catálogo de agentes organizados por categoria para o usuário atual.
@@ -56,7 +58,7 @@ async def get_catalog(
 async def get_agent_for_user(
     agent_id: UUID,
     catalog_service: CatalogService = Depends(get_catalog_service),
-    current_user: UserResponse = Depends(get_current_user_dependency)
+    current_user: UserResponse = Depends(get_current_user)
 ):
     """
     Busca agente específico se visível para o usuário atual.
@@ -94,7 +96,7 @@ async def get_agent_for_user(
 async def create_category(
     request: CreateCategoryRequest,
     catalog_service: CatalogService = Depends(get_catalog_service),
-    current_user: UserResponse = Depends(get_current_user_dependency)
+    current_user: UserResponse = Depends(get_current_user)
 ):
     """
     Cria nova categoria (ADMIN APENAS).
@@ -119,7 +121,7 @@ async def create_category(
 async def list_categories(
     include_inactive: bool = Query(False, description="Incluir categorias inativas"),
     catalog_service: CatalogService = Depends(get_catalog_service),
-    current_user: UserResponse = Depends(get_current_user_dependency)
+    current_user: UserResponse = Depends(get_current_user)
 ):
     """
     Lista categorias (ADMIN APENAS).
@@ -139,7 +141,7 @@ async def list_categories(
 async def get_category(
     category_id: UUID,
     catalog_service: CatalogService = Depends(get_catalog_service),
-    current_user: UserResponse = Depends(get_current_user_dependency)
+    current_user: UserResponse = Depends(get_current_user)
 ):
     """
     Busca categoria por ID (ADMIN APENAS).
@@ -168,7 +170,7 @@ async def update_category(
     category_id: UUID,
     request: UpdateCategoryRequest,
     catalog_service: CatalogService = Depends(get_catalog_service),
-    current_user: UserResponse = Depends(get_current_user_dependency)
+    current_user: UserResponse = Depends(get_current_user)
 ):
     """
     Atualiza categoria (ADMIN APENAS).
@@ -209,7 +211,7 @@ async def update_category(
 async def delete_category(
     category_id: UUID,
     catalog_service: CatalogService = Depends(get_catalog_service),
-    current_user: UserResponse = Depends(get_current_user_dependency)
+    current_user: UserResponse = Depends(get_current_user)
 ):
     """
     Remove categoria (ADMIN APENAS).
@@ -241,7 +243,7 @@ async def delete_category(
 async def create_agent(
     request: CreateSystemAgentRequest,
     catalog_service: CatalogService = Depends(get_catalog_service),
-    current_user: UserResponse = Depends(get_current_user_dependency)
+    current_user: UserResponse = Depends(get_current_user)
 ):
     """
     Cria novo agente (ADMIN APENAS).
@@ -267,7 +269,7 @@ async def list_agents(
     category_id: Optional[UUID] = Query(None, description="Filtrar por categoria"),
     status: Optional[str] = Query(None, description="Filtrar por status"),
     catalog_service: CatalogService = Depends(get_catalog_service),
-    current_user: UserResponse = Depends(get_current_user_dependency)
+    current_user: UserResponse = Depends(get_current_user)
 ):
     """
     Lista agentes (ADMIN APENAS).
@@ -287,7 +289,7 @@ async def list_agents(
 async def get_agent(
     agent_id: UUID,
     catalog_service: CatalogService = Depends(get_catalog_service),
-    current_user: UserResponse = Depends(get_current_user_dependency)
+    current_user: UserResponse = Depends(get_current_user)
 ):
     """
     Busca agente por ID (ADMIN APENAS).
@@ -316,7 +318,7 @@ async def update_agent(
     agent_id: UUID,
     request: UpdateSystemAgentRequest,
     catalog_service: CatalogService = Depends(get_catalog_service),
-    current_user: UserResponse = Depends(get_current_user_dependency)
+    current_user: UserResponse = Depends(get_current_user)
 ):
     """
     Atualiza agente (ADMIN APENAS).
@@ -357,7 +359,7 @@ async def update_agent(
 async def delete_agent(
     agent_id: UUID,
     catalog_service: CatalogService = Depends(get_catalog_service),
-    current_user: UserResponse = Depends(get_current_user_dependency)
+    current_user: UserResponse = Depends(get_current_user)
 ):
     """
     Remove agente (ADMIN APENAS).
@@ -390,7 +392,7 @@ async def create_agent_version(
     agent_id: UUID,
     request: CreateSystemAgentVersionRequest,
     catalog_service: CatalogService = Depends(get_catalog_service),
-    current_user: UserResponse = Depends(get_current_user_dependency)
+    current_user: UserResponse = Depends(get_current_user)
 ):
     """
     Cria nova versão do agente (ADMIN APENAS).
@@ -417,7 +419,7 @@ async def create_agent_version(
 async def list_agent_versions(
     agent_id: UUID,
     catalog_service: CatalogService = Depends(get_catalog_service),
-    current_user: UserResponse = Depends(get_current_user_dependency)
+    current_user: UserResponse = Depends(get_current_user)
 ):
     """
     Lista versões do agente (ADMIN APENAS).
@@ -438,7 +440,7 @@ async def update_agent_version(
     version_id: UUID,
     request: UpdateSystemAgentVersionRequest,
     catalog_service: CatalogService = Depends(get_catalog_service),
-    current_user: UserResponse = Depends(get_current_user_dependency)
+    current_user: UserResponse = Depends(get_current_user)
 ):
     """
     Atualiza versão do agente (ADMIN APENAS).
@@ -479,7 +481,7 @@ async def update_agent_version(
 async def delete_agent_version(
     version_id: UUID,
     catalog_service: CatalogService = Depends(get_catalog_service),
-    current_user: UserResponse = Depends(get_current_user_dependency)
+    current_user: UserResponse = Depends(get_current_user)
 ):
     """
     Remove versão do agente (ADMIN APENAS).
@@ -512,7 +514,7 @@ async def create_visibility_rule(
     agent_id: UUID,
     request: CreateSystemAgentVisibilityRequest,
     catalog_service: CatalogService = Depends(get_catalog_service),
-    current_user: UserResponse = Depends(get_current_user_dependency)
+    current_user: UserResponse = Depends(get_current_user)
 ):
     """
     Cria regra de visibilidade (ADMIN APENAS).
@@ -538,7 +540,7 @@ async def create_visibility_rule(
 async def list_visibility_rules(
     agent_id: UUID,
     catalog_service: CatalogService = Depends(get_catalog_service),
-    current_user: UserResponse = Depends(get_current_user_dependency)
+    current_user: UserResponse = Depends(get_current_user)
 ):
     """
     Lista regras de visibilidade do agente (ADMIN APENAS).
@@ -559,7 +561,7 @@ async def update_visibility_rule(
     rule_id: UUID,
     request: UpdateSystemAgentVisibilityRequest,
     catalog_service: CatalogService = Depends(get_catalog_service),
-    current_user: UserResponse = Depends(get_current_user_dependency)
+    current_user: UserResponse = Depends(get_current_user)
 ):
     """
     Atualiza regra de visibilidade (ADMIN APENAS).
@@ -598,7 +600,7 @@ async def update_visibility_rule(
 async def delete_visibility_rule(
     rule_id: UUID,
     catalog_service: CatalogService = Depends(get_catalog_service),
-    current_user: UserResponse = Depends(get_current_user_dependency)
+    current_user: UserResponse = Depends(get_current_user)
 ):
     """
     Remove regra de visibilidade (ADMIN APENAS).

@@ -51,6 +51,7 @@ class ConversationBase(BaseModel):
 class ConversationCreate(ConversationBase):
     """Modelo para criação de conversação"""
     agent_id: str = Field(..., description="ID do agente")
+    context: Optional[Dict[str, Any]] = Field(default_factory=dict, description="Contexto adicional da conversação")
     
 class ConversationUpdate(BaseModel):
     """Modelo para atualização de conversação"""

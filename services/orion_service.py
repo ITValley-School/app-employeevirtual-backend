@@ -4,7 +4,7 @@ Serviço de integração com Orion (serviços de IA) para o sistema EmployeeVirt
 import httpx
 import json
 import base64
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 from datetime import datetime
 
 
@@ -311,6 +311,62 @@ class OrionService:
             return {
                 "status": "error",
                 "error_message": f"Erro na análise: {str(e)}"
+            }
+    
+    async def process_with_agent(self, agent_id: str, messages: List[Dict[str, str]], 
+                                user_id: str, conversation_id: str) -> Dict[str, Any]:
+        """
+        Processa mensagens com um agente específico
+        
+        Args:
+            agent_id: ID do agente
+            messages: Lista de mensagens no formato [{"role": "user/assistant", "content": "..."}]
+            user_id: ID do usuário
+            conversation_id: ID da conversa
+            
+        Returns:
+            Resposta do agente
+        """
+        try:
+            # Por enquanto, implementação simples que retorna uma resposta simulada
+            # TODO: Integrar com serviço real de IA (OpenAI, Claude, etc.)
+            
+            # Pegar a última mensagem do usuário
+            user_message = None
+            for msg in reversed(messages):
+                if msg.get("role") == "user":
+                    user_message = msg.get("content", "")
+                    break
+            
+            if not user_message:
+                return {
+                    "status": "error",
+                    "error_message": "Nenhuma mensagem do usuário encontrada"
+                }
+            
+            # Simular resposta do agente baseada na mensagem
+            response_content = f"Olá! Recebi sua mensagem: '{user_message}'. Como posso ajudá-lo hoje?"
+            
+            # Simular metadados
+            metadata = {
+                "model_used": "simulated-agent",
+                "tokens_used": len(user_message) + len(response_content),
+                "execution_time": 0.5,
+                "timestamp": datetime.now().isoformat()
+            }
+            
+            return {
+                "status": "success",
+                "response": response_content,
+                "metadata": metadata,
+                "agent_id": agent_id,
+                "conversation_id": conversation_id
+            }
+            
+        except Exception as e:
+            return {
+                "status": "error",
+                "error_message": f"Erro ao processar com agente: {str(e)}"
             }
     
     async def close(self):

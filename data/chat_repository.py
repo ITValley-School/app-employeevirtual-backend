@@ -87,7 +87,7 @@ class ChatRepository:
             for result in results
         ]
     
-    def update_conversation(self, conversation_id: int, user_id: int, **kwargs) -> Optional[ConversationEntity]:
+    def update_conversation(self, conversation_id: str, user_id: str, **kwargs) -> Optional[ConversationEntity]:
         """Atualiza dados da conversação"""
         ConversationEntity = self.get_conversation_by_id(conversation_id, user_id)
         if not ConversationEntity:
