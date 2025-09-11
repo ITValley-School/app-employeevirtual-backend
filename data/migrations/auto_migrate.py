@@ -27,6 +27,7 @@ class AutoMigrator:
         """
         try:
             with self.engine.connect() as conn:
+                # Para Azure SQL Server
                 result = conn.execute(text("SELECT @@VERSION as version"))
                 version = result.fetchone()
                 logger.info(f"✅ Conectado ao Azure SQL Server: {version[0]}")

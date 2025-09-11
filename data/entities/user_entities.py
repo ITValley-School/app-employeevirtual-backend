@@ -11,7 +11,7 @@ from models.user_models import UserPlan, UserStatus
 
 
 # Configuração de schema baseada no tipo de banco
-USE_SCHEMA = not os.getenv("DATABASE_URL", "").startswith("sqlite")
+USE_SCHEMA = True  # Usar schema para Azure SQL
 SCHEMA_CONFIG = {'schema': 'empl'} if USE_SCHEMA else {}
 
 
@@ -39,7 +39,7 @@ class UserEntity(Base):
 class UserSessionEntity(Base):
     """Entidade de sessões de usuário"""
     __tablename__ = "user_sessions"
-    __table_args__ = {'schema': 'empl'}
+    __table_args__ = SCHEMA_CONFIG
     
     id = Column(UUIDColumn, primary_key=True, server_default=text("NEWID()"), index=True)
     user_id = Column(UUIDColumn, nullable=False, index=True)
@@ -55,7 +55,7 @@ class UserSessionEntity(Base):
 class UserActivityEntity(Base):
     """Entidade de atividades do usuário"""
     __tablename__ = "user_activities"
-    __table_args__ = {'schema': 'empl'}
+    __table_args__ = SCHEMA_CONFIG
     
     id = Column(UUIDColumn, primary_key=True, server_default=text("NEWID()"), index=True)
     user_id = Column(UUIDColumn, nullable=False, index=True)
