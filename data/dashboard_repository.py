@@ -7,11 +7,16 @@ from sqlalchemy.orm import Session
 from sqlalchemy import and_, or_, func, desc, text
 
 from models.dashboard_models import MetricType, PeriodType
-from models.agent_models import Agent, AgentExecutionDB
-from models.flow_models import Flow, FlowExecution, FlowStatus
-from models.file_models import DataLakeFile
-from models.chat_models import Message, Conversation, MessageType
-from models.user_models import User, UserActivity
+from data.entities import (
+    AgentEntity, AgentExecutionEntity,
+    FlowEntity, FlowExecutionEntity,
+    DataLakeFileEntity,
+    MessageEntity, ConversationEntity,
+    UserEntity, UserActivityEntity
+)
+from models.agent_models import AgentStatus
+from models.flow_models import FlowStatus
+from models.chat_models import MessageType
 
 
 class DashboardRepository:
@@ -27,52 +32,52 @@ class DashboardRepository:
         today_start = datetime.combine(today, datetime.min.time())
         
         # Contagem de agentes
-        total_agents = self.db.query(Agent).filter(Agent.user_id == user_id).count()
+        total_agents = self.db.query(AgentEntity).filter(AgentEntity.user_id == user_id).count()
         
         # Contagem de flows
-        total_flows = self.db.query(Flow).filter(Flow.user_id == user_id).count()
-        active_flows = self.db.query(Flow).filter(
-            and_(Flow.user_id == user_id, Flow.status == FlowStatus.ACTIVE)
+        total_flows = self.db.query(FlowEntity).filter(FlowEntity.user_id == user_id).count()
+        active_flows = self.db.query(FlowEntity).filter(
+            and_(FlowEntity.user_id == user_id, FlowEntity.status == FlowStatus.ACTIVE)
         ).count()
-        paused_flows = self.db.query(Flow).filter(
-            and_(Flow.user_id == user_id, Flow.status == FlowStatus.PAUSED)
+        paused_flows = self.db.query(FlowEntity).filter(
+            and_(FlowEntity.user_id == user_id, FlowEntity.status == FlowStatus.PAUSED)
         ).count()
-        error_flows = self.db.query(Flow).filter(
-            and_(Flow.user_id == user_id, Flow.status == FlowStatus.ERROR)
+        error_flows = self.db.query(FlowEntity).filter(
+            and_(FlowEntity.user_id == user_id, FlowEntity.status == FlowStatus.ERROR)
         ).count()
-        draft_flows = self.db.query(Flow).filter(
-            and_(Flow.user_id == user_id, Flow.status == FlowStatus.DRAFT)
+        draft_flows = self.db.query(FlowEntity).filter(
+            and_(FlowEntity.user_id == user_id, FlowEntity.status == FlowStatus.DRAFT)
         ).count()
         
         # Execuções de agentes
-        executions_today = self.db.query(AgentExecutionDB).join(Agent).filter(
+        executions_today = self.db.query(AgentExecutionEntity).join(AgentEntity).filter(
             and_(
-                Agent.user_id == user_id,
-                AgentExecutionDB.created_at >= today_start
+                AgentEntity.user_id == user_id,
+                AgentExecutionEntity.created_at >= today_start
             )
         ).count()
         
-        executions_all_time = self.db.query(AgentExecutionDB).join(Agent).filter(
-            Agent.user_id == user_id
+        executions_all_time = self.db.query(AgentExecutionEntity).join(AgentEntity).filter(
+            AgentEntity.user_id == user_id
         ).count()
         
         # Tempo economizado (baseado nas execuções)
         time_saved_today = self.db.query(
-            func.sum(AgentExecutionDB.time_saved)
-        ).join(Agent).filter(
+            func.sum(AgentExecutionEntity.time_saved)
+        ).join(AgentEntity).filter(
             and_(
-                Agent.user_id == user_id,
-                AgentExecutionDB.created_at >= today_start,
-                AgentExecutionDB.time_saved.isnot(None)
+                AgentEntity.user_id == user_id,
+                AgentExecutionEntity.created_at >= today_start,
+                AgentExecutionEntity.time_saved.isnot(None)
             )
         ).scalar() or 0.0
         
         time_saved_all_time = self.db.query(
-            func.sum(AgentExecutionDB.time_saved)
-        ).join(Agent).filter(
+            func.sum(AgentExecutionEntity.time_saved)
+        ).join(AgentEntity).filter(
             and_(
-                Agent.user_id == user_id,
-                AgentExecutionDB.time_saved.isnot(None)
+                AgentEntity.user_id == user_id,
+                AgentExecutionEntity.time_saved.isnot(None)
             )
         ).scalar() or 0.0
         
@@ -97,44 +102,44 @@ class DashboardRepository:
         week_start = datetime.utcnow() - timedelta(days=7)
         
         query = self.db.query(
-            Agent.id,
-            Agent.name,
-            func.count(AgentExecutionDB.id).label('total_executions'),
+            AgentEntity.id,
+            AgentEntity.name,
+            func.count(AgentExecutionEntity.id).label('total_executions'),
             func.sum(
                 func.case(
-                    [(AgentExecutionDB.created_at >= today_start, 1)],
+                    [(AgentExecutionEntity.created_at >= today_start, 1)],
                     else_=0
                 )
             ).label('executions_today'),
             func.sum(
                 func.case(
-                    [(AgentExecutionDB.created_at >= week_start, 1)],
+                    [(AgentExecutionEntity.created_at >= week_start, 1)],
                     else_=0
                 )
             ).label('executions_this_week'),
-            func.avg(AgentExecutionDB.duration).label('avg_duration'),
-            func.sum(AgentExecutionDB.time_saved).label('total_time_saved'),
+            func.avg(AgentExecutionEntity.duration).label('avg_duration'),
+            func.sum(AgentExecutionEntity.time_saved).label('total_time_saved'),
             func.sum(
                 func.case(
-                    [(AgentExecutionDB.status == 'success', 1)],
+                    [(AgentExecutionEntity.status == 'success', 1)],
                     else_=0
                 )
             ).label('successful_executions'),
             func.sum(
                 func.case(
-                    [(AgentExecutionDB.status == 'error', 1)],
+                    [(AgentExecutionEntity.status == 'error', 1)],
                     else_=0
                 )
             ).label('failed_executions')
-        ).outerjoin(AgentExecutionDB).filter(
+        ).outerjoin(AgentExecutionEntity).filter(
             and_(
-                Agent.user_id == user_id,
-                or_(AgentExecutionDB.created_at >= since_date, AgentExecutionDB.id.is_(None))
+                AgentEntity.user_id == user_id,
+                or_(AgentExecutionEntity.created_at >= since_date, AgentExecutionEntity.id.is_(None))
             )
-        ).group_by(Agent.id, Agent.name)
+        ).group_by(AgentEntity.id, AgentEntity.name)
         
         if agent_id:
-            query = query.filter(Agent.id == agent_id)
+            query = query.filter(AgentEntity.id == agent_id)
         
         results = query.all()
         
@@ -162,33 +167,33 @@ class DashboardRepository:
         since_date = datetime.utcnow() - timedelta(days=days)
         
         query = self.db.query(
-            Flow.id,
-            Flow.name,
-            Flow.status,
-            func.count(FlowExecution.id).label('total_executions'),
-            func.avg(FlowExecution.duration).label('avg_duration'),
-            func.sum(FlowExecution.time_saved).label('total_time_saved'),
+            FlowEntity.id,
+            FlowEntity.name,
+            FlowEntity.status,
+            func.count(FlowExecutionEntity.id).label('total_executions'),
+            func.avg(FlowExecutionEntity.duration).label('avg_duration'),
+            func.sum(FlowExecutionEntity.time_saved).label('total_time_saved'),
             func.sum(
                 func.case(
-                    [(FlowExecution.status == 'success', 1)],
+                    [(FlowExecutionEntity.status == 'success', 1)],
                     else_=0
                 )
             ).label('successful_executions'),
             func.sum(
                 func.case(
-                    [(FlowExecution.status == 'error', 1)],
+                    [(FlowExecutionEntity.status == 'error', 1)],
                     else_=0
                 )
             ).label('failed_executions')
-        ).outerjoin(FlowExecution).filter(
+        ).outerjoin(FlowExecutionEntity).filter(
             and_(
-                Flow.user_id == user_id,
-                or_(FlowExecution.created_at >= since_date, FlowExecution.id.is_(None))
+                FlowEntity.user_id == user_id,
+                or_(FlowExecutionEntity.created_at >= since_date, FlowExecutionEntity.id.is_(None))
             )
-        ).group_by(Flow.id, Flow.name, Flow.status)
+        ).group_by(FlowEntity.id, FlowEntity.name, FlowEntity.status)
         
         if flow_id:
-            query = query.filter(Flow.id == flow_id)
+            query = query.filter(FlowEntity.id == flow_id)
         
         results = query.all()
         
@@ -216,15 +221,15 @@ class DashboardRepository:
         
         if metric_type == MetricType.AGENT_EXECUTION or metric_type is None:
             results = self.db.query(
-                func.date(AgentExecutionDB.created_at).label('date'),
-                func.count(AgentExecutionDB.id).label('count'),
-                func.sum(AgentExecutionDB.time_saved).label('time_saved')
-            ).join(Agent).filter(
+                func.date(AgentExecutionEntity.created_at).label('date'),
+                func.count(AgentExecutionEntity.id).label('count'),
+                func.sum(AgentExecutionEntity.time_saved).label('time_saved')
+            ).join(AgentEntity).filter(
                 and_(
-                    Agent.user_id == user_id,
-                    AgentExecutionDB.created_at >= since_date
+                    AgentEntity.user_id == user_id,
+                    AgentExecutionEntity.created_at >= since_date
                 )
-            ).group_by(func.date(AgentExecutionDB.created_at)).order_by('date').all()
+            ).group_by(func.date(AgentExecutionEntity.created_at)).order_by('date').all()
             
             return [
                 {
@@ -243,15 +248,15 @@ class DashboardRepository:
         since_date = datetime.utcnow() - timedelta(weeks=weeks)
         
         results = self.db.query(
-            func.date_trunc('week', AgentExecutionDB.created_at).label('week_start'),
-            func.count(AgentExecutionDB.id).label('executions'),
-            func.sum(AgentExecutionDB.time_saved).label('time_saved')
-        ).join(Agent).filter(
+            func.date_trunc('week', AgentExecutionEntity.created_at).label('week_start'),
+            func.count(AgentExecutionEntity.id).label('executions'),
+            func.sum(AgentExecutionEntity.time_saved).label('time_saved')
+        ).join(AgentEntity).filter(
             and_(
-                Agent.user_id == user_id,
-                AgentExecutionDB.created_at >= since_date
+                AgentEntity.user_id == user_id,
+                AgentExecutionEntity.created_at >= since_date
             )
-        ).group_by(func.date_trunc('week', AgentExecutionDB.created_at)).order_by('week_start').all()
+        ).group_by(func.date_trunc('week', AgentExecutionEntity.created_at)).order_by('week_start').all()
         
         return [
             {
@@ -268,26 +273,26 @@ class DashboardRepository:
         since_date = datetime.utcnow() - timedelta(days=days)
         
         # Total de arquivos
-        total_files = self.db.query(DataLakeFile).filter(DataLakeFile.user_id == user_id).count()
+        total_files = self.db.query(DataLakeFileEntity).filter(DataLakeFileEntity.user_id == user_id).count()
         
         # Arquivos novos no período
-        new_files = self.db.query(DataLakeFile).filter(
+        new_files = self.db.query(DataLakeFileEntity).filter(
             and_(
-                DataLakeFile.user_id == user_id,
-                DataLakeFile.created_at >= since_date
+                DataLakeFileEntity.user_id == user_id,
+                DataLakeFileEntity.created_at >= since_date
             )
         ).count()
         
         # Tamanho total dos arquivos
         total_size = self.db.query(
-            func.sum(DataLakeFile.file_size)
-        ).filter(DataLakeFile.user_id == user_id).scalar() or 0
+            func.sum(DataLakeFileEntity.file_size)
+        ).filter(DataLakeFileEntity.user_id == user_id).scalar() or 0
         
         # Arquivos por tipo
         file_types = self.db.query(
-            DataLakeFile.file_type,
-            func.count(DataLakeFile.id).label('count')
-        ).filter(DataLakeFile.user_id == user_id).group_by(DataLakeFile.file_type).all()
+            DataLakeFileEntity.file_type,
+            func.count(DataLakeFileEntity.id).label('count')
+        ).filter(DataLakeFileEntity.user_id == user_id).group_by(DataLakeFileEntity.file_type).all()
         
         return {
             'total_files': total_files,
@@ -303,27 +308,27 @@ class DashboardRepository:
         since_date = datetime.utcnow() - timedelta(days=days)
         
         # Conversações ativas
-        active_conversations = self.db.query(Conversation).filter(
+        active_conversations = self.db.query(ConversationEntity).filter(
             and_(
-                Conversation.user_id == user_id,
-                Conversation.status == 'active'
+                ConversationEntity.user_id == user_id,
+                ConversationEntity.status == 'active'
             )
         ).count()
         
         # Mensagens no período
-        messages_sent = self.db.query(Message).join(Conversation).filter(
+        messages_sent = self.db.query(MessageEntity).join(ConversationEntity).filter(
             and_(
-                Conversation.user_id == user_id,
-                Message.message_type == MessageType.USER,
-                Message.created_at >= since_date
+                ConversationEntity.user_id == user_id,
+                MessageEntity.message_type == MessageType.UserEntity,
+                MessageEntity.created_at >= since_date
             )
         ).count()
         
-        messages_received = self.db.query(Message).join(Conversation).filter(
+        messages_received = self.db.query(MessageEntity).join(ConversationEntity).filter(
             and_(
-                Conversation.user_id == user_id,
-                Message.message_type == MessageType.AGENT,
-                Message.created_at >= since_date
+                ConversationEntity.user_id == user_id,
+                MessageEntity.message_type == MessageType.AgentEntity,
+                MessageEntity.created_at >= since_date
             )
         ).count()
         
@@ -337,30 +342,30 @@ class DashboardRepository:
     # Métricas de usuário
     def get_user_metrics(self, user_id: int) -> Dict[str, Any]:
         """Busca métricas consolidadas do usuário"""
-        user = self.db.query(User).filter(User.id == user_id).first()
-        if not user:
+        UserEntity = self.db.query(UserEntity).filter(UserEntity.id == user_id).first()
+        if not UserEntity:
             return {}
         
         # Atividades recentes
         recent_activities = self.db.query(
-            UserActivity.activity_type,
-            func.count(UserActivity.id).label('count')
+            UserActivityEntity.activity_type,
+            func.count(UserActivityEntity.id).label('count')
         ).filter(
             and_(
-                UserActivity.user_id == user_id,
-                UserActivity.created_at >= datetime.utcnow() - timedelta(days=30)
+                UserActivityEntity.user_id == user_id,
+                UserActivityEntity.created_at >= datetime.utcnow() - timedelta(days=30)
             )
-        ).group_by(UserActivity.activity_type).all()
+        ).group_by(UserActivityEntity.activity_type).all()
         
         activity_summary = {activity.activity_type: activity.count for activity in recent_activities}
         
         return {
             'user_id': user_id,
-            'name': user.name,
-            'email': user.email,
-            'plan': user.plan,
-            'created_at': user.created_at,
-            'last_login': user.last_login,
+            'name': UserEntity.name,
+            'email': UserEntity.email,
+            'plan': UserEntity.plan,
+            'created_at': UserEntity.created_at,
+            'last_login': UserEntity.last_login,
             'activity_summary': activity_summary,
             'dashboard_summary': self.get_dashboard_summary(user_id),
             'file_metrics': self.get_file_metrics(user_id),
@@ -374,23 +379,23 @@ class DashboardRepository:
         
         # Top agentes por execuções
         top_agents = self.db.query(
-            Agent.name,
-            func.count(AgentExecutionDB.id).label('executions')
-        ).join(AgentExecutionDB).filter(
+            AgentEntity.name,
+            func.count(AgentExecutionEntity.id).label('executions')
+        ).join(AgentExecutionEntity).filter(
             and_(
-                Agent.user_id == user_id,
-                AgentExecutionDB.created_at >= since_date
+                AgentEntity.user_id == user_id,
+                AgentExecutionEntity.created_at >= since_date
             )
-        ).group_by(Agent.id, Agent.name).order_by(desc('executions')).limit(10).all()
+        ).group_by(AgentEntity.id, AgentEntity.name).order_by(desc('executions')).limit(10).all()
         
         # Tempo total economizado
         total_time_saved = self.db.query(
-            func.sum(AgentExecutionDB.time_saved)
-        ).join(Agent).filter(
+            func.sum(AgentExecutionEntity.time_saved)
+        ).join(AgentEntity).filter(
             and_(
-                Agent.user_id == user_id,
-                AgentExecutionDB.created_at >= since_date,
-                AgentExecutionDB.time_saved.isnot(None)
+                AgentEntity.user_id == user_id,
+                AgentExecutionEntity.created_at >= since_date,
+                AgentExecutionEntity.time_saved.isnot(None)
             )
         ).scalar() or 0.0
         
@@ -398,14 +403,14 @@ class DashboardRepository:
         success_rate = self.db.query(
             func.avg(
                 func.case(
-                    [(AgentExecutionDB.status == 'success', 100.0)],
+                    [(AgentExecutionEntity.status == 'success', 100.0)],
                     else_=0.0
                 )
             )
-        ).join(Agent).filter(
+        ).join(AgentEntity).filter(
             and_(
-                Agent.user_id == user_id,
-                AgentExecutionDB.created_at >= since_date
+                AgentEntity.user_id == user_id,
+                AgentExecutionEntity.created_at >= since_date
             )
         ).scalar() or 0.0
         
@@ -414,8 +419,8 @@ class DashboardRepository:
             'total_time_saved_hours': float(total_time_saved),
             'average_success_rate': float(success_rate),
             'top_agents': [
-                {'name': agent.name, 'executions': agent.executions}
-                for agent in top_agents
+                {'name': AgentEntity.name, 'executions': AgentEntity.executions}
+                for AgentEntity in top_agents
             ],
             'dashboard_summary': self.get_dashboard_summary(user_id)
         }

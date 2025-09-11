@@ -37,11 +37,14 @@ class UUIDColumn(TypeDecorator):
     cache_ok = True
     
     def __init__(self, *args, **kwargs):
-        # Remover default se existir para evitar conflito com SQL Server
-        if 'default' in kwargs:
-            del kwargs['default']
-        super().__init__(*args, **kwargs)
-        self.impl = String(36)  # UUID tem 36 caracteres
+        # Extrair argumentos específicos do TypeDecorator
+        length = kwargs.pop('length', 36)
+        
+        # Permitir apenas argumentos válidos para TypeDecorator
+        type_decorator_kwargs = {}
+        
+        super().__init__(*args, **type_decorator_kwargs)
+        self.impl = String(length)  # UUID tem 36 caracteres
     
     def process_bind_param(self, value, dialect):
         if value is None:

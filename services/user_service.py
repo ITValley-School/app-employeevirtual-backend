@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 
 from data.user_repository import UserRepository
 from models.user_models import UserCreate, UserUpdate, UserResponse, UserLogin
-from models.dashboard_models import UserMetrics
+from models.dashboard_models import UsageMetrics
 from models.uuid_models import validate_uuid
 
 
@@ -295,7 +295,7 @@ class UserService:
             for user in db_users
         ]
     
-    def get_user_metrics(self, user_id: str) -> Optional[UserMetrics]:
+    def get_user_metrics(self, user_id: str) -> Optional[UsageMetrics]:
         """
         Busca métricas do usuário
         
@@ -312,7 +312,7 @@ class UserService:
         if not stats:
             return None
         
-        return UserMetrics(
+        return UsageMetrics(
             user_id=stats["user_id"],
             total_agents=stats.get("total_agents", 0),
             total_flows=stats.get("total_flows", 0),

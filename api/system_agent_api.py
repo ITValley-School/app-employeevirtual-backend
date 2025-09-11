@@ -4,10 +4,9 @@ API para Agentes do Sistema - Catálogo
 from typing import List, Optional, Dict, Any
 from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, status, Query
-from sqlalchemy.orm import Session
 
-from data.database import get_db
 from services.system_agent_service import CatalogService
+from dependencies.service_providers import get_catalog_service
 from models.system_agent_models import (
     SystemAgentResponse, CategoryResponse, SystemAgentSummaryResponse, 
     UserSystemAgentResponse, UserCategoryWithAgentsResponse,
@@ -30,7 +29,7 @@ router = APIRouter(prefix="/system-agents", tags=["System Agents"])
 
 @router.get("/catalog", response_model=List[UserCategoryWithAgentsResponse])
 async def get_catalog(
-    db: Session = Depends(get_db),
+    catalog_service: CatalogService = Depends(get_catalog_service),
     current_user: UserResponse = Depends(get_current_user_dependency)
 ):
     """
@@ -38,14 +37,14 @@ async def get_catalog(
     Respeitando regras de visibilidade baseadas no plano, tenant e região.
     """
     try:
-        service = CatalogService(db)
+        
         
         # Extrair informações do usuário (assumindo que estão no objeto user)
         user_plan = UserPlan.FREE  # Você pode extrair do current_user.plan se existir
         tenant_id = getattr(current_user, 'tenant_id', None)
         region = getattr(current_user, 'region', None)
         
-        return service.get_catalog_for_user(user_plan, tenant_id, region)
+        return catalog_service.get_catalog_for_user(user_plan, tenant_id, region)
         
     except Exception as e:
         raise HTTPException(
@@ -56,21 +55,21 @@ async def get_catalog(
 @router.get("/catalog/{agent_id}", response_model=UserSystemAgentResponse)
 async def get_agent_for_user(
     agent_id: UUID,
-    db: Session = Depends(get_db),
+    catalog_service: CatalogService = Depends(get_catalog_service),
     current_user: UserResponse = Depends(get_current_user_dependency)
 ):
     """
     Busca agente específico se visível para o usuário atual.
     """
     try:
-        service = CatalogService(db)
+        
         
         # Extrair informações do usuário
         user_plan = UserPlan.FREE  # Você pode extrair do current_user.plan se existir
         tenant_id = getattr(current_user, 'tenant_id', None)
         region = getattr(current_user, 'region', None)
         
-        agent = service.get_agent_for_user(agent_id, user_plan, tenant_id, region)
+        agent = catalog_service.get_agent_for_user(agent_id, user_plan, tenant_id, region)
         if not agent:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -94,7 +93,7 @@ async def get_agent_for_user(
 @router.post("/admin/categories", response_model=CategoryResponse)
 async def create_category(
     request: CreateCategoryRequest,
-    db: Session = Depends(get_db),
+    catalog_service: CatalogService = Depends(get_catalog_service),
     current_user: UserResponse = Depends(get_current_user_dependency)
 ):
     """
@@ -102,8 +101,8 @@ async def create_category(
     """
     try:
         # TODO: Verificar se usuário é admin
-        service = CatalogService(db)
-        return service.create_category(
+        
+        return catalog_service.create_category(
             name=request.name,
             icon=request.icon,
             description=request.description,
@@ -119,7 +118,7 @@ async def create_category(
 @router.get("/admin/categories", response_model=List[CategoryResponse])
 async def list_categories(
     include_inactive: bool = Query(False, description="Incluir categorias inativas"),
-    db: Session = Depends(get_db),
+    catalog_service: CatalogService = Depends(get_catalog_service),
     current_user: UserResponse = Depends(get_current_user_dependency)
 ):
     """
@@ -127,8 +126,8 @@ async def list_categories(
     """
     try:
         # TODO: Verificar se usuário é admin
-        service = CatalogService(db)
-        return service.get_categories(include_inactive=include_inactive)
+        
+        return catalog_service.get_categories(include_inactive=include_inactive)
         
     except Exception as e:
         raise HTTPException(
@@ -139,7 +138,7 @@ async def list_categories(
 @router.get("/admin/categories/{category_id}", response_model=CategoryResponse)
 async def get_category(
     category_id: UUID,
-    db: Session = Depends(get_db),
+    catalog_service: CatalogService = Depends(get_catalog_service),
     current_user: UserResponse = Depends(get_current_user_dependency)
 ):
     """
@@ -147,8 +146,8 @@ async def get_category(
     """
     try:
         # TODO: Verificar se usuário é admin
-        service = CatalogService(db)
-        category = service.get_category_by_id(category_id)
+        
+        category = catalog_service.get_category_by_id(category_id)
         if not category:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -168,7 +167,7 @@ async def get_category(
 async def update_category(
     category_id: UUID,
     request: UpdateCategoryRequest,
-    db: Session = Depends(get_db),
+    catalog_service: CatalogService = Depends(get_catalog_service),
     current_user: UserResponse = Depends(get_current_user_dependency)
 ):
     """
@@ -176,7 +175,7 @@ async def update_category(
     """
     try:
         # TODO: Verificar se usuário é admin
-        service = CatalogService(db)
+        
         
         updates = {}
         if request.name is not None:
@@ -190,7 +189,7 @@ async def update_category(
         if request.is_active is not None:
             updates['is_active'] = request.is_active
         
-        category = service.update_category(category_id, **updates)
+        category = catalog_service.update_category(category_id, **updates)
         if not category:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -209,7 +208,7 @@ async def update_category(
 @router.delete("/admin/categories/{category_id}")
 async def delete_category(
     category_id: UUID,
-    db: Session = Depends(get_db),
+    catalog_service: CatalogService = Depends(get_catalog_service),
     current_user: UserResponse = Depends(get_current_user_dependency)
 ):
     """
@@ -217,8 +216,8 @@ async def delete_category(
     """
     try:
         # TODO: Verificar se usuário é admin
-        service = CatalogService(db)
-        success = service.delete_category(category_id)
+        
+        success = catalog_service.delete_category(category_id)
         if not success:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -241,7 +240,7 @@ async def delete_category(
 @router.post("/admin/agents", response_model=SystemAgentResponse)
 async def create_agent(
     request: CreateSystemAgentRequest,
-    db: Session = Depends(get_db),
+    catalog_service: CatalogService = Depends(get_catalog_service),
     current_user: UserResponse = Depends(get_current_user_dependency)
 ):
     """
@@ -249,8 +248,8 @@ async def create_agent(
     """
     try:
         # TODO: Verificar se usuário é admin
-        service = CatalogService(db)
-        return service.create_system_agent(
+        
+        return catalog_service.create_system_agent(
             name=request.name,
             short_description=request.short_description,
             category_id=request.category_id,
@@ -267,7 +266,7 @@ async def create_agent(
 async def list_agents(
     category_id: Optional[UUID] = Query(None, description="Filtrar por categoria"),
     status: Optional[str] = Query(None, description="Filtrar por status"),
-    db: Session = Depends(get_db),
+    catalog_service: CatalogService = Depends(get_catalog_service),
     current_user: UserResponse = Depends(get_current_user_dependency)
 ):
     """
@@ -275,8 +274,8 @@ async def list_agents(
     """
     try:
         # TODO: Verificar se usuário é admin
-        service = CatalogService(db)
-        return service.get_system_agents(category_id=category_id, status=status)
+        
+        return catalog_service.get_system_agents(category_id=category_id, status=status)
         
     except Exception as e:
         raise HTTPException(
@@ -287,7 +286,7 @@ async def list_agents(
 @router.get("/admin/agents/{agent_id}", response_model=SystemAgentResponse)
 async def get_agent(
     agent_id: UUID,
-    db: Session = Depends(get_db),
+    catalog_service: CatalogService = Depends(get_catalog_service),
     current_user: UserResponse = Depends(get_current_user_dependency)
 ):
     """
@@ -295,8 +294,8 @@ async def get_agent(
     """
     try:
         # TODO: Verificar se usuário é admin
-        service = CatalogService(db)
-        agent = service.get_system_agent_by_id(agent_id)
+        
+        agent = catalog_service.get_system_agent_by_id(agent_id)
         if not agent:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -316,7 +315,7 @@ async def get_agent(
 async def update_agent(
     agent_id: UUID,
     request: UpdateSystemAgentRequest,
-    db: Session = Depends(get_db),
+    catalog_service: CatalogService = Depends(get_catalog_service),
     current_user: UserResponse = Depends(get_current_user_dependency)
 ):
     """
@@ -324,7 +323,7 @@ async def update_agent(
     """
     try:
         # TODO: Verificar se usuário é admin
-        service = CatalogService(db)
+        
         
         updates = {}
         if request.name is not None:
@@ -338,7 +337,7 @@ async def update_agent(
         if request.status is not None:
             updates['status'] = request.status
         
-        agent = service.update_system_agent(agent_id, **updates)
+        agent = catalog_service.update_system_agent(agent_id, **updates)
         if not agent:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -357,7 +356,7 @@ async def update_agent(
 @router.delete("/admin/agents/{agent_id}")
 async def delete_agent(
     agent_id: UUID,
-    db: Session = Depends(get_db),
+    catalog_service: CatalogService = Depends(get_catalog_service),
     current_user: UserResponse = Depends(get_current_user_dependency)
 ):
     """
@@ -365,8 +364,8 @@ async def delete_agent(
     """
     try:
         # TODO: Verificar se usuário é admin
-        service = CatalogService(db)
-        success = service.delete_system_agent(agent_id)
+        
+        success = catalog_service.delete_system_agent(agent_id)
         if not success:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -390,7 +389,7 @@ async def delete_agent(
 async def create_agent_version(
     agent_id: UUID,
     request: CreateSystemAgentVersionRequest,
-    db: Session = Depends(get_db),
+    catalog_service: CatalogService = Depends(get_catalog_service),
     current_user: UserResponse = Depends(get_current_user_dependency)
 ):
     """
@@ -398,8 +397,8 @@ async def create_agent_version(
     """
     try:
         # TODO: Verificar se usuário é admin
-        service = CatalogService(db)
-        return service.create_agent_version(
+        
+        return catalog_service.create_agent_version(
             system_agent_id=agent_id,
             version=request.version,
             input_schema=request.input_schema,
@@ -417,7 +416,7 @@ async def create_agent_version(
 @router.get("/admin/agents/{agent_id}/versions", response_model=List[AgentVersionResponse])
 async def list_agent_versions(
     agent_id: UUID,
-    db: Session = Depends(get_db),
+    catalog_service: CatalogService = Depends(get_catalog_service),
     current_user: UserResponse = Depends(get_current_user_dependency)
 ):
     """
@@ -425,8 +424,8 @@ async def list_agent_versions(
     """
     try:
         # TODO: Verificar se usuário é admin
-        service = CatalogService(db)
-        return service.get_agent_versions(agent_id)
+        
+        return catalog_service.get_agent_versions(agent_id)
         
     except Exception as e:
         raise HTTPException(
@@ -438,7 +437,7 @@ async def list_agent_versions(
 async def update_agent_version(
     version_id: UUID,
     request: UpdateSystemAgentVersionRequest,
-    db: Session = Depends(get_db),
+    catalog_service: CatalogService = Depends(get_catalog_service),
     current_user: UserResponse = Depends(get_current_user_dependency)
 ):
     """
@@ -446,7 +445,7 @@ async def update_agent_version(
     """
     try:
         # TODO: Verificar se usuário é admin
-        service = CatalogService(db)
+        
         
         updates = {}
         if request.input_schema is not None:
@@ -460,7 +459,7 @@ async def update_agent_version(
         if request.status is not None:
             updates['status'] = request.status
         
-        version = service.update_agent_version(version_id, **updates)
+        version = catalog_service.update_agent_version(version_id, **updates)
         if not version:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -479,7 +478,7 @@ async def update_agent_version(
 @router.delete("/admin/versions/{version_id}")
 async def delete_agent_version(
     version_id: UUID,
-    db: Session = Depends(get_db),
+    catalog_service: CatalogService = Depends(get_catalog_service),
     current_user: UserResponse = Depends(get_current_user_dependency)
 ):
     """
@@ -487,8 +486,8 @@ async def delete_agent_version(
     """
     try:
         # TODO: Verificar se usuário é admin
-        service = CatalogService(db)
-        success = service.delete_agent_version(version_id)
+        
+        success = catalog_service.delete_agent_version(version_id)
         if not success:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -512,7 +511,7 @@ async def delete_agent_version(
 async def create_visibility_rule(
     agent_id: UUID,
     request: CreateSystemAgentVisibilityRequest,
-    db: Session = Depends(get_db),
+    catalog_service: CatalogService = Depends(get_catalog_service),
     current_user: UserResponse = Depends(get_current_user_dependency)
 ):
     """
@@ -520,8 +519,8 @@ async def create_visibility_rule(
     """
     try:
         # TODO: Verificar se usuário é admin
-        service = CatalogService(db)
-        return service.create_visibility_rule(
+        
+        return catalog_service.create_visibility_rule(
             system_agent_id=agent_id,
             tenant_id=request.tenant_id,
             plan=request.plan,
@@ -538,7 +537,7 @@ async def create_visibility_rule(
 @router.get("/admin/agents/{agent_id}/visibility", response_model=List[AgentVisibilityResponse])
 async def list_visibility_rules(
     agent_id: UUID,
-    db: Session = Depends(get_db),
+    catalog_service: CatalogService = Depends(get_catalog_service),
     current_user: UserResponse = Depends(get_current_user_dependency)
 ):
     """
@@ -546,8 +545,8 @@ async def list_visibility_rules(
     """
     try:
         # TODO: Verificar se usuário é admin
-        service = CatalogService(db)
-        return service.get_visibility_rules(agent_id)
+        
+        return catalog_service.get_visibility_rules(agent_id)
         
     except Exception as e:
         raise HTTPException(
@@ -559,7 +558,7 @@ async def list_visibility_rules(
 async def update_visibility_rule(
     rule_id: UUID,
     request: UpdateSystemAgentVisibilityRequest,
-    db: Session = Depends(get_db),
+    catalog_service: CatalogService = Depends(get_catalog_service),
     current_user: UserResponse = Depends(get_current_user_dependency)
 ):
     """
@@ -567,7 +566,7 @@ async def update_visibility_rule(
     """
     try:
         # TODO: Verificar se usuário é admin
-        service = CatalogService(db)
+        
         
         updates = {}
         if request.tenant_id is not None:
@@ -579,7 +578,7 @@ async def update_visibility_rule(
         if request.is_visible is not None:
             updates['is_visible'] = request.is_visible
         
-        rule = service.update_visibility_rule(rule_id, **updates)
+        rule = catalog_service.update_visibility_rule(rule_id, **updates)
         if not rule:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -598,7 +597,7 @@ async def update_visibility_rule(
 @router.delete("/admin/visibility/{rule_id}")
 async def delete_visibility_rule(
     rule_id: UUID,
-    db: Session = Depends(get_db),
+    catalog_service: CatalogService = Depends(get_catalog_service),
     current_user: UserResponse = Depends(get_current_user_dependency)
 ):
     """
@@ -606,8 +605,8 @@ async def delete_visibility_rule(
     """
     try:
         # TODO: Verificar se usuário é admin
-        service = CatalogService(db)
-        success = service.delete_visibility_rule(rule_id)
+        
+        success = catalog_service.delete_visibility_rule(rule_id)
         if not success:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,

@@ -2,14 +2,13 @@
 API de flows/automações para o sistema EmployeeVirtual
 """
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session
 from typing import List, Dict, Any, Optional
 
 from models.flow_models import FlowCreate, FlowUpdate, FlowResponse, FlowExecutionRequest
 from models.user_models import UserResponse
 from services.flow_service import FlowService
 from auth.dependencies import get_current_user
-from data.database import get_db
+from dependencies.service_providers import get_flow_service
 
 router = APIRouter()
 
@@ -17,7 +16,7 @@ router = APIRouter()
 async def create_flow(
     flow_data: FlowCreate,
     current_user: UserResponse = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    flow_service: FlowService = Depends(get_flow_service)
 ):
     """
     Cria um novo flow/automação
@@ -30,7 +29,7 @@ async def create_flow(
     Returns:
         Dados do flow criado
     """
-    flow_service = FlowService(db)
+    
     
     try:
         flow = flow_service.create_flow(current_user.id, flow_data)
@@ -45,7 +44,7 @@ async def create_flow(
 async def get_user_flows(
     include_templates: bool = True,
     current_user: UserResponse = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    flow_service: FlowService = Depends(get_flow_service)
 ):
     """
     Busca flows do usuário
@@ -58,14 +57,14 @@ async def get_user_flows(
     Returns:
         Lista de flows
     """
-    flow_service = FlowService(db)
+    
     
     flows = flow_service.get_user_flows(current_user.id, include_templates)
     
     return flows
 
 @router.get("/templates")
-async def get_flow_templates(db: Session = Depends(get_db)):
+async def get_flow_templates(flow_service: FlowService = Depends(get_flow_service)):
     """
     Busca templates de flows (públicos)
     
@@ -75,7 +74,7 @@ async def get_flow_templates(db: Session = Depends(get_db)):
     Returns:
         Lista de templates
     """
-    flow_service = FlowService(db)
+    
     
     templates = flow_service.get_flow_templates()
     
@@ -88,7 +87,7 @@ async def get_flow_templates(db: Session = Depends(get_db)):
 async def get_flow(
     flow_id: int,
     current_user: UserResponse = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    flow_service: FlowService = Depends(get_flow_service)
 ):
     """
     Busca flow por ID
@@ -104,7 +103,7 @@ async def get_flow(
     Raises:
         HTTPException: Se flow não encontrado
     """
-    flow_service = FlowService(db)
+    
     
     flow = flow_service.get_flow_by_id(flow_id, current_user.id)
     
@@ -121,7 +120,7 @@ async def update_flow(
     flow_id: int,
     flow_data: FlowUpdate,
     current_user: UserResponse = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    flow_service: FlowService = Depends(get_flow_service)
 ):
     """
     Atualiza flow
@@ -138,7 +137,7 @@ async def update_flow(
     Raises:
         HTTPException: Se flow não encontrado
     """
-    flow_service = FlowService(db)
+    
     
     flow = flow_service.update_flow(flow_id, current_user.id, flow_data)
     
@@ -154,7 +153,7 @@ async def update_flow(
 async def delete_flow(
     flow_id: int,
     current_user: UserResponse = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    flow_service: FlowService = Depends(get_flow_service)
 ):
     """
     Deleta flow
@@ -170,7 +169,7 @@ async def delete_flow(
     Raises:
         HTTPException: Se flow não encontrado
     """
-    flow_service = FlowService(db)
+    
     
     success = flow_service.delete_flow(flow_id, current_user.id)
     
@@ -187,7 +186,7 @@ async def execute_flow(
     flow_id: int,
     execution_data: FlowExecutionRequest,
     current_user: UserResponse = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    flow_service: FlowService = Depends(get_flow_service)
 ):
     """
     Executa um flow
@@ -204,7 +203,7 @@ async def execute_flow(
     Raises:
         HTTPException: Se flow não encontrado ou erro na execução
     """
-    flow_service = FlowService(db)
+    
     
     try:
         result = await flow_service.execute_flow(
@@ -234,7 +233,7 @@ async def get_flow_executions(
     flow_id: int,
     limit: int = 50,
     current_user: UserResponse = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    flow_service: FlowService = Depends(get_flow_service)
 ):
     """
     Busca execuções do flow
@@ -248,7 +247,7 @@ async def get_flow_executions(
     Returns:
         Lista de execuções
     """
-    flow_service = FlowService(db)
+    
     
     executions = flow_service.get_flow_executions(flow_id, current_user.id, limit)
     
@@ -262,7 +261,7 @@ async def duplicate_flow(
     flow_id: int,
     new_name: str,
     current_user: UserResponse = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    flow_service: FlowService = Depends(get_flow_service)
 ):
     """
     Duplica um flow existente
@@ -279,7 +278,7 @@ async def duplicate_flow(
     Raises:
         HTTPException: Se flow não encontrado
     """
-    flow_service = FlowService(db)
+    
     
     try:
         duplicated_flow = flow_service.duplicate_flow(
@@ -306,7 +305,7 @@ async def export_flow(
     flow_id: int,
     format: str = "json",
     current_user: UserResponse = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    flow_service: FlowService = Depends(get_flow_service)
 ):
     """
     Exporta um flow
@@ -323,7 +322,7 @@ async def export_flow(
     Raises:
         HTTPException: Se flow não encontrado
     """
-    flow_service = FlowService(db)
+    
     
     try:
         exported_data = flow_service.export_flow(
@@ -349,7 +348,7 @@ async def export_flow(
 async def import_flow(
     flow_data: Dict[str, Any],
     current_user: UserResponse = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    flow_service: FlowService = Depends(get_flow_service)
 ):
     """
     Importa um flow
@@ -365,7 +364,7 @@ async def import_flow(
     Raises:
         HTTPException: Se dados inválidos
     """
-    flow_service = FlowService(db)
+    
     
     try:
         imported_flow = flow_service.import_flow(
@@ -390,7 +389,7 @@ async def import_flow(
 async def get_flow_status(
     flow_id: int,
     current_user: UserResponse = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    flow_service: FlowService = Depends(get_flow_service)
 ):
     """
     Retorna status atual do flow
@@ -406,7 +405,7 @@ async def get_flow_status(
     Raises:
         HTTPException: Se flow não encontrado
     """
-    flow_service = FlowService(db)
+    
     
     status_info = flow_service.get_flow_status(flow_id, current_user.id)
     
@@ -422,7 +421,7 @@ async def get_flow_status(
 async def pause_flow(
     flow_id: int,
     current_user: UserResponse = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    flow_service: FlowService = Depends(get_flow_service)
 ):
     """
     Pausa um flow em execução
@@ -438,7 +437,7 @@ async def pause_flow(
     Raises:
         HTTPException: Se flow não encontrado
     """
-    flow_service = FlowService(db)
+    
     
     try:
         updated_status = flow_service.pause_flow(flow_id, current_user.id)
@@ -460,7 +459,7 @@ async def pause_flow(
 async def resume_flow(
     flow_id: int,
     current_user: UserResponse = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    flow_service: FlowService = Depends(get_flow_service)
 ):
     """
     Resume um flow pausado
@@ -476,7 +475,7 @@ async def resume_flow(
     Raises:
         HTTPException: Se flow não encontrado
     """
-    flow_service = FlowService(db)
+    
     
     try:
         updated_status = flow_service.resume_flow(flow_id, current_user.id)

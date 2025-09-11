@@ -2,15 +2,13 @@
 API de chat para o sistema EmployeeVirtual
 """
 from fastapi import APIRouter, Depends, HTTPException, status, Query
-from sqlalchemy.orm import Session
 from typing import List, Dict, Any, Optional
 
-from models.chat_models import Message, ChatResponse, ConversationResponse, ConversationCreate, MessageResponse
+from models.chat_models import ChatResponse, ConversationResponse, ConversationCreate, MessageResponse
 from models.user_models import UserResponse
 from services.chat_service import ChatService
-from services.agent_service import AgentService
 from auth.dependencies import get_current_user
-from data.database import get_db
+from dependencies.service_providers import get_chat_service, get_agent_service
 
 router = APIRouter()
 
@@ -18,7 +16,7 @@ router = APIRouter()
 async def create_chat_session(
     chat_data: ConversationCreate,
     current_user: UserResponse = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    chat_service: ChatService = Depends(get_chat_service)
 ):
     """
     Cria uma nova conversa
@@ -26,13 +24,11 @@ async def create_chat_session(
     Args:
         chat_data: Dados da conversa
         current_user: Usuário atual
-        db: Sessão do banco de dados
+        chat_service: Serviço de chat
         
     Returns:
         Dados da conversa criada
     """
-    chat_service = ChatService(db)
-    
     try:
         chat_session = chat_service.create_conversation(current_user.id, chat_data)
         return chat_session
@@ -45,7 +41,7 @@ async def create_chat_session(
 @router.get("/", response_model=List[ConversationResponse])
 async def get_user_chat_sessions(
     current_user: UserResponse = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    chat_service: ChatService = Depends(get_chat_service)
 ):
     """
     Busca sessões de chat do usuário
@@ -57,7 +53,7 @@ async def get_user_chat_sessions(
     Returns:
         Lista de sessões de chat
     """
-    chat_service = ChatService(db)
+    
     
     sessions = chat_service.get_user_chat_sessions(current_user.id)
     
@@ -66,7 +62,7 @@ async def get_user_chat_sessions(
 @router.get("/conversations", response_model=List[Dict[str, Any]])
 async def get_conversations(
     current_user: UserResponse = Depends(get_current_user),
-    db: Session = Depends(get_db),
+    chat_service: ChatService = Depends(get_chat_service),
     limit: int = Query(50, description="Número máximo de conversas")
 ):
     """
@@ -80,7 +76,7 @@ async def get_conversations(
     Returns:
         Lista de conversas
     """
-    chat_service = ChatService(db)
+    
     
     try:
         # Usar o repositório diretamente para pegar as conversações como objetos SQLAlchemy
@@ -107,7 +103,7 @@ async def get_conversations(
 async def get_conversation_messages(
     conversation_id: str,
     current_user: UserResponse = Depends(get_current_user),
-    db: Session = Depends(get_db),
+    chat_service: ChatService = Depends(get_chat_service),
     limit: int = Query(100, description="Número máximo de mensagens")
 ):
     """
@@ -122,7 +118,7 @@ async def get_conversation_messages(
     Returns:
         Lista de mensagens
     """
-    chat_service = ChatService(db)
+    
     
     try:
         messages = chat_service.get_conversation_messages(conversation_id, current_user.id, limit=limit)
@@ -149,7 +145,7 @@ async def get_conversation_messages(
 async def get_chat_session(
     session_id: int,
     current_user: UserResponse = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    chat_service: ChatService = Depends(get_chat_service)
 ):
     """
     Busca sessão de chat por ID
@@ -165,7 +161,7 @@ async def get_chat_session(
     Raises:
         HTTPException: Se sessão não encontrada
     """
-    chat_service = ChatService(db)
+    
     
     session = chat_service.get_chat_session(session_id, current_user.id)
     
@@ -182,7 +178,7 @@ async def get_chat_messages(
     session_id: int,
     limit: int = 50,
     current_user: UserResponse = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    chat_service: ChatService = Depends(get_chat_service)
 ):
     """
     Busca mensagens de uma sessão de chat
@@ -199,7 +195,7 @@ async def get_chat_messages(
     Raises:
         HTTPException: Se sessão não encontrada
     """
-    chat_service = ChatService(db)
+    
     
     messages = chat_service.get_chat_messages(session_id, current_user.id, limit)
     
@@ -216,7 +212,7 @@ async def send_message(
     session_id: int,
     message: str,
     current_user: UserResponse = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    chat_service: ChatService = Depends(get_chat_service)
 ):
     """
     Envia uma mensagem em uma sessão de chat
@@ -233,7 +229,7 @@ async def send_message(
     Raises:
         HTTPException: Se sessão não encontrada
     """
-    chat_service = ChatService(db)
+    
     
     try:
         chat_message = chat_service.send_message(
@@ -260,7 +256,7 @@ async def send_ai_message(
     session_id: int,
     message: str,
     current_user: UserResponse = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    chat_service: ChatService = Depends(get_chat_service)
 ):
     """
     Envia uma mensagem e recebe resposta da IA
@@ -277,7 +273,7 @@ async def send_ai_message(
     Raises:
         HTTPException: Se sessão não encontrada
     """
-    chat_service = ChatService(db)
+    
     
     try:
         ai_message = await chat_service.send_ai_message(
@@ -303,7 +299,7 @@ async def send_ai_message(
 async def delete_chat_session(
     session_id: int,
     current_user: UserResponse = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    chat_service: ChatService = Depends(get_chat_service)
 ):
     """
     Deleta uma sessão de chat
@@ -319,7 +315,7 @@ async def delete_chat_session(
     Raises:
         HTTPException: Se sessão não encontrada
     """
-    chat_service = ChatService(db)
+    
     
     success = chat_service.delete_chat_session(session_id, current_user.id)
     
@@ -335,7 +331,7 @@ async def delete_chat_session(
 async def clear_chat_session(
     session_id: int,
     current_user: UserResponse = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    chat_service: ChatService = Depends(get_chat_service)
 ):
     """
     Limpa mensagens de uma sessão de chat
@@ -351,7 +347,7 @@ async def clear_chat_session(
     Raises:
         HTTPException: Se sessão não encontrada
     """
-    chat_service = ChatService(db)
+    
     
     success = chat_service.clear_chat_session(session_id, current_user.id)
     
@@ -368,7 +364,7 @@ async def rename_chat_session(
     session_id: int,
     new_name: str,
     current_user: UserResponse = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    chat_service: ChatService = Depends(get_chat_service)
 ):
     """
     Renomeia uma sessão de chat
@@ -385,7 +381,7 @@ async def rename_chat_session(
     Raises:
         HTTPException: Se sessão não encontrada
     """
-    chat_service = ChatService(db)
+    
     
     try:
         renamed_session = chat_service.rename_chat_session(
@@ -412,7 +408,7 @@ async def export_chat_session(
     session_id: int,
     format: str = "json",
     current_user: UserResponse = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    chat_service: ChatService = Depends(get_chat_service)
 ):
     """
     Exporta uma sessão de chat
@@ -429,7 +425,7 @@ async def export_chat_session(
     Raises:
         HTTPException: Se sessão não encontrada
     """
-    chat_service = ChatService(db)
+    
     
     try:
         exported_data = chat_service.export_chat_session(
@@ -456,7 +452,7 @@ async def share_chat_session(
     session_id: int,
     share_with: List[str],
     current_user: UserResponse = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    chat_service: ChatService = Depends(get_chat_service)
 ):
     """
     Compartilha uma sessão de chat com outros usuários
@@ -473,7 +469,7 @@ async def share_chat_session(
     Raises:
         HTTPException: Se sessão não encontrada
     """
-    chat_service = ChatService(db)
+    
     
     try:
         share_result = chat_service.share_chat_session(
@@ -499,7 +495,7 @@ async def share_chat_session(
 async def get_chat_analytics(
     session_id: int,
     current_user: UserResponse = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    chat_service: ChatService = Depends(get_chat_service)
 ):
     """
     Retorna análises de uma sessão de chat
@@ -515,7 +511,7 @@ async def get_chat_analytics(
     Raises:
         HTTPException: Se sessão não encontrada
     """
-    chat_service = ChatService(db)
+    
     
     analytics = chat_service.get_chat_analytics(session_id, current_user.id)
     
@@ -532,7 +528,7 @@ async def quick_chat(
     message: str,
     context: Optional[Dict[str, Any]] = None,
     current_user: UserResponse = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    chat_service: ChatService = Depends(get_chat_service)
 ):
     """
     Chat rápido sem salvar sessão
@@ -546,7 +542,7 @@ async def quick_chat(
     Returns:
         Resposta da IA
     """
-    chat_service = ChatService(db)
+    
     
     try:
         response = await chat_service.quick_chat(
@@ -569,7 +565,8 @@ async def chat_with_agent(
     agent_id: str,
     context: Optional[Dict[str, Any]] = None,
     current_user: UserResponse = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    chat_service: ChatService = Depends(get_chat_service),
+    agent_service = Depends(get_agent_service)
 ):
     """
     Chat direto com um agente específico (suporta UUIDs)
@@ -579,13 +576,13 @@ async def chat_with_agent(
         agent_id: ID do agente (UUID)
         context: Contexto adicional
         current_user: Usuário atual
-        db: Sessão do banco de dados
+        chat_service: Serviço de chat
+        agent_service: Serviço de agentes
         
     Returns:
         Resposta do agente
     """
-    agent_service = AgentService(db)
-    chat_service = ChatService(db)
+    
     
     try:
         # Verificar se o agente existe e pertence ao usuário
@@ -676,7 +673,7 @@ async def chat_with_agent(
 async def delete_conversation(
     conversation_id: str,
     current_user: UserResponse = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    chat_service: ChatService = Depends(get_chat_service)
 ):
     """
     Remove uma conversa e todas suas mensagens
@@ -692,7 +689,7 @@ async def delete_conversation(
     Raises:
         HTTPException: Se conversa não encontrada
     """
-    chat_service = ChatService(db)
+    
     
     try:
         success = chat_service.delete_conversation(conversation_id, current_user.id)

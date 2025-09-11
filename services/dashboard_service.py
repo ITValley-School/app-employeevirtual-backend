@@ -10,7 +10,7 @@ from data.dashboard_repository import DashboardRepository
 from data.agent_repository import AgentRepository
 from data.user_repository import UserRepository
 from models.dashboard_models import (
-    DashboardSummary, AgentMetrics, FlowMetrics, UserMetrics,
+    DashboardSummary, AgentMetrics, FlowMetrics, UsageMetrics,
     MetricType, PeriodType
 )
 
@@ -114,7 +114,7 @@ class DashboardService:
             for metric in metrics_data
         ]
     
-    def get_user_metrics(self, user_id: int) -> UserMetrics:
+    def get_user_metrics(self, user_id: int) -> UsageMetrics:
         """
         Busca métricas consolidadas do usuário
         
@@ -129,7 +129,7 @@ class DashboardService:
         if not metrics_data:
             raise ValueError("Usuário não encontrado")
         
-        return UserMetrics(
+        return UsageMetrics(
             user_id=metrics_data['user_id'],
             name=metrics_data['name'],
             email=metrics_data['email'],

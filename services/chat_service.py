@@ -13,8 +13,7 @@ from data.user_repository import UserRepository
 from models.chat_models import (
     ConversationCreate, ConversationUpdate, ConversationResponse,
     MessageCreate, MessageResponse, ChatRequest, ChatResponse,
-    ConversationWithMessages, ConversationSummary, MessageType, ConversationStatus,
-    Message
+    ConversationWithMessages, ConversationSummary, MessageType, ConversationStatus
 )
 from services.orion_service import OrionService
 
@@ -531,7 +530,7 @@ class ChatService:
         return self.chat_repository.get_conversation_messages(conversation_id, limit=limit)
 
     def create_message(self, conversation_id: str, user_id: str, content: str, 
-                      message_type: str, agent_id: str = None) -> Message:
+                      message_type: str, agent_id: str = None):
         """
         Cria uma nova mensagem na conversa
         

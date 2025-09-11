@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 from data.file_repository import FileRepository
 from data.user_repository import UserRepository
 from models.file_models import (
-    File, FileUploadRequest, FileUpdate, FileResponse, FileType, FileStatus,
+    FileUploadRequest, FileUpdate, FileResponse, FileType, FileStatus,
     FileProcessingRequest, FileProcessingResponse, OrionServiceRequest, OrionServiceResponse
 )
 
@@ -421,7 +421,7 @@ class FileService:
         return [self._convert_to_response(file) for file in files]
     
     # Métodos privados/auxiliares
-    def _convert_to_response(self, db_file: File) -> FileResponse:
+    def _convert_to_response(self, db_file) -> FileResponse:
         """
         Converte modelo SQLAlchemy para Pydantic response
         

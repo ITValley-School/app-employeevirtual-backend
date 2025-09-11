@@ -11,9 +11,9 @@ from api.chat_api import router as chat_router
 from api.dashboard_api import router as dashboard_router
 from api.file_api import router as file_router
 
-# System Agents APIs
-from api.system_agent_api import router as system_agent_router
-from api.system_agent_api import execution_router, webhook_router
+# System Agents APIs - TEMPORARIAMENTE COMENTADO PARA RESOLVER UUID
+# from api.system_agent_api import router as system_agent_router
+# from api.system_agent_api import execution_router, webhook_router
 
 # Configuração das rotas
 ROUTER_CONFIG = [
@@ -47,22 +47,22 @@ ROUTER_CONFIG = [
         "prefix": "/api/files",
         "tags": ["Arquivos"]
     },
-    # System Agents APIs
-    {
-        "router": system_agent_router,
-        "prefix": "/api",
-        "tags": ["System Agents"]
-    },
-    {
-        "router": execution_router,
-        "prefix": "/api",
-        "tags": ["System Agent Executions"]
-    },
-    {
-        "router": webhook_router,
-        "prefix": "/api",
-        "tags": ["Webhooks"]
-    }
+    # System Agents APIs - TEMPORARIAMENTE COMENTADO
+    # {
+    #     "router": system_agent_router,
+    #     "prefix": "/api",
+    #     "tags": ["System Agents"]
+    # },
+    # {
+    #     "router": execution_router,
+    #     "prefix": "/api",
+    #     "tags": ["System Agent Executions"]
+    # },
+    # {
+    #     "router": webhook_router,
+    #     "prefix": "/api",
+    #     "tags": ["Webhooks"]
+    # }
 ]
 
 

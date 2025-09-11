@@ -7,7 +7,8 @@ from typing import Optional, List, Dict, Any
 from sqlalchemy.orm import Session
 from sqlalchemy import and_, func, desc, or_
 
-from models.file_models import File, FileProcessing, DataLakeFile, OrionService, FileStatus, FileType
+from data.entities import FileEntity, FileProcessingEntity, DataLakeFileEntity, OrionServiceEntity
+from models.file_models import FileStatus, FileType
 
 
 class FileRepository:
@@ -20,9 +21,9 @@ class FileRepository:
     def create_file(self, user_id: int, agent_id: Optional[int], original_name: str, 
                    file_path: str, file_url: str, file_type: FileType, file_size: int,
                    orion_file_id: Optional[str] = None, description: Optional[str] = None,
-                   tags: Optional[List[str]] = None) -> File:
+                   tags: Optional[List[str]] = None) -> FileEntity:
         """Cria um novo registro de arquivo"""
-        db_file = File(
+        db_file = FileEntity(
             user_id=user_id,
             agent_id=agent_id,
             original_name=original_name,
@@ -40,67 +41,67 @@ class FileRepository:
         self.db.refresh(db_file)
         return db_file
     
-    def get_file_by_id(self, file_id: int, user_id: Optional[int] = None) -> Optional[File]:
+    def get_file_by_id(self, file_id: int, user_id: Optional[int] = None) -> Optional[FileEntity]:
         """Busca arquivo por ID"""
-        query = self.db.query(File).filter(File.id == file_id)
+        query = self.db.query(FileEntity).filter(FileEntity.id == file_id)
         if user_id:
-            query = query.filter(File.user_id == user_id)
+            query = query.filter(FileEntity.user_id == user_id)
         return query.first()
     
-    def get_file_by_path(self, file_path: str, user_id: int) -> Optional[File]:
+    def get_file_by_path(self, file_path: str, user_id: int) -> Optional[FileEntity]:
         """Busca arquivo por caminho"""
-        return self.db.query(File).filter(
+        return self.db.query(FileEntity).filter(
             and_(
-                File.file_path == file_path,
-                File.user_id == user_id
+                FileEntity.file_path == file_path,
+                FileEntity.user_id == user_id
             )
         ).first()
     
     def get_user_files(self, user_id: int, skip: int = 0, limit: int = 50,
                       file_type: Optional[FileType] = None, search: Optional[str] = None,
-                      agent_id: Optional[int] = None, status: Optional[FileStatus] = None) -> List[File]:
+                      agent_id: Optional[int] = None, status: Optional[FileStatus] = None) -> List[FileEntity]:
         """Busca arquivos do usuário"""
-        query = self.db.query(File).filter(File.user_id == user_id)
+        query = self.db.query(FileEntity).filter(FileEntity.user_id == user_id)
         
         if file_type:
-            query = query.filter(File.file_type == file_type)
+            query = query.filter(FileEntity.file_type == file_type)
         
         if agent_id:
-            query = query.filter(File.agent_id == agent_id)
+            query = query.filter(FileEntity.agent_id == agent_id)
             
         if status:
-            query = query.filter(File.status == status)
+            query = query.filter(FileEntity.status == status)
         
         if search:
             query = query.filter(
                 or_(
-                    File.original_name.ilike(f"%{search}%"),
-                    File.description.ilike(f"%{search}%")
+                    FileEntity.original_name.ilike(f"%{search}%"),
+                    FileEntity.description.ilike(f"%{search}%")
                 )
             )
         
-        return query.order_by(desc(File.created_at)).offset(skip).limit(limit).all()
+        return query.order_by(desc(FileEntity.created_at)).offset(skip).limit(limit).all()
     
-    def get_files_by_type(self, user_id: int, file_type: FileType, limit: int = 50) -> List[File]:
+    def get_files_by_type(self, user_id: int, file_type: FileType, limit: int = 50) -> List[FileEntity]:
         """Busca arquivos por tipo"""
-        return self.db.query(File).filter(
+        return self.db.query(FileEntity).filter(
             and_(
-                File.user_id == user_id,
-                File.file_type == file_type
+                FileEntity.user_id == user_id,
+                FileEntity.file_type == file_type
             )
-        ).order_by(desc(File.created_at)).limit(limit).all()
+        ).order_by(desc(FileEntity.created_at)).limit(limit).all()
     
-    def get_recent_files(self, user_id: int, days: int = 7, limit: int = 20) -> List[File]:
+    def get_recent_files(self, user_id: int, days: int = 7, limit: int = 20) -> List[FileEntity]:
         """Busca arquivos recentes"""
         since_date = datetime.utcnow() - timedelta(days=days)
-        return self.db.query(File).filter(
+        return self.db.query(FileEntity).filter(
             and_(
-                File.user_id == user_id,
-                File.created_at >= since_date
+                FileEntity.user_id == user_id,
+                FileEntity.created_at >= since_date
             )
-        ).order_by(desc(File.created_at)).limit(limit).all()
+        ).order_by(desc(FileEntity.created_at)).limit(limit).all()
     
-    def update_file(self, file_id: int, user_id: int, **kwargs) -> Optional[File]:
+    def update_file(self, file_id: int, user_id: int, **kwargs) -> Optional[FileEntity]:
         """Atualiza dados do arquivo"""
         file_obj = self.get_file_by_id(file_id, user_id)
         if not file_obj:
@@ -125,13 +126,13 @@ class FileRepository:
             return False
         
         # Remover processamentos relacionados
-        self.db.query(FileProcessing).filter(FileProcessing.file_id == file_id).delete()
+        self.db.query(FileProcessingEntity).filter(FileProcessingEntity.file_id == file_id).delete()
         
         # Remover serviços Orion relacionados
-        self.db.query(OrionService).filter(OrionService.file_id == file_id).delete()
+        self.db.query(OrionServiceEntity).filter(OrionServiceEntity.file_id == file_id).delete()
         
         # Remover registros do DataLake relacionados
-        self.db.query(DataLakeFile).filter(DataLakeFile.file_id == file_id).delete()
+        self.db.query(DataLakeFileEntity).filter(DataLakeFileEntity.file_id == file_id).delete()
         
         # Remover arquivo
         self.db.delete(file_obj)
@@ -141,22 +142,22 @@ class FileRepository:
     def get_files_count(self, user_id: int, file_type: Optional[FileType] = None, 
                        status: Optional[FileStatus] = None) -> int:
         """Retorna contagem de arquivos"""
-        query = self.db.query(File).filter(File.user_id == user_id)
+        query = self.db.query(FileEntity).filter(FileEntity.user_id == user_id)
         if file_type:
-            query = query.filter(File.file_type == file_type)
+            query = query.filter(FileEntity.file_type == file_type)
         if status:
-            query = query.filter(File.status == status)
+            query = query.filter(FileEntity.status == status)
         return query.count()
     
     def get_total_file_size(self, user_id: int) -> int:
         """Retorna tamanho total dos arquivos do usuário"""
-        result = self.db.query(func.sum(File.file_size)).filter(
-            File.user_id == user_id
+        result = self.db.query(func.sum(FileEntity.file_size)).filter(
+            FileEntity.user_id == user_id
         ).scalar()
         return result or 0
     
     # Métodos para Tags (armazenadas como JSON no campo tags)
-    def add_file_tags(self, file_id: int, user_id: int, new_tags: List[str]) -> Optional[File]:
+    def add_file_tags(self, file_id: int, user_id: int, new_tags: List[str]) -> Optional[FileEntity]:
         """Adiciona tags a um arquivo"""
         file_obj = self.get_file_by_id(file_id, user_id)
         if not file_obj:
@@ -175,7 +176,7 @@ class FileRepository:
         self.db.refresh(file_obj)
         return file_obj
     
-    def remove_file_tags(self, file_id: int, user_id: int, tags_to_remove: List[str]) -> Optional[File]:
+    def remove_file_tags(self, file_id: int, user_id: int, tags_to_remove: List[str]) -> Optional[FileEntity]:
         """Remove tags de um arquivo"""
         file_obj = self.get_file_by_id(file_id, user_id)
         if not file_obj:
@@ -205,17 +206,17 @@ class FileRepository:
         except (json.JSONDecodeError, TypeError):
             return []
     
-    def get_files_by_tag(self, user_id: int, tag_name: str) -> List[File]:
+    def get_files_by_tag(self, user_id: int, tag_name: str) -> List[FileEntity]:
         """Busca arquivos por tag"""
-        files = self.db.query(File).filter(File.user_id == user_id).all()
+        files = self.db.query(FileEntity).filter(FileEntity.user_id == user_id).all()
         
         matching_files = []
-        for file in files:
-            if file.tags:
+        for FileEntity in files:
+            if FileEntity.tags:
                 try:
-                    tags = json.loads(file.tags)
+                    tags = json.loads(FileEntity.tags)
                     if tag_name in tags:
-                        matching_files.append(file)
+                        matching_files.append(FileEntity)
                 except (json.JSONDecodeError, TypeError):
                     continue
         
@@ -223,15 +224,15 @@ class FileRepository:
     
     def get_popular_tags(self, user_id: int, limit: int = 20) -> List[Dict[str, Any]]:
         """Busca tags mais utilizadas pelo usuário"""
-        files = self.db.query(File).filter(
-            and_(File.user_id == user_id, File.tags.isnot(None))
+        files = self.db.query(FileEntity).filter(
+            and_(FileEntity.user_id == user_id, FileEntity.tags.isnot(None))
         ).all()
         
         tag_counts = {}
-        for file in files:
-            if file.tags:
+        for FileEntity in files:
+            if FileEntity.tags:
                 try:
-                    tags = json.loads(file.tags)
+                    tags = json.loads(FileEntity.tags)
                     for tag in tags:
                         tag_counts[tag] = tag_counts.get(tag, 0) + 1
                 except (json.JSONDecodeError, TypeError):
@@ -241,12 +242,12 @@ class FileRepository:
         sorted_tags = sorted(tag_counts.items(), key=lambda x: x[1], reverse=True)[:limit]
         return [{'tag_name': tag, 'count': count} for tag, count in sorted_tags]
     
-    # CRUD FileProcessing
+    # CRUD FileProcessingEntity
     def create_file_processing(self, file_id: int, processing_type: str, 
                               config: Optional[Dict[str, Any]] = None, 
-                              orion_task_id: Optional[str] = None) -> FileProcessing:
+                              orion_task_id: Optional[str] = None) -> FileProcessingEntity:
         """Cria um novo processamento de arquivo"""
-        db_processing = FileProcessing(
+        db_processing = FileProcessingEntity(
             file_id=file_id,
             processing_type=processing_type,
             status="pending",
@@ -258,17 +259,17 @@ class FileRepository:
         self.db.refresh(db_processing)
         return db_processing
     
-    def get_file_processing(self, processing_id: int) -> Optional[FileProcessing]:
+    def get_file_processing(self, processing_id: int) -> Optional[FileProcessingEntity]:
         """Busca processamento por ID"""
-        return self.db.query(FileProcessing).filter(FileProcessing.id == processing_id).first()
+        return self.db.query(FileProcessingEntity).filter(FileProcessingEntity.id == processing_id).first()
     
-    def get_file_processings(self, file_id: int) -> List[FileProcessing]:
+    def get_file_processings(self, file_id: int) -> List[FileProcessingEntity]:
         """Busca todos os processamentos de um arquivo"""
-        return self.db.query(FileProcessing).filter(
-            FileProcessing.file_id == file_id
-        ).order_by(desc(FileProcessing.created_at)).all()
+        return self.db.query(FileProcessingEntity).filter(
+            FileProcessingEntity.file_id == file_id
+        ).order_by(desc(FileProcessingEntity.created_at)).all()
     
-    def update_file_processing(self, processing_id: int, **kwargs) -> Optional[FileProcessing]:
+    def update_file_processing(self, processing_id: int, **kwargs) -> Optional[FileProcessingEntity]:
         """Atualiza processamento"""
         processing = self.get_file_processing(processing_id)
         if not processing:
@@ -288,11 +289,11 @@ class FileRepository:
         self.db.refresh(processing)
         return processing
     
-    # CRUD DataLakeFile
+    # CRUD DataLakeFileEntity
     def create_datalake_file(self, user_id: int, file_id: int, datalake_path: str,
-                           datalake_url: str, file_metadata: Optional[Dict[str, Any]] = None) -> DataLakeFile:
+                           datalake_url: str, file_metadata: Optional[Dict[str, Any]] = None) -> DataLakeFileEntity:
         """Cria registro no DataLake"""
-        db_datalake = DataLakeFile(
+        db_datalake = DataLakeFileEntity(
             user_id=user_id,
             file_id=file_id,
             datalake_path=datalake_path,
@@ -304,17 +305,17 @@ class FileRepository:
         self.db.refresh(db_datalake)
         return db_datalake
     
-    def get_datalake_file(self, file_id: int) -> Optional[DataLakeFile]:
+    def get_datalake_file(self, file_id: int) -> Optional[DataLakeFileEntity]:
         """Busca arquivo no DataLake"""
-        return self.db.query(DataLakeFile).filter(DataLakeFile.file_id == file_id).first()
+        return self.db.query(DataLakeFileEntity).filter(DataLakeFileEntity.file_id == file_id).first()
     
-    # CRUD OrionService
+    # CRUD OrionServiceEntity
     def create_orion_service(self, user_id: int, service_type: str, 
                            file_id: Optional[int] = None, agent_id: Optional[int] = None,
                            request_data: Optional[Dict[str, Any]] = None,
-                           orion_task_id: Optional[str] = None) -> OrionService:
+                           orion_task_id: Optional[str] = None) -> OrionServiceEntity:
         """Cria registro de serviço Orion"""
-        db_orion = OrionService(
+        db_orion = OrionServiceEntity(
             user_id=user_id,
             service_type=service_type,
             file_id=file_id,
@@ -328,11 +329,11 @@ class FileRepository:
         self.db.refresh(db_orion)
         return db_orion
     
-    def get_orion_service(self, service_id: int) -> Optional[OrionService]:
+    def get_orion_service(self, service_id: int) -> Optional[OrionServiceEntity]:
         """Busca serviço Orion por ID"""
-        return self.db.query(OrionService).filter(OrionService.id == service_id).first()
+        return self.db.query(OrionServiceEntity).filter(OrionServiceEntity.id == service_id).first()
     
-    def update_orion_service(self, service_id: int, **kwargs) -> Optional[OrionService]:
+    def update_orion_service(self, service_id: int, **kwargs) -> Optional[OrionServiceEntity]:
         """Atualiza serviço Orion"""
         service = self.get_orion_service(service_id)
         if not service:
@@ -361,10 +362,10 @@ class FileRepository:
         total_files = self.get_files_count(user_id)
         
         # Arquivos novos no período
-        new_files = self.db.query(File).filter(
+        new_files = self.db.query(FileEntity).filter(
             and_(
-                File.user_id == user_id,
-                File.created_at >= since_date
+                FileEntity.user_id == user_id,
+                FileEntity.created_at >= since_date
             )
         ).count()
         
@@ -373,10 +374,10 @@ class FileRepository:
         
         # Distribuição por tipo
         file_types = self.db.query(
-            File.file_type,
-            func.count(File.id).label('count'),
-            func.sum(File.file_size).label('total_size')
-        ).filter(File.user_id == user_id).group_by(File.file_type).all()
+            FileEntity.file_type,
+            func.count(FileEntity.id).label('count'),
+            func.sum(FileEntity.file_size).label('total_size')
+        ).filter(FileEntity.user_id == user_id).group_by(FileEntity.file_type).all()
         
         type_distribution = [
             {
@@ -389,9 +390,9 @@ class FileRepository:
         
         # Distribuição por status
         status_distribution = self.db.query(
-            File.status,
-            func.count(File.id).label('count')
-        ).filter(File.user_id == user_id).group_by(File.status).all()
+            FileEntity.status,
+            func.count(FileEntity.id).label('count')
+        ).filter(FileEntity.user_id == user_id).group_by(FileEntity.status).all()
         
         status_dist = [
             {
@@ -432,34 +433,34 @@ class FileRepository:
         }
     
     def search_files(self, user_id: int, query: str, file_type: Optional[FileType] = None, 
-                    tags: Optional[List[str]] = None, limit: int = 50) -> List[File]:
+                    tags: Optional[List[str]] = None, limit: int = 50) -> List[FileEntity]:
         """Busca avançada de arquivos"""
-        db_query = self.db.query(File).filter(File.user_id == user_id)
+        db_query = self.db.query(FileEntity).filter(FileEntity.user_id == user_id)
         
         # Busca por texto
         if query:
             db_query = db_query.filter(
                 or_(
-                    File.original_name.ilike(f"%{query}%"),
-                    File.description.ilike(f"%{query}%")
+                    FileEntity.original_name.ilike(f"%{query}%"),
+                    FileEntity.description.ilike(f"%{query}%")
                 )
             )
         
         # Filtro por tipo
         if file_type:
-            db_query = db_query.filter(File.file_type == file_type)
+            db_query = db_query.filter(FileEntity.file_type == file_type)
         
-        files = db_query.order_by(desc(File.updated_at)).limit(limit).all()
+        files = db_query.order_by(desc(FileEntity.updated_at)).limit(limit).all()
         
         # Filtro por tags (se especificado)
         if tags:
             filtered_files = []
-            for file in files:
-                if file.tags:
+            for FileEntity in files:
+                if FileEntity.tags:
                     try:
-                        file_tags = json.loads(file.tags)
+                        file_tags = json.loads(FileEntity.tags)
                         if any(tag in file_tags for tag in tags):
-                            filtered_files.append(file)
+                            filtered_files.append(FileEntity)
                     except (json.JSONDecodeError, TypeError):
                         continue
             return filtered_files

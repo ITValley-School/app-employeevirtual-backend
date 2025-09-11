@@ -6,8 +6,10 @@ from typing import Optional, List, Dict, Any
 from sqlalchemy.orm import Session
 from sqlalchemy import and_, func, desc, or_
 
+from data.entities import (
+    ConversationEntity, MessageEntity, ConversationContextEntity, MessageReactionEntity
+)
 from models.chat_models import (
-    Conversation, Message, ConversationContext, MessageReaction,
     MessageType, ConversationStatus
 )
 
@@ -19,9 +21,9 @@ class ChatRepository:
         self.db = db
     
     # CRUD Conversações
-    def create_conversation(self, user_id: str, agent_id: str, title: str = None) -> Conversation:
+    def create_conversation(self, user_id: str, agent_id: str, title: str = None) -> ConversationEntity:
         """Cria uma nova conversação"""
-        db_conversation = Conversation(
+        db_conversation = ConversationEntity(
             user_id=user_id,
             agent_id=agent_id,
             title=title
@@ -31,46 +33,46 @@ class ChatRepository:
         self.db.refresh(db_conversation)
         return db_conversation
     
-    def get_conversation_by_id(self, conversation_id: str, user_id: str = None) -> Optional[Conversation]:
+    def get_conversation_by_id(self, conversation_id: str, user_id: str = None) -> Optional[ConversationEntity]:
         """Busca conversação por ID"""
-        query = self.db.query(Conversation).filter(Conversation.id == conversation_id)
+        query = self.db.query(ConversationEntity).filter(ConversationEntity.id == conversation_id)
         if user_id:
-            query = query.filter(Conversation.user_id == user_id)
+            query = query.filter(ConversationEntity.user_id == user_id)
         return query.first()
     
     def get_user_conversations(self, user_id: str, skip: int = 0, limit: int = 50, 
-                              status: ConversationStatus = None) -> List[Conversation]:
+                              status: ConversationStatus = None) -> List[ConversationEntity]:
         """Busca conversações do usuário"""
-        query = self.db.query(Conversation).filter(Conversation.user_id == user_id)
+        query = self.db.query(ConversationEntity).filter(ConversationEntity.user_id == user_id)
         
         if status:
-            query = query.filter(Conversation.status == status)
+            query = query.filter(ConversationEntity.status == status)
         
-        return query.order_by(desc(Conversation.updated_at)).offset(skip).limit(limit).all()
+        return query.order_by(desc(ConversationEntity.updated_at)).offset(skip).limit(limit).all()
     
     def get_conversation_summaries(self, user_id: int, limit: int = 50) -> List[Dict[str, Any]]:
         """Busca resumos de conversações com contagem de mensagens"""
         results = self.db.query(
-            Conversation.id,
-            Conversation.title,
-            Conversation.agent_id,
-            Conversation.created_at,
-            Conversation.last_message_at,
-            Conversation.status,
-            func.count(Message.id).label('message_count')
-        ).outerjoin(Message).filter(
+            ConversationEntity.id,
+            ConversationEntity.title,
+            ConversationEntity.agent_id,
+            ConversationEntity.created_at,
+            ConversationEntity.last_message_at,
+            ConversationEntity.status,
+            func.count(MessageEntity.id).label('message_count')
+        ).outerjoin(MessageEntity).filter(
             and_(
-                Conversation.user_id == user_id,
-                Conversation.status == ConversationStatus.ACTIVE
+                ConversationEntity.user_id == user_id,
+                ConversationEntity.status == ConversationStatus.ACTIVE
             )
         ).group_by(
-            Conversation.id,
-            Conversation.title,
-            Conversation.agent_id,
-            Conversation.created_at,
-            Conversation.last_message_at,
-            Conversation.status
-        ).order_by(desc(Conversation.last_message_at)).limit(limit).all()
+            ConversationEntity.id,
+            ConversationEntity.title,
+            ConversationEntity.agent_id,
+            ConversationEntity.created_at,
+            ConversationEntity.last_message_at,
+            ConversationEntity.status
+        ).order_by(desc(ConversationEntity.last_message_at)).limit(limit).all()
         
         return [
             {
@@ -85,61 +87,61 @@ class ChatRepository:
             for result in results
         ]
     
-    def update_conversation(self, conversation_id: int, user_id: int, **kwargs) -> Optional[Conversation]:
+    def update_conversation(self, conversation_id: int, user_id: int, **kwargs) -> Optional[ConversationEntity]:
         """Atualiza dados da conversação"""
-        conversation = self.get_conversation_by_id(conversation_id, user_id)
-        if not conversation:
+        ConversationEntity = self.get_conversation_by_id(conversation_id, user_id)
+        if not ConversationEntity:
             return None
         
         for key, value in kwargs.items():
-            if hasattr(conversation, key) and value is not None:
-                setattr(conversation, key, value)
+            if hasattr(ConversationEntity, key) and value is not None:
+                setattr(ConversationEntity, key, value)
         
-        conversation.updated_at = datetime.utcnow()
+        ConversationEntity.updated_at = datetime.utcnow()
         self.db.commit()
-        self.db.refresh(conversation)
-        return conversation
+        self.db.refresh(ConversationEntity)
+        return ConversationEntity
     
     def update_conversation_last_message(self, conversation_id: int) -> bool:
         """Atualiza timestamp da última mensagem"""
-        conversation = self.db.query(Conversation).filter(Conversation.id == conversation_id).first()
-        if not conversation:
+        ConversationEntity = self.db.query(ConversationEntity).filter(ConversationEntity.id == conversation_id).first()
+        if not ConversationEntity:
             return False
         
-        conversation.last_message_at = datetime.utcnow()
-        conversation.updated_at = datetime.utcnow()
+        ConversationEntity.last_message_at = datetime.utcnow()
+        ConversationEntity.updated_at = datetime.utcnow()
         self.db.commit()
         return True
     
     def delete_conversation(self, conversation_id: str, user_id: str) -> bool:
         """Remove conversação"""
-        conversation = self.get_conversation_by_id(conversation_id, user_id)
-        if not conversation:
+        ConversationEntity = self.get_conversation_by_id(conversation_id, user_id)
+        if not ConversationEntity:
             return False
         
         # Remover mensagens relacionadas primeiro
-        self.db.query(Message).filter(Message.conversation_id == conversation_id).delete()
+        self.db.query(MessageEntity).filter(MessageEntity.conversation_id == conversation_id).delete()
         
         # Remover conversação
-        self.db.delete(conversation)
+        self.db.delete(ConversationEntity)
         self.db.commit()
         return True
     
     def archive_conversation(self, conversation_id: int, user_id: int) -> bool:
         """Arquiva conversação"""
-        conversation = self.get_conversation_by_id(conversation_id, user_id)
-        if not conversation:
+        ConversationEntity = self.get_conversation_by_id(conversation_id, user_id)
+        if not ConversationEntity:
             return False
         
-        conversation.status = ConversationStatus.ARCHIVED
-        conversation.updated_at = datetime.utcnow()
+        ConversationEntity.status = ConversationStatus.ARCHIVED
+        ConversationEntity.updated_at = datetime.utcnow()
         self.db.commit()
         return True
     
     # CRUD Mensagens
     def create_message(self, conversation_id: str, content: str, message_type: MessageType,
                       sender_id: str = None, agent_id: str = None, 
-                      message_metadata: Optional[Dict[str, Any]] = None) -> Message:
+                      message_metadata: Optional[Dict[str, Any]] = None) -> MessageEntity:
         """Cria uma nova mensagem"""
         import json
         
@@ -148,7 +150,7 @@ class ChatRepository:
         if message_metadata:
             metadata_json = json.dumps(message_metadata)
         
-        db_message = Message(
+        db_message = MessageEntity(
             conversation_id=conversation_id,
             user_id=sender_id,
             content=content,
@@ -165,71 +167,71 @@ class ChatRepository:
         
         return db_message
     
-    def get_message_by_id(self, message_id: int) -> Optional[Message]:
+    def get_message_by_id(self, message_id: int) -> Optional[MessageEntity]:
         """Busca mensagem por ID"""
-        return self.db.query(Message).filter(Message.id == message_id).first()
+        return self.db.query(MessageEntity).filter(MessageEntity.id == message_id).first()
     
     def get_conversation_messages(self, conversation_id: int, skip: int = 0, 
-                                 limit: int = 50, order_desc: bool = False) -> List[Message]:
+                                 limit: int = 50, order_desc: bool = False) -> List[MessageEntity]:
         """Busca mensagens de uma conversação"""
-        query = self.db.query(Message).filter(Message.conversation_id == conversation_id)
+        query = self.db.query(MessageEntity).filter(MessageEntity.conversation_id == conversation_id)
         
         if order_desc:
-            query = query.order_by(desc(Message.created_at))
+            query = query.order_by(desc(MessageEntity.created_at))
         else:
-            query = query.order_by(Message.created_at)
+            query = query.order_by(MessageEntity.created_at)
         
         return query.offset(skip).limit(limit).all()
     
-    def get_recent_messages(self, conversation_id: int, minutes: int = 60) -> List[Message]:
+    def get_recent_messages(self, conversation_id: int, minutes: int = 60) -> List[MessageEntity]:
         """Busca mensagens recentes de uma conversação"""
         since_time = datetime.utcnow() - timedelta(minutes=minutes)
-        return self.db.query(Message).filter(
+        return self.db.query(MessageEntity).filter(
             and_(
-                Message.conversation_id == conversation_id,
-                Message.created_at >= since_time
+                MessageEntity.conversation_id == conversation_id,
+                MessageEntity.created_at >= since_time
             )
-        ).order_by(Message.created_at).all()
+        ).order_by(MessageEntity.created_at).all()
     
-    def get_messages_by_type(self, conversation_id: int, message_type: MessageType) -> List[Message]:
+    def get_messages_by_type(self, conversation_id: int, message_type: MessageType) -> List[MessageEntity]:
         """Busca mensagens por tipo"""
-        return self.db.query(Message).filter(
+        return self.db.query(MessageEntity).filter(
             and_(
-                Message.conversation_id == conversation_id,
-                Message.message_type == message_type
+                MessageEntity.conversation_id == conversation_id,
+                MessageEntity.message_type == message_type
             )
-        ).order_by(Message.created_at).all()
+        ).order_by(MessageEntity.created_at).all()
     
-    def update_message(self, message_id: int, **kwargs) -> Optional[Message]:
+    def update_message(self, message_id: int, **kwargs) -> Optional[MessageEntity]:
         """Atualiza dados da mensagem"""
-        message = self.get_message_by_id(message_id)
-        if not message:
+        MessageEntity = self.get_message_by_id(message_id)
+        if not MessageEntity:
             return None
         
         for key, value in kwargs.items():
-            if hasattr(message, key) and value is not None:
-                setattr(message, key, value)
+            if hasattr(MessageEntity, key) and value is not None:
+                setattr(MessageEntity, key, value)
         
-        message.updated_at = datetime.utcnow()
+        MessageEntity.updated_at = datetime.utcnow()
         self.db.commit()
-        self.db.refresh(message)
-        return message
+        self.db.refresh(MessageEntity)
+        return MessageEntity
     
     def delete_message(self, message_id: int) -> bool:
         """Remove mensagem"""
-        message = self.get_message_by_id(message_id)
-        if not message:
+        MessageEntity = self.get_message_by_id(message_id)
+        if not MessageEntity:
             return False
         
-        self.db.delete(message)
+        self.db.delete(MessageEntity)
         self.db.commit()
         return True
     
     # CRUD Contexto de Conversação
     def create_conversation_context(self, conversation_id: int, context_type: str,
-                                   context_data: Dict[str, Any]) -> ConversationContext:
+                                   context_data: Dict[str, Any]) -> ConversationContextEntity:
         """Cria contexto para conversação"""
-        db_context = ConversationContext(
+        db_context = ConversationContextEntity(
             conversation_id=conversation_id,
             context_type=context_type,
             context_data=context_data
@@ -239,20 +241,20 @@ class ChatRepository:
         self.db.refresh(db_context)
         return db_context
     
-    def get_conversation_context(self, conversation_id: int, context_type: str = None) -> List[ConversationContext]:
+    def get_conversation_context(self, conversation_id: int, context_type: str = None) -> List[ConversationContextEntity]:
         """Busca contexto da conversação"""
-        query = self.db.query(ConversationContext).filter(
-            ConversationContext.conversation_id == conversation_id
+        query = self.db.query(ConversationContextEntity).filter(
+            ConversationContextEntity.conversation_id == conversation_id
         )
         
         if context_type:
-            query = query.filter(ConversationContext.context_type == context_type)
+            query = query.filter(ConversationContextEntity.context_type == context_type)
         
-        return query.order_by(desc(ConversationContext.created_at)).all()
+        return query.order_by(desc(ConversationContextEntity.created_at)).all()
     
-    def update_conversation_context(self, context_id: int, context_data: Dict[str, Any]) -> Optional[ConversationContext]:
+    def update_conversation_context(self, context_id: int, context_data: Dict[str, Any]) -> Optional[ConversationContextEntity]:
         """Atualiza contexto da conversação"""
-        context = self.db.query(ConversationContext).filter(ConversationContext.id == context_id).first()
+        context = self.db.query(ConversationContextEntity).filter(ConversationContextEntity.id == context_id).first()
         if not context:
             return None
         
@@ -263,13 +265,13 @@ class ChatRepository:
         return context
     
     # CRUD Reações
-    def create_message_reaction(self, message_id: int, user_id: int, reaction_type: str) -> MessageReaction:
+    def create_message_reaction(self, message_id: int, user_id: int, reaction_type: str) -> MessageReactionEntity:
         """Cria reação para mensagem"""
         # Verificar se já existe reação do usuário para esta mensagem
-        existing_reaction = self.db.query(MessageReaction).filter(
+        existing_reaction = self.db.query(MessageReactionEntity).filter(
             and_(
-                MessageReaction.message_id == message_id,
-                MessageReaction.user_id == user_id
+                MessageReactionEntity.message_id == message_id,
+                MessageReactionEntity.user_id == user_id
             )
         ).first()
         
@@ -280,7 +282,7 @@ class ChatRepository:
             self.db.refresh(existing_reaction)
             return existing_reaction
         
-        db_reaction = MessageReaction(
+        db_reaction = MessageReactionEntity(
             message_id=message_id,
             user_id=user_id,
             reaction_type=reaction_type
@@ -292,10 +294,10 @@ class ChatRepository:
     
     def remove_message_reaction(self, message_id: int, user_id: int) -> bool:
         """Remove reação da mensagem"""
-        reaction = self.db.query(MessageReaction).filter(
+        reaction = self.db.query(MessageReactionEntity).filter(
             and_(
-                MessageReaction.message_id == message_id,
-                MessageReaction.user_id == user_id
+                MessageReactionEntity.message_id == message_id,
+                MessageReactionEntity.user_id == user_id
             )
         ).first()
         
@@ -306,44 +308,44 @@ class ChatRepository:
         self.db.commit()
         return True
     
-    def get_message_reactions(self, message_id: int) -> List[MessageReaction]:
+    def get_message_reactions(self, message_id: int) -> List[MessageReactionEntity]:
         """Busca reações da mensagem"""
-        return self.db.query(MessageReaction).filter(
-            MessageReaction.message_id == message_id
+        return self.db.query(MessageReactionEntity).filter(
+            MessageReactionEntity.message_id == message_id
         ).all()
     
     # Estatísticas e relatórios
     def get_conversation_stats(self, conversation_id: int) -> Dict[str, Any]:
         """Busca estatísticas da conversação"""
-        conversation = self.db.query(Conversation).filter(Conversation.id == conversation_id).first()
-        if not conversation:
+        ConversationEntity = self.db.query(ConversationEntity).filter(ConversationEntity.id == conversation_id).first()
+        if not ConversationEntity:
             return {}
         
         # Contagem de mensagens por tipo
         message_stats = self.db.query(
-            Message.message_type,
-            func.count(Message.id).label('count')
+            MessageEntity.message_type,
+            func.count(MessageEntity.id).label('count')
         ).filter(
-            Message.conversation_id == conversation_id
-        ).group_by(Message.message_type).all()
+            MessageEntity.conversation_id == conversation_id
+        ).group_by(MessageEntity.message_type).all()
         
         message_counts = {stat.message_type: stat.count for stat in message_stats}
         
         # Primeira e última mensagem
-        first_message = self.db.query(Message).filter(
-            Message.conversation_id == conversation_id
-        ).order_by(Message.created_at).first()
+        first_message = self.db.query(MessageEntity).filter(
+            MessageEntity.conversation_id == conversation_id
+        ).order_by(MessageEntity.created_at).first()
         
-        last_message = self.db.query(Message).filter(
-            Message.conversation_id == conversation_id
-        ).order_by(desc(Message.created_at)).first()
+        last_message = self.db.query(MessageEntity).filter(
+            MessageEntity.conversation_id == conversation_id
+        ).order_by(desc(MessageEntity.created_at)).first()
         
         return {
             'conversation_id': conversation_id,
-            'title': conversation.title,
-            'status': conversation.status,
-            'created_at': conversation.created_at,
-            'updated_at': conversation.updated_at,
+            'title': ConversationEntity.title,
+            'status': ConversationEntity.status,
+            'created_at': ConversationEntity.created_at,
+            'updated_at': ConversationEntity.updated_at,
             'message_counts': message_counts,
             'total_messages': sum(message_counts.values()),
             'first_message_at': first_message.created_at if first_message else None,
@@ -355,28 +357,28 @@ class ChatRepository:
         since_date = datetime.utcnow() - timedelta(days=days)
         
         # Conversações ativas
-        active_conversations = self.db.query(Conversation).filter(
+        active_conversations = self.db.query(ConversationEntity).filter(
             and_(
-                Conversation.user_id == user_id,
-                Conversation.status == ConversationStatus.ACTIVE
+                ConversationEntity.user_id == user_id,
+                ConversationEntity.status == ConversationStatus.ACTIVE
             )
         ).count()
         
         # Mensagens enviadas
-        messages_sent = self.db.query(Message).join(Conversation).filter(
+        messages_sent = self.db.query(MessageEntity).join(ConversationEntity).filter(
             and_(
-                Conversation.user_id == user_id,
-                Message.message_type == MessageType.USER,
-                Message.created_at >= since_date
+                ConversationEntity.user_id == user_id,
+                MessageEntity.message_type == MessageType.USER,
+                MessageEntity.created_at >= since_date
             )
         ).count()
         
         # Mensagens recebidas
-        messages_received = self.db.query(Message).join(Conversation).filter(
+        messages_received = self.db.query(MessageEntity).join(ConversationEntity).filter(
             and_(
-                Conversation.user_id == user_id,
-                Message.message_type == MessageType.AGENT,
-                Message.created_at >= since_date
+                ConversationEntity.user_id == user_id,
+                MessageEntity.message_type == MessageType.AGENT,
+                MessageEntity.created_at >= since_date
             )
         ).count()
         

@@ -4,21 +4,20 @@ API de autenticação para o sistema EmployeeVirtual
 from fastapi import APIRouter, Depends, HTTPException, status
 from datetime import datetime, timedelta
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from sqlalchemy.orm import Session
 from typing import Dict, Any
 
 from models.user_models import UserCreate, UserLogin, UserResponse, UserUpdate
 from services.user_service import UserService
-from data.database import get_db
 from auth.jwt_service import JWTService
 from auth.config import ACCESS_TOKEN_EXPIRE_MINUTES
 from auth.dependencies import get_current_user
+from dependencies.service_providers import get_user_service
 
 router = APIRouter()
 security = HTTPBearer()
 
 @router.post("/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
-async def register_user(user_data: UserCreate, db: Session = Depends(get_db)):
+async def register_user(user_data: UserCreate, user_service: UserService = Depends(get_user_service)):
     """
     Registra um novo usuário
     
@@ -32,7 +31,7 @@ async def register_user(user_data: UserCreate, db: Session = Depends(get_db)):
     Raises:
         HTTPException: Se email já existe
     """
-    user_service = UserService(db)
+    
     
     try:
         user = user_service.create_user(user_data)
@@ -45,7 +44,7 @@ async def register_user(user_data: UserCreate, db: Session = Depends(get_db)):
         )
 
 @router.post("/login", response_model=Dict[str, Any])
-async def login_user(login_data: UserLogin, db: Session = Depends(get_db)):
+async def login_user(login_data: UserLogin, user_service: UserService = Depends(get_user_service)):
     """
     Autentica um usuário
     
@@ -59,7 +58,7 @@ async def login_user(login_data: UserLogin, db: Session = Depends(get_db)):
     Raises:
         HTTPException: Se credenciais inválidas
     """
-    user_service = UserService(db)
+    
     
     try:
         result = user_service.authenticate_user(login_data)
@@ -115,7 +114,7 @@ async def logout_user(
 @router.post("/refresh", response_model=Dict[str, Any])
 async def refresh_token(
     refresh_token: str,
-    db: Session = Depends(get_db)
+    user_service: UserService = Depends(get_user_service)
 ):
     """
     Renova um token de acesso usando refresh token
@@ -146,7 +145,7 @@ async def refresh_token(
         )
     
     # Buscar usuário para obter email
-    user_service = UserService(db)
+    
     user = user_service.get_user_by_id(user_id)
     if not user:
         raise HTTPException(
@@ -182,7 +181,7 @@ async def get_current_user_info(
 async def update_current_user(
     user_data: UserUpdate,
     current_user: UserResponse = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    user_service: UserService = Depends(get_user_service)
 ):
     """
     Atualiza dados do usuário atual
@@ -198,7 +197,7 @@ async def update_current_user(
     Raises:
         HTTPException: Se dados inválidos
     """
-    user_service = UserService(db)
+    
     
     try:
         updated_user = user_service.update_user(current_user.id, user_data)
@@ -222,7 +221,7 @@ async def change_password(
     current_password: str,
     new_password: str,
     current_user: UserResponse = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    user_service: UserService = Depends(get_user_service)
 ):
     """
     Altera a senha do usuário atual
@@ -239,7 +238,7 @@ async def change_password(
     Raises:
         HTTPException: Se senha atual incorreta
     """
-    user_service = UserService(db)
+    
     
     success = user_service.change_password(
         current_user.id,
@@ -261,7 +260,7 @@ async def change_password(
 @router.post("/reset-password")
 async def reset_password(
     email: str,
-    db: Session = Depends(get_db)
+    user_service: UserService = Depends(get_user_service)
 ):
     """
     Inicia processo de reset de senha
@@ -273,7 +272,7 @@ async def reset_password(
     Returns:
         Mensagem de confirmação
     """
-    user_service = UserService(db)
+    
     
     success = user_service.reset_password(email)
     
@@ -291,7 +290,7 @@ async def reset_password(
 @router.get("/sessions")
 async def get_user_sessions(
     current_user: UserResponse = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    user_service: UserService = Depends(get_user_service)
 ):
     """
     Lista todas as sessões ativas do usuário
@@ -303,7 +302,7 @@ async def get_user_sessions(
     Returns:
         Lista de sessões ativas
     """
-    user_service = UserService(db)
+    
     sessions = user_service.get_user_sessions(current_user.id)
     
     return {
@@ -315,7 +314,7 @@ async def get_user_sessions(
 async def invalidate_session(
     session_id: str,
     current_user: UserResponse = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    user_service: UserService = Depends(get_user_service)
 ):
     """
     Invalida uma sessão específica
@@ -328,7 +327,7 @@ async def invalidate_session(
     Returns:
         Mensagem de sucesso
     """
-    user_service = UserService(db)
+    
     
     # TODO: Implementar invalidação de sessão específica
     # Por enquanto, apenas retorna sucesso
@@ -343,7 +342,7 @@ async def invalidate_session(
 async def get_user_activities(
     limit: int = 50,
     current_user: UserResponse = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    user_service: UserService = Depends(get_user_service)
 ):
     """
     Lista atividades do usuário atual
@@ -356,7 +355,7 @@ async def get_user_activities(
     Returns:
         Lista de atividades
     """
-    user_service = UserService(db)
+    
     activities = user_service.get_user_activities(current_user.id, limit)
     
     return {
