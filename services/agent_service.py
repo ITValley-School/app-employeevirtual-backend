@@ -558,25 +558,15 @@ class AgentService:
     
     def get_system_agents(self) -> List[Dict[str, Any]]:
         """
-        Busca agentes do sistema
+        Busca agentes do sistema - DEPRECATED
+        Use CatalogService.get_system_agents() instead
         
         Returns:
             Lista de agentes do sistema
         """
-        # Buscar via repository
-        system_agents = self.repository.get_system_agents()
-        
-        return [
-            {
-                "id": agent.id,
-                "name": agent.name,
-                "description": agent.description,
-                "agent_type": agent.agent_type,
-                "avatar_url": agent.avatar_url,
-                "orion_endpoint": agent.orion_endpoint
-            }
-            for agent in system_agents
-        ]
+        # TODO: Remover este método e usar CatalogService
+        # Por enquanto, retorna lista vazia para evitar conflito de tabela
+        return []
     
     async def _get_agent_knowledge_context(self, agent_id: str, query: str) -> Optional[str]:
         """

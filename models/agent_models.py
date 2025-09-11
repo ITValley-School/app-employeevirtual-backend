@@ -125,7 +125,7 @@ class AgentKnowledgeBase(BaseModel):
 from data.entities.agent_entities import (
     AgentEntity as Agent,
     AgentKnowledgeEntity as AgentKnowledge,
-    AgentExecutionEntity as AgentExecutionDB,
-    SystemAgentEntity as SystemAgent
+    AgentExecutionEntity as AgentExecutionDB
+    # SystemAgent já está definido em system_agent_models.py
 )
 

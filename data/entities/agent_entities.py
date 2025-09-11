@@ -77,21 +77,25 @@ class AgentExecutionEntity(Base):
         return f"<AgentExecutionEntity(id={self.id}, agent_id={self.agent_id}, success={self.success})>"
 
 
-class SystemAgentEntity(Base):
-    """Entidade de agentes do sistema (pré-configurados)"""
-    __tablename__ = "system_agents"
-    __table_args__ = {'schema': 'empl'}
-    
-    id = Column(String(36), primary_key=True, server_default=text("NEWID()"), index=True)
-    name = Column(String(100), nullable=False, unique=True)
-    description = Column(Text, nullable=False)
-    agent_type = Column(String(50), nullable=False)
-    system_prompt = Column(Text, nullable=False)
-    avatar_url = Column(String(500), nullable=True)
-    orion_endpoint = Column(String(200), nullable=True)  # Endpoint específico no Orion
-    is_active = Column(Boolean, default=True, nullable=False)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
-    
-    def __repr__(self):
-        return f"<SystemAgentEntity(id={self.id}, name='{self.name}', type='{self.agent_type}')>"
+# REMOVIDO: SystemAgentEntity
+# Esta classe foi movida para models/system_agent_models.py como SystemAgent
+# Para evitar conflito de tabela duplicada no SQLAlchemy
+#
+# class SystemAgentEntity(Base):
+#     """Entidade de agentes do sistema (pré-configurados)"""
+#     __tablename__ = "system_agents"
+#     __table_args__ = {'schema': 'empl'}
+#     
+#     id = Column(String(36), primary_key=True, server_default=text("NEWID()"), index=True)
+#     name = Column(String(100), nullable=False, unique=True)
+#     description = Column(Text, nullable=False)
+#     agent_type = Column(String(50), nullable=False)
+#     system_prompt = Column(Text, nullable=False)
+#     avatar_url = Column(String(500), nullable=True)
+#     orion_endpoint = Column(String(200), nullable=True)  # Endpoint específico no Orion
+#     is_active = Column(Boolean, default=True, nullable=False)
+#     created_at = Column(DateTime(timezone=True), server_default=func.now())
+#     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+#     
+#     def __repr__(self):
+#         return f"<SystemAgentEntity(id={self.id}, name='{self.name}', type='{self.agent_type}')>"

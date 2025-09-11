@@ -7,10 +7,10 @@ from sqlalchemy.orm import Session
 from sqlalchemy import and_, func, desc
 from datetime import datetime
 
-from data.entities import (
-    AgentEntity, AgentKnowledgeEntity, AgentExecutionEntity, SystemAgentEntity,
-    UserActivityEntity
+from data.entities.agent_entities import (
+    AgentEntity, AgentKnowledgeEntity, AgentExecutionEntity
 )
+from data.entities.user_entities import UserActivityEntity
 from models.agent_models import (
     AgentCreate, AgentUpdate, AgentResponse
 )
@@ -228,21 +228,6 @@ class AgentRepository:
         """
         return self.db.query(AgentKnowledgeEntity).filter(
             AgentKnowledgeEntity.agent_id == agent_id
-        ).all()
-    
-    # ==========================================
-    # OPERAÇÕES - AGENTES DO SISTEMA
-    # ==========================================
-    
-    def get_system_agents(self) -> List[SystemAgentEntity]:
-        """
-        Busca agentes do sistema
-        
-        Returns:
-            Lista de agentes do sistema
-        """
-        return self.db.query(SystemAgentEntity).filter(
-            SystemAgentEntity.is_active == True
         ).all()
     
     # ==========================================

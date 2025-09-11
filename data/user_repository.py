@@ -6,7 +6,7 @@ from typing import Optional, List, Dict, Any
 from sqlalchemy.orm import Session
 from sqlalchemy import and_, func, desc, cast, Date
 
-from data.entities import UserEntity, UserSessionEntity, UserActivityEntity
+from data.entities.user_entities import UserEntity, UserSessionEntity, UserActivityEntity
 from models.uuid_models import validate_uuid
 
 

@@ -6,7 +6,7 @@ from typing import Optional, List, Dict, Any
 from sqlalchemy.orm import Session
 from sqlalchemy import and_, func, desc, or_
 
-from data.entities import (
+from data.entities.chat_entities import (
     ConversationEntity, MessageEntity, ConversationContextEntity, MessageReactionEntity
 )
 from models.chat_models import (

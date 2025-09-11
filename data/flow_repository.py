@@ -7,7 +7,7 @@ from typing import Optional, List, Dict, Any
 from sqlalchemy.orm import Session
 from sqlalchemy import and_, func, desc, or_
 
-from data.entities import (
+from data.entities.flow_entities import (
     FlowEntity, FlowStepEntity, FlowExecutionEntity, FlowExecutionStepEntity, FlowTemplateEntity
 )
 from models.flow_models import (

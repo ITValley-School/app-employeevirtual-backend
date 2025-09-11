@@ -7,13 +7,11 @@ from sqlalchemy.orm import Session
 from sqlalchemy import and_, or_, func, desc, text
 
 from models.dashboard_models import MetricType, PeriodType
-from data.entities import (
-    AgentEntity, AgentExecutionEntity,
-    FlowEntity, FlowExecutionEntity,
-    DataLakeFileEntity,
-    MessageEntity, ConversationEntity,
-    UserEntity, UserActivityEntity
-)
+from data.entities.agent_entities import AgentEntity, AgentExecutionEntity
+from data.entities.flow_entities import FlowEntity, FlowExecutionEntity
+from data.entities.file_entities import DataLakeFileEntity
+from data.entities.chat_entities import MessageEntity, ConversationEntity
+from data.entities.user_entities import UserEntity, UserActivityEntity
 from models.agent_models import AgentStatus
 from models.flow_models import FlowStatus
 from models.chat_models import MessageType

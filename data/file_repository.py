@@ -7,7 +7,7 @@ from typing import Optional, List, Dict, Any
 from sqlalchemy.orm import Session
 from sqlalchemy import and_, func, desc, or_
 
-from data.entities import FileEntity, FileProcessingEntity, DataLakeFileEntity, OrionServiceEntity
+from data.entities.file_entities import FileEntity, FileProcessingEntity, DataLakeFileEntity, OrionServiceEntity
 from models.file_models import FileStatus, FileType
 
 
