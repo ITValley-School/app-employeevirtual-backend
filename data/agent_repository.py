@@ -8,7 +8,7 @@ from sqlalchemy import and_, func, desc
 from datetime import datetime
 
 from models.agent_models import (
-    Agent, AgentKnowledge, AgentExecutionDB, SystemAgent,
+    Agent, AgentKnowledge, AgentExecutionDB, LegacySystemAgent,
     AgentCreate, AgentUpdate, AgentResponse
 )
 from models.user_models import UserActivity
@@ -232,15 +232,15 @@ class AgentRepository:
     # OPERAÇÕES - AGENTES DO SISTEMA
     # ==========================================
     
-    def get_system_agents(self) -> List[SystemAgent]:
+    def get_system_agents(self) -> List[LegacySystemAgent]:
         """
         Busca agentes do sistema
         
         Returns:
             Lista de agentes do sistema
         """
-        return self.db.query(SystemAgent).filter(
-            SystemAgent.is_active == True
+        return self.db.query(LegacySystemAgent).filter(
+            LegacySystemAgent.is_active == True
         ).all()
     
     # ==========================================

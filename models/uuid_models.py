@@ -33,15 +33,19 @@ class UUIDString(str):
 class UUIDColumn(TypeDecorator):
     """Coluna SQLAlchemy para UUIDs no SQL Server"""
     
-    impl = String
+    impl = String(36)
     cache_ok = True
     
     def __init__(self, *args, **kwargs):
         # Remover default se existir para evitar conflito com SQL Server
         if 'default' in kwargs:
             del kwargs['default']
-        super().__init__(*args, **kwargs)
-        self.impl = String(36)  # UUID tem 36 caracteres
+        
+        # Inicializar o TypeDecorator
+        super().__init__()
+    
+    def load_dialect_impl(self, dialect):
+        return dialect.type_descriptor(String(36))
     
     def process_bind_param(self, value, dialect):
         if value is None:
@@ -52,6 +56,13 @@ class UUIDColumn(TypeDecorator):
         if value is None:
             return None
         return str(value)
+    
+    def copy(self, **kw):
+        """Cria uma cópia do tipo para o SQLAlchemy"""
+        return UUIDColumn()
+    
+    def __repr__(self):
+        return "UUIDColumn()"
 
 def generate_uuid() -> str:
     """Função para gerar UUIDs"""

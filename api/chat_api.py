@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
 from typing import List, Dict, Any, Optional
 
-from models.chat_models import Message, ChatResponse, ConversationResponse, ConversationCreate, MessageResponse
+from models.chat_models import Message, ChatResponse, ConversationResponse, ConversationCreate, MessageResponse, ConversationWithMessages
 from models.user_models import UserResponse
 from services.chat_service import ChatService
 from services.agent_service import AgentService
@@ -21,7 +21,7 @@ async def create_chat_session(
     db: Session = Depends(get_db)
 ):
     """
-    Cria uma nova conversa
+    Cria uma nova conversa usando arquitetura híbrida
     
     Args:
         chat_data: Dados da conversa
@@ -34,7 +34,7 @@ async def create_chat_session(
     chat_service = ChatService(db)
     
     try:
-        chat_session = chat_service.create_conversation(current_user.id, chat_data)
+        chat_session = await chat_service.create_conversation(current_user.id, chat_data)
         return chat_session
     except Exception as e:
         raise HTTPException(
@@ -48,7 +48,7 @@ async def get_user_chat_sessions(
     db: Session = Depends(get_db)
 ):
     """
-    Busca sessões de chat do usuário
+    Busca sessões de chat do usuário usando MongoDB
     
     Args:
         current_user: Usuário atual
@@ -59,7 +59,7 @@ async def get_user_chat_sessions(
     """
     chat_service = ChatService(db)
     
-    sessions = chat_service.get_user_chat_sessions(current_user.id)
+    sessions = await chat_service.get_user_conversations(current_user.id)
     
     return sessions
 
@@ -101,6 +101,39 @@ async def get_conversations(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Erro ao buscar conversas: {str(e)}"
+        )
+
+@router.get("/conversations/{conversation_id}", response_model=ConversationWithMessages)
+async def get_conversation_history(
+    conversation_id: str,
+    current_user: UserResponse = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Busca o histórico completo de uma conversa
+    
+    Args:
+        conversation_id: ID da conversa
+        current_user: Usuário atual
+        db: Sessão do banco de dados
+        
+    Returns:
+        Conversa com mensagens
+    """
+    chat_service = ChatService(db)
+    
+    try:
+        conversation = await chat_service.get_conversation_with_messages(conversation_id, current_user.id)
+        if not conversation:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Conversa não encontrada"
+            )
+        return conversation
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Erro ao buscar conversa: {str(e)}"
         )
 
 @router.get("/conversations/{conversation_id}/messages", response_model=List[Dict[str, Any]])
@@ -572,7 +605,7 @@ async def chat_with_agent(
     db: Session = Depends(get_db)
 ):
     """
-    Chat direto com um agente específico (suporta UUIDs)
+    Chat direto com um agente específico usando arquitetura híbrida
     
     Args:
         message: Mensagem do usuário
@@ -617,54 +650,32 @@ async def chat_with_agent(
                 agent_id=agent_id,
                 title=f"Conversa com {agent.name if agent else 'Agente'}"
             )
-            conversation = chat_service.create_conversation(current_user.id, conversation_data)
+            conversation = await chat_service.create_conversation(current_user.id, conversation_data)
             conversation_id = str(conversation.id)
             print(f"✅ Nova conversa criada: {conversation_id}")
         
-        # Salvar mensagem do usuário
-        user_message = chat_service.create_message(
-            conversation_id=conversation_id,
-            user_id=current_user.id,
-            content=message,
-            message_type="user"
-        )
-        print(f"✅ Mensagem do usuário salva: {user_message.id}")
+        # Usar o novo método process_chat_request que integra MongoDB
+        from models.chat_models import ChatRequest
         
-        # Incluir conversation_id no context se estiver disponível
-        execution_context = context or {}
-        if conversation_id:
-            execution_context['conversation_id'] = conversation_id
-        
-        # Executar agente
-        response = await agent_service.execute_agent(
+        chat_request = ChatRequest(
             agent_id=agent_id,
-            user_id=current_user.id,
-            user_message=message,
-            context=execution_context
-        )
-        
-        # Salvar resposta do agente
-        agent_message = chat_service.create_message(
             conversation_id=conversation_id,
-            user_id=current_user.id,
-            content=response.get('response', ''),
-            message_type="agent",
-            agent_id=agent_id
+            message=message,
+            context=context or {}
         )
-        print(f"✅ Mensagem do agente salva: {agent_message.id}")
         
-        # Atualizar timestamp da última mensagem da conversa
-        chat_service.update_conversation_timestamp(conversation_id)
+        # Processar chat usando arquitetura híbrida
+        chat_response = await chat_service.process_chat_request(current_user.id, chat_request)
         
         # Retornar resposta com informações da conversa
         return {
-            **response,
+            "response": chat_response.agent_response.content,
             "conversation_id": conversation_id,
-            "user_message_id": str(user_message.id),
-            "agent_message_id": str(agent_message.id)
+            "user_message_id": chat_response.user_message.id,
+            "agent_message_id": chat_response.agent_response.id,
+            "processing_time": chat_response.execution_time,
+            "metadata": chat_response.agent_response.metadata
         }
-        
-        return response
         
     except Exception as e:
         raise HTTPException(

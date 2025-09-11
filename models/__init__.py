@@ -15,7 +15,7 @@ __all__ = [
     "User", "UserSession", "UserActivity", "UserMetrics",
     
     # Agent models  
-    "Agent", "AgentExecutionDB", "AgentKnowledge", "AgentMetricsDB", "SystemAgent",
+    "Agent", "AgentExecutionDB", "AgentKnowledge", "AgentMetricsDB", "LegacySystemAgent",
     
     # Chat models
     "Conversation", "Message", "ConversationContext", "MessageReaction",

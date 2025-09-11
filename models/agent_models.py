@@ -183,9 +183,9 @@ class AgentExecutionDB(Base):
     def __repr__(self):
         return f"<AgentExecutionDB(id={self.id}, agent_id={self.agent_id}, success={self.success})>"
 
-class SystemAgent(Base):
-    """Tabela de agentes do sistema (pré-configurados)"""
-    __tablename__ = "system_agents"
+class LegacySystemAgent(Base):
+    """Tabela de agentes do sistema (pré-configurados) - LEGACY"""
+    __tablename__ = "legacy_system_agents"
     __table_args__ = {'schema': 'empl'}
     
     id = Column(UUIDColumn, primary_key=True, server_default=text("NEWID()"), index=True)
@@ -200,5 +200,5 @@ class SystemAgent(Base):
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
     
     def __repr__(self):
-        return f"<SystemAgent(id={self.id}, name='{self.name}', type='{self.agent_type}')>"
+        return f"<LegacySystemAgent(id={self.id}, name='{self.name}', type='{self.agent_type}')>"
 

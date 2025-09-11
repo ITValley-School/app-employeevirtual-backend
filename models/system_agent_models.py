@@ -42,8 +42,9 @@ class UserPlan(str, enum.Enum):
 class SystemAgentCategory(Base):
     """Tabela de categorias dos agentes do sistema"""
     __tablename__ = "system_agent_categories"
+    __table_args__ = {'extend_existing': True}
     
-    id = UUIDColumn(primary_key=True, default=generate_uuid)
+    id = Column(UUIDColumn(), primary_key=True, default=generate_uuid)
     name = Column(String(80), nullable=False, unique=True)
     icon = Column(String(50), nullable=True)
     description = Column(String(300), nullable=True)
@@ -60,13 +61,14 @@ class SystemAgentCategory(Base):
 class SystemAgent(Base):
     """Tabela principal dos agentes do sistema"""
     __tablename__ = "system_agents"
+    __table_args__ = {'extend_existing': True}
     
-    id = UUIDColumn(primary_key=True, default=generate_uuid)
+    id = Column(UUIDColumn(), primary_key=True, default=generate_uuid)
     
     # Identificação
     name = Column(String(120), nullable=False)
     short_description = Column(String(500), nullable=False)
-    category_id = UUIDColumn(ForeignKey("system_agent_categories.id"), nullable=False)
+    category_id = Column(UUIDColumn(), ForeignKey("system_agent_categories.id"), nullable=False)
     icon = Column(String(50), nullable=True)
     
     # Status
@@ -85,11 +87,12 @@ class SystemAgent(Base):
 class SystemAgentVersion(Base):
     """Tabela de versões dos agentes do sistema"""
     __tablename__ = "system_agent_versions"
+    __table_args__ = {'extend_existing': True}
     
-    id = UUIDColumn(primary_key=True, default=generate_uuid)
+    id = Column(UUIDColumn(), primary_key=True, default=generate_uuid)
     
     # Referência ao agente
-    system_agent_id = UUIDColumn(ForeignKey("system_agents.id"), nullable=False)
+    system_agent_id = Column(UUIDColumn(), ForeignKey("system_agents.id"), nullable=False)
     
     # Versionamento
     version = Column(String(20), nullable=False)
@@ -155,11 +158,12 @@ class SystemAgentVersion(Base):
 class SystemAgentVisibility(Base):
     """Tabela de regras de visibilidade dos agentes do sistema"""
     __tablename__ = "system_agent_visibility"
+    __table_args__ = {'extend_existing': True}
     
-    id = UUIDColumn(primary_key=True, default=generate_uuid)
+    id = Column(UUIDColumn(), primary_key=True, default=generate_uuid)
     
     # Referência ao agente
-    system_agent_id = UUIDColumn(ForeignKey("system_agents.id"), nullable=False)
+    system_agent_id = Column(UUIDColumn(), ForeignKey("system_agents.id"), nullable=False)
     
     # Regras de visibilidade
     tenant_id = Column(String(50), nullable=True)  # null = todos os tenants

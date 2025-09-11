@@ -380,13 +380,29 @@ async def add_messages_to_conversation(conversation_id: str, messages: list) -> 
             mongo_messages.append(mongo_msg)
         
         # Atualizar documento (atômico)
+        # Primeiro, buscar o documento atual para obter o message_count atual
+        current_doc = await db[Collections.CHAT_CONVERSATIONS].find_one(
+            {"_id": conversation_id},
+            {"metadata.message_count": 1}
+        )
+        
+        # Calcular novo message_count
+        current_count = 0
+        if current_doc and "metadata" in current_doc:
+            current_count = current_doc["metadata"].get("message_count", 0)
+            # Se for um objeto, usar 0
+            if isinstance(current_count, dict):
+                current_count = 0
+        
+        new_count = current_count + len(messages)
+        
         result = await db[Collections.CHAT_CONVERSATIONS].update_one(
             {"_id": conversation_id},
             {
                 "$push": {"messages": {"$each": mongo_messages}},
                 "$set": {
                     "metadata.last_activity": datetime.utcnow(),
-                    "metadata.message_count": {"$add": ["$metadata.message_count", len(messages)]}
+                    "metadata.message_count": new_count
                 }
             }
         )
@@ -468,3 +484,207 @@ async def update_conversation_context(conversation_id: str, context: Dict[str, A
     except Exception as e:
         logger.error(f"❌ Erro ao atualizar contexto: {e}")
         return False
+
+async def get_user_conversations(user_id: str, limit: int = 20, skip: int = 0) -> list:
+    """
+    Busca conversas de um usuário
+    
+    Args:
+        user_id: ID do usuário
+        limit: Limite de conversas
+        skip: Pular conversas
+        
+    Returns:
+        Lista de conversas do usuário
+    """
+    db = get_async_database()
+    
+    try:
+        cursor = db[Collections.CHAT_CONVERSATIONS].find(
+            {"user_id": user_id},
+            {
+                "conversation_id": 1,
+                "title": 1,
+                "agent_id": 1,
+                "metadata.last_activity": 1,
+                "metadata.message_count": 1,
+                "metadata.status": 1,
+                "messages": {"$slice": 1}  # Apenas a primeira mensagem para preview
+            }
+        ).sort("metadata.last_activity", -1).skip(skip).limit(limit)
+        
+        conversations = []
+        async for doc in cursor:
+            conversations.append({
+                "conversation_id": doc["conversation_id"],
+                "title": doc.get("title", "Nova Conversa"),
+                "agent_id": doc["agent_id"],
+                "last_activity": doc["metadata"]["last_activity"],
+                "message_count": doc["metadata"]["message_count"],
+                "status": doc["metadata"]["status"],
+                "preview": doc.get("messages", [{}])[0].get("content", "") if doc.get("messages") else ""
+            })
+        
+        return conversations
+        
+    except Exception as e:
+        logger.error(f"❌ Erro ao buscar conversas do usuário: {e}")
+        return []
+
+async def update_conversation_metadata(conversation_id: str, metadata_updates: Dict[str, Any]) -> bool:
+    """
+    Atualiza metadados de uma conversa
+    
+    Args:
+        conversation_id: ID da conversa
+        metadata_updates: Atualizações de metadados
+        
+    Returns:
+        bool: True se sucesso
+    """
+    db = get_async_database()
+    
+    try:
+        # Preparar atualizações de metadados
+        set_updates = {}
+        for key, value in metadata_updates.items():
+            set_updates[f"metadata.{key}"] = value
+        
+        set_updates["metadata.last_activity"] = datetime.utcnow()
+        
+        result = await db[Collections.CHAT_CONVERSATIONS].update_one(
+            {"_id": conversation_id},
+            {"$set": set_updates}
+        )
+        
+        return result.modified_count > 0
+        
+    except Exception as e:
+        logger.error(f"❌ Erro ao atualizar metadados: {e}")
+        return False
+
+async def delete_conversation(conversation_id: str) -> bool:
+    """
+    Remove uma conversa do MongoDB
+    
+    Args:
+        conversation_id: ID da conversa
+        
+    Returns:
+        bool: True se sucesso
+    """
+    db = get_async_database()
+    
+    try:
+        result = await db[Collections.CHAT_CONVERSATIONS].delete_one(
+            {"_id": conversation_id}
+        )
+        
+        if result.deleted_count > 0:
+            logger.info(f"✅ Conversa {conversation_id} removida do MongoDB")
+            return True
+        else:
+            logger.warning(f"⚠️ Conversa {conversation_id} não encontrada para remoção")
+            return False
+        
+    except Exception as e:
+        logger.error(f"❌ Erro ao remover conversa: {e}")
+        return False
+
+async def get_conversation_analytics(conversation_id: str) -> Dict[str, Any]:
+    """
+    Busca analytics de uma conversa
+    
+    Args:
+        conversation_id: ID da conversa
+        
+    Returns:
+        Dict com analytics da conversa
+    """
+    db = get_async_database()
+    
+    try:
+        conversation = await db[Collections.CHAT_CONVERSATIONS].find_one(
+            {"_id": conversation_id},
+            {
+                "metadata": 1,
+                "messages": 1
+            }
+        )
+        
+        if not conversation:
+            return None
+        
+        messages = conversation.get("messages", [])
+        metadata = conversation.get("metadata", {})
+        
+        # Calcular analytics
+        user_messages = [msg for msg in messages if msg.get("message_type") == "user"]
+        agent_messages = [msg for msg in messages if msg.get("message_type") == "agent"]
+        
+        total_tokens = sum(
+            msg.get("metadata", {}).get("tokens_used", 0) 
+            for msg in messages
+        )
+        
+        total_cost = sum(
+            msg.get("metadata", {}).get("cost", 0.0) 
+            for msg in messages
+        )
+        
+        avg_response_time = sum(
+            msg.get("metadata", {}).get("execution_time", 0) 
+            for msg in agent_messages
+        ) / len(agent_messages) if agent_messages else 0
+        
+        return {
+            "conversation_id": conversation_id,
+            "total_messages": len(messages),
+            "user_messages": len(user_messages),
+            "agent_messages": len(agent_messages),
+            "total_tokens": total_tokens,
+            "total_cost": total_cost,
+            "avg_response_time": avg_response_time,
+            "created_at": metadata.get("created_at"),
+            "last_activity": metadata.get("last_activity"),
+            "status": metadata.get("status")
+        }
+        
+    except Exception as e:
+        logger.error(f"❌ Erro ao buscar analytics: {e}")
+        return None
+
+async def create_mongodb_indexes():
+    """
+    Cria índices otimizados para as collections de chat
+    """
+    db = get_async_database()
+    
+    try:
+        # Índices para chat_conversations
+        await db[Collections.CHAT_CONVERSATIONS].create_index([
+            ("user_id", 1), ("metadata.last_activity", -1)
+        ])
+        
+        await db[Collections.CHAT_CONVERSATIONS].create_index([
+            ("agent_id", 1), ("metadata.status", 1)
+        ])
+        
+        await db[Collections.CHAT_CONVERSATIONS].create_index([
+            ("metadata.status", 1), ("metadata.created_at", -1)
+        ])
+        
+        # Índices para chat_messages (backup)
+        await db[Collections.CHAT_MESSAGES].create_index([
+            ("conversation_id", 1), ("timestamp", -1)
+        ])
+        
+        await db[Collections.CHAT_MESSAGES].create_index([
+            ("user_id", 1), ("message_type", 1)
+        ])
+        
+        logger.info("✅ Índices MongoDB criados com sucesso")
+        
+    except Exception as e:
+        logger.error(f"❌ Erro ao criar índices MongoDB: {e}")
+        raise
