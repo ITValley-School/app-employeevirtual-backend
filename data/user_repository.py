@@ -6,7 +6,7 @@ from typing import Optional, List, Dict, Any
 from sqlalchemy.orm import Session
 from sqlalchemy import and_, func, desc, cast, Date
 
-from models.user_models import User, UserSession, UserActivity
+from data.entities.user_entities import UserEntity, UserSessionEntity, UserActivityEntity
 from models.uuid_models import validate_uuid
 
 
@@ -17,11 +17,11 @@ class UserRepository:
         self.db = db
     
     # CRUD Usuários
-    def create_user(self, name: str, email: str, password_hash: str, plan: str = "free") -> User:
+    def create_user(self, name: str, email: str, password_hash: str, plan: str = "free") -> UserEntity:
         """Cria um novo usuário"""
         from models.uuid_models import generate_uuid
         
-        db_user = User(
+        db_user = UserEntity(
             id=generate_uuid(),  # Gerar UUID manualmente
             name=name,
             email=email,
@@ -33,64 +33,64 @@ class UserRepository:
         self.db.refresh(db_user)
         return db_user
     
-    def get_user_by_id(self, user_id: str) -> Optional[User]:
+    def get_user_by_id(self, user_id: str) -> Optional[UserEntity]:
         """Busca usuário por ID (UUID)"""
         if not validate_uuid(user_id):
             return None
-        return self.db.query(User).filter(User.id == user_id).first()
+        return self.db.query(UserEntity).filter(UserEntity.id == user_id).first()
     
-    def get_user_by_email(self, email: str) -> Optional[User]:
+    def get_user_by_email(self, email: str) -> Optional[UserEntity]:
         """Busca usuário por email"""
-        return self.db.query(User).filter(User.email == email).first()
+        return self.db.query(UserEntity).filter(UserEntity.email == email).first()
     
-    def update_user(self, user_id: str, **kwargs) -> Optional[User]:
+    def update_user(self, user_id: str, **kwargs) -> Optional[UserEntity]:
         """Atualiza dados do usuário"""
         if not validate_uuid(user_id):
             return None
             
-        user = self.get_user_by_id(user_id)
-        if not user:
+        UserEntity = self.get_user_by_id(user_id)
+        if not UserEntity:
             return None
         
         for key, value in kwargs.items():
-            if hasattr(user, key) and value is not None:
-                setattr(user, key, value)
+            if hasattr(UserEntity, key) and value is not None:
+                setattr(UserEntity, key, value)
         
-        user.updated_at = datetime.utcnow()
+        UserEntity.updated_at = datetime.utcnow()
         self.db.commit()
-        self.db.refresh(user)
-        return user
+        self.db.refresh(UserEntity)
+        return UserEntity
     
     def delete_user(self, user_id: str) -> bool:
         """Remove usuário"""
         if not validate_uuid(user_id):
             return False
             
-        user = self.get_user_by_id(user_id)
-        if not user:
+        UserEntity = self.get_user_by_id(user_id)
+        if not UserEntity:
             return False
         
-        self.db.delete(user)
+        self.db.delete(UserEntity)
         self.db.commit()
         return True
     
-    def list_users(self, skip: int = 0, limit: int = 100) -> List[User]:
+    def list_users(self, skip: int = 0, limit: int = 100) -> List[UserEntity]:
         """Lista usuários com paginação"""
-        return self.db.query(User).offset(skip).limit(limit).all()
+        return self.db.query(UserEntity).offset(skip).limit(limit).all()
     
     def get_users_count(self) -> int:
         """Retorna total de usuários"""
-        return self.db.query(User).count()
+        return self.db.query(UserEntity).count()
     
     # CRUD Sessões
-    def create_session(self, user_id: str, token: str, expires_at: datetime) -> UserSession:
+    def create_session(self, user_id: str, token: str, expires_at: datetime) -> UserSessionEntity:
         """Cria uma nova sessão de usuário"""
         if not validate_uuid(user_id):
             raise ValueError("Invalid user_id UUID")
         
         from models.uuid_models import generate_uuid
             
-        db_session = UserSession(
+        db_session = UserSessionEntity(
             id=generate_uuid(),  # Gerar UUID manualmente
             user_id=user_id,
             token=token,
@@ -101,19 +101,19 @@ class UserRepository:
         self.db.refresh(db_session)
         return db_session
     
-    def get_session_by_token(self, token: str) -> Optional[UserSession]:
+    def get_session_by_token(self, token: str) -> Optional[UserSessionEntity]:
         """Busca sessão por token"""
-        return self.db.query(UserSession).filter(
+        return self.db.query(UserSessionEntity).filter(
             and_(
-                UserSession.token == token,
-                UserSession.expires_at > datetime.utcnow(),
-                UserSession.is_active == True
+                UserSessionEntity.token == token,
+                UserSessionEntity.expires_at > datetime.utcnow(),
+                UserSessionEntity.is_active == True
             )
         ).first()
     
     def invalidate_session(self, token: str) -> bool:
         """Invalida uma sessão"""
-        session = self.db.query(UserSession).filter(UserSession.token == token).first()
+        session = self.db.query(UserSessionEntity).filter(UserSessionEntity.token == token).first()
         if not session:
             return False
         
@@ -121,22 +121,22 @@ class UserRepository:
         self.db.commit()
         return True
     
-    def get_user_sessions(self, user_id: str) -> List[UserSession]:
+    def get_user_sessions(self, user_id: str) -> List[UserSessionEntity]:
         """Busca todas as sessões de um usuário"""
         if not validate_uuid(user_id):
             return []
             
-        return self.db.query(UserSession).filter(
+        return self.db.query(UserSessionEntity).filter(
             and_(
-                UserSession.user_id == user_id,
-                UserSession.is_active == True
+                UserSessionEntity.user_id == user_id,
+                UserSessionEntity.is_active == True
             )
         ).all()
     
     def cleanup_expired_sessions(self) -> int:
         """Remove sessões expiradas"""
-        expired_sessions = self.db.query(UserSession).filter(
-            UserSession.expires_at <= datetime.utcnow()
+        expired_sessions = self.db.query(UserSessionEntity).filter(
+            UserSessionEntity.expires_at <= datetime.utcnow()
         ).all()
         
         count = len(expired_sessions)
@@ -147,7 +147,7 @@ class UserRepository:
         return count
     
     # CRUD Atividades
-    def create_activity(self, user_id: str, activity_type: str, description: str = None, metadata: dict = None) -> UserActivity:
+    def create_activity(self, user_id: str, activity_type: str, description: str = None, metadata: dict = None) -> UserActivityEntity:
         """Cria uma nova atividade do usuário"""
         if not validate_uuid(user_id):
             raise ValueError("Invalid user_id UUID")
@@ -159,7 +159,7 @@ class UserRepository:
         
         from models.uuid_models import generate_uuid
         
-        db_activity = UserActivity(
+        db_activity = UserActivityEntity(
             id=generate_uuid(),  # Gerar UUID manualmente
             user_id=user_id,
             activity_type=activity_type,
@@ -171,21 +171,21 @@ class UserRepository:
         self.db.refresh(db_activity)
         return db_activity
     
-    def get_user_activities(self, user_id: str, limit: int = 50) -> List[UserActivity]:
+    def get_user_activities(self, user_id: str, limit: int = 50) -> List[UserActivityEntity]:
         """Busca atividades de um usuário"""
         if not validate_uuid(user_id):
             return []
             
-        return self.db.query(UserActivity).filter(
-            UserActivity.user_id == user_id
-        ).order_by(desc(UserActivity.created_at)).limit(limit).all()
+        return self.db.query(UserActivityEntity).filter(
+            UserActivityEntity.user_id == user_id
+        ).order_by(desc(UserActivityEntity.created_at)).limit(limit).all()
     
-    def get_activity_by_id(self, activity_id: str) -> Optional[UserActivity]:
+    def get_activity_by_id(self, activity_id: str) -> Optional[UserActivityEntity]:
         """Busca atividade por ID"""
         if not validate_uuid(activity_id):
             return None
             
-        return self.db.query(UserActivity).filter(UserActivity.id == activity_id).first()
+        return self.db.query(UserActivityEntity).filter(UserActivityEntity.id == activity_id).first()
     
     def delete_activity(self, activity_id: str) -> bool:
         """Remove uma atividade"""
@@ -201,36 +201,36 @@ class UserRepository:
         return True
     
     # Métodos de busca e filtros
-    def search_users(self, search_term: str, limit: int = 20) -> List[User]:
+    def search_users(self, search_term: str, limit: int = 20) -> List[UserEntity]:
         """Busca usuários por nome ou email"""
         search_pattern = f"%{search_term}%"
-        return self.db.query(User).filter(
+        return self.db.query(UserEntity).filter(
             or_(
-                User.name.ilike(search_pattern),
-                User.email.ilike(search_pattern)
+                UserEntity.name.ilike(search_pattern),
+                UserEntity.email.ilike(search_pattern)
             )
         ).limit(limit).all()
     
-    def get_users_by_plan(self, plan: str, limit: int = 100) -> List[User]:
+    def get_users_by_plan(self, plan: str, limit: int = 100) -> List[UserEntity]:
         """Busca usuários por plano"""
-        return self.db.query(User).filter(User.plan == plan).limit(limit).all()
+        return self.db.query(UserEntity).filter(UserEntity.plan == plan).limit(limit).all()
     
-    def get_users_by_status(self, status: str, limit: int = 100) -> List[User]:
+    def get_users_by_status(self, status: str, limit: int = 100) -> List[UserEntity]:
         """Busca usuários por status"""
-        return self.db.query(User).filter(User.status == status).limit(limit).all()
+        return self.db.query(UserEntity).filter(UserEntity.status == status).limit(limit).all()
     
-    def get_recent_users(self, days: int = 7, limit: int = 50) -> List[User]:
+    def get_recent_users(self, days: int = 7, limit: int = 50) -> List[UserEntity]:
         """Busca usuários criados recentemente"""
         cutoff_date = datetime.utcnow() - timedelta(days=days)
-        return self.db.query(User).filter(
-            User.created_at >= cutoff_date
-        ).order_by(desc(User.created_at)).limit(limit).all()
+        return self.db.query(UserEntity).filter(
+            UserEntity.created_at >= cutoff_date
+        ).order_by(desc(UserEntity.created_at)).limit(limit).all()
     
-    def get_users_with_activity(self, days: int = 30, limit: int = 100) -> List[User]:
+    def get_users_with_activity(self, days: int = 30, limit: int = 100) -> List[UserEntity]:
         """Busca usuários com atividade recente"""
         cutoff_date = datetime.utcnow() - timedelta(days=days)
-        return self.db.query(User).join(UserActivity).filter(
-            UserActivity.created_at >= cutoff_date
+        return self.db.query(UserEntity).join(UserActivityEntity).filter(
+            UserActivityEntity.created_at >= cutoff_date
         ).distinct().limit(limit).all()
     
     # Métodos de estatísticas
@@ -239,37 +239,37 @@ class UserRepository:
         if not validate_uuid(user_id):
             return {}
             
-        user = self.get_user_by_id(user_id)
-        if not user:
+        UserEntity = self.get_user_by_id(user_id)
+        if not UserEntity:
             return {}
         
         # Contar sessões ativas
-        active_sessions = self.db.query(UserSession).filter(
+        active_sessions = self.db.query(UserSessionEntity).filter(
             and_(
-                UserSession.user_id == user_id,
-                UserSession.is_active == True,
-                UserSession.expires_at > datetime.utcnow()
+                UserSessionEntity.user_id == user_id,
+                UserSessionEntity.is_active == True,
+                UserSessionEntity.expires_at > datetime.utcnow()
             )
         ).count()
         
         # Contar atividades
-        total_activities = self.db.query(UserActivity).filter(
-            UserActivity.user_id == user_id
+        total_activities = self.db.query(UserActivityEntity).filter(
+            UserActivityEntity.user_id == user_id
         ).count()
         
         # Última atividade
-        last_activity = self.db.query(UserActivity).filter(
-            UserActivity.user_id == user_id
-        ).order_by(desc(UserActivity.created_at)).first()
+        last_activity = self.db.query(UserActivityEntity).filter(
+            UserActivityEntity.user_id == user_id
+        ).order_by(desc(UserActivityEntity.created_at)).first()
     
         return {
             "user_id": user_id,
-            "name": user.name,
-            "email": user.email,
-            "plan": user.plan,
-            "status": user.status,
-            "created_at": user.created_at,
-            "last_login": user.last_login,
+            "name": UserEntity.name,
+            "email": UserEntity.email,
+            "plan": UserEntity.plan,
+            "status": UserEntity.status,
+            "created_at": UserEntity.created_at,
+            "last_login": UserEntity.last_login,
             "active_sessions": active_sessions,
             "total_activities": total_activities,
             "last_activity": last_activity.created_at if last_activity else None

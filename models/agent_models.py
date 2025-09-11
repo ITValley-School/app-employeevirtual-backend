@@ -1,14 +1,11 @@
 """
-Modelos de dados para agentes do sistema EmployeeVirtual
+Modelos de domínio para agentes do sistema EmployeeVirtual
+Responsabilidade: Definir contratos e estruturas de dados de negócio (Pydantic)
 """
 from pydantic import BaseModel, Field
 from typing import Optional, List, Dict, Any
 from datetime import datetime
 from enum import Enum
-from sqlalchemy import Column, Integer, String, DateTime, Boolean, Text, Float, Enum as SQLEnum, ForeignKey, text
-from sqlalchemy.sql import func
-from models.uuid_models import UUIDColumn
-from data.base import Base
 
 
 class AgentType(str, Enum):
@@ -20,12 +17,14 @@ class AgentType(str, Enum):
     PDF_READER = "pdf_reader"
     IMAGE_OCR = "image_ocr"
 
+
 class AgentStatus(str, Enum):
     """Status do agente"""
     ACTIVE = "active"
     INACTIVE = "inactive"
     DRAFT = "draft"
     ERROR = "error"
+
 
 class LLMProvider(str, Enum):
     """Provedores de LLM suportados"""
@@ -40,7 +39,7 @@ class LLMProvider(str, Enum):
     AZURE = "azure"
     OPENROUTER = "openrouter"
 
-# Modelos Pydantic (para API)
+
 class AgentBase(BaseModel):
     """Modelo base do agente"""
     name: str = Field(..., min_length=2, max_length=100, description="Nome do agente")
@@ -50,6 +49,7 @@ class AgentBase(BaseModel):
     personality: Optional[str] = Field(None, description="Personalidade do agente")
     avatar_url: Optional[str] = Field(None, description="URL do avatar")
     
+
 class AgentCreate(AgentBase):
     """Modelo para criação de agente"""
     llm_provider: LLMProvider = Field(default=LLMProvider.OPENAI, description="Provedor do LLM")
@@ -57,6 +57,7 @@ class AgentCreate(AgentBase):
     temperature: Optional[float] = Field(default=0.7, ge=0.0, le=2.0, description="Temperatura do modelo")
     max_tokens: Optional[int] = Field(default=None, description="Máximo de tokens")
     
+
 class AgentUpdate(BaseModel):
     """Modelo para atualização de agente"""
     name: Optional[str] = Field(None, min_length=2, max_length=100)
@@ -70,6 +71,7 @@ class AgentUpdate(BaseModel):
     temperature: Optional[float] = Field(None, ge=0.0, le=2.0)
     max_tokens: Optional[int] = None
     
+
 class AgentResponse(AgentBase):
     """Modelo de resposta do agente"""
     id: str  # UUID string
@@ -87,11 +89,13 @@ class AgentResponse(AgentBase):
     class Config:
         from_attributes = True
 
+
 class AgentExecutionRequest(BaseModel):
     """Modelo para requisição de execução de agente"""
     user_message: str = Field(..., min_length=1, description="Mensagem do usuário")
     context: Optional[Dict[str, Any]] = Field(default_factory=dict, description="Contexto adicional")
     
+
 class AgentExecutionResponse(BaseModel):
     """Modelo de resposta da execução"""
     agent_id: str  # UUID string
@@ -105,6 +109,7 @@ class AgentExecutionResponse(BaseModel):
     error_message: Optional[str] = None
     created_at: datetime
     
+
 class AgentKnowledgeBase(BaseModel):
     """Modelo para base de conhecimento do agente"""
     agent_id: str  # UUID string
@@ -114,91 +119,13 @@ class AgentKnowledgeBase(BaseModel):
     file_url: str
     processed: bool = False
     vector_ids: Optional[List[str]] = []
-    
-# Modelos SQLAlchemy (para banco de dados)
-class Agent(Base):
-    """Tabela de agentes"""
-    __tablename__ = "agents"
-    __table_args__ = {'schema': 'empl'}
-    
-    id = Column(UUIDColumn, primary_key=True, index=True)
-    user_id = Column(UUIDColumn, nullable=False, index=True)
-    name = Column(String(100), nullable=False)
-    description = Column(Text, nullable=True)
-    agent_type = Column(String(50), default=AgentType.CUSTOM, nullable=False)
-    system_prompt = Column(Text, nullable=False)
-    personality = Column(Text, nullable=True)
-    avatar_url = Column(String(500), nullable=True)
-    status = Column(String(20), default=AgentStatus.ACTIVE, nullable=False)
-    llm_provider = Column(String(50), default=LLMProvider.OPENAI, nullable=False)
-    model = Column(String(100), nullable=False)
-    temperature = Column(Float, default=0.7, nullable=False)
-    max_tokens = Column(Integer, nullable=True)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
-    last_used = Column(DateTime(timezone=True), nullable=True)
-    usage_count = Column(Integer, default=0, nullable=False)
-    
-    def __repr__(self):
-        return f"<Agent(id={self.id}, name='{self.name}', type='{self.agent_type}')>"
 
-class AgentKnowledge(Base):
-    """Tabela de base de conhecimento dos agentes"""
-    __tablename__ = "agent_knowledge"
-    __table_args__ = {'schema': 'empl'}
-    
-    id = Column(UUIDColumn, primary_key=True, server_default=text("NEWID()"), index=True)
-    agent_id = Column(UUIDColumn, ForeignKey('empl.agents.id'), nullable=False, index=True)
-    file_name = Column(String(255), nullable=False)
-    file_type = Column(String(50), nullable=False)
-    file_size = Column(Integer, nullable=False)
-    file_url = Column(String(500), nullable=False)
-    orion_file_id = Column(String(100), nullable=True)  # ID do arquivo no Orion
-    processed = Column(Boolean, default=False, nullable=False)
-    vector_ids = Column(Text, nullable=True)  # JSON array de IDs dos vetores no Pinecone
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    processed_at = Column(DateTime(timezone=True), nullable=True)
-    
-    def __repr__(self):
-        return f"<AgentKnowledge(id={self.id}, agent_id={self.agent_id}, file='{self.file_name}')>"
 
-class AgentExecutionDB(Base):
-    """Tabela de execuções de agentes"""
-    __tablename__ = "agent_executions"
-    __table_args__ = {'schema': 'empl'}
-    
-    id = Column(UUIDColumn, primary_key=True, server_default=text("NEWID()"), index=True)
-    agent_id = Column(UUIDColumn, ForeignKey('empl.agents.id'), nullable=False, index=True)
-    user_id = Column(UUIDColumn, nullable=False, index=True)
-    user_message = Column(Text, nullable=False)
-    response = Column(Text, nullable=False)
-    model_used = Column(String(100), nullable=False)
-    execution_time = Column(Float, nullable=True)
-    tokens_used = Column(Integer, nullable=True)
-    success = Column(Boolean, default=True, nullable=False)
-    error_message = Column(Text, nullable=True)
-    context = Column(Text, nullable=True)  # JSON string
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    
-    def __repr__(self):
-        return f"<AgentExecutionDB(id={self.id}, agent_id={self.agent_id}, success={self.success})>"
-
-class LegacySystemAgent(Base):
-    """Tabela de agentes do sistema (pré-configurados) - LEGACY"""
-    __tablename__ = "legacy_system_agents"
-    __table_args__ = {'schema': 'empl'}
-    
-    id = Column(UUIDColumn, primary_key=True, server_default=text("NEWID()"), index=True)
-    name = Column(String(100), nullable=False, unique=True)
-    description = Column(Text, nullable=False)
-    agent_type = Column(String(50), nullable=False)
-    system_prompt = Column(Text, nullable=False)
-    avatar_url = Column(String(500), nullable=True)
-    orion_endpoint = Column(String(200), nullable=True)  # Endpoint específico no Orion
-    is_active = Column(Boolean, default=True, nullable=False)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
-    
-    def __repr__(self):
-        return f"<LegacySystemAgent(id={self.id}, name='{self.name}', type='{self.agent_type}')>"
+# Re-exportar entidades com nomes de compatibilidade
+from data.entities.agent_entities import (
+    AgentEntity as Agent,
+    AgentKnowledgeEntity as AgentKnowledge,
+    AgentExecutionEntity as AgentExecutionDB
+    # SystemAgent já está definido em system_agent_models.py
+)
 

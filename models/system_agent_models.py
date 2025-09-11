@@ -7,13 +7,26 @@ from pydantic import BaseModel, Field
 from uuid import UUID
 import enum
 import json
+import uuid
 
 from sqlalchemy import Column, String, DateTime, Boolean, Text, Enum as SQLEnum, ForeignKey, Integer
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 
-from models.uuid_models import UUIDColumn, generate_uuid, uuid_field, required_uuid_field
 from data.base import Base
+from models.uuid_models import UUIDColumn
+
+def generate_uuid():
+    """Gera um novo UUID como string"""
+    return str(uuid.uuid4())
+
+def uuid_field(**kwargs):
+    """Campo UUID opcional para Pydantic"""
+    return Field(**kwargs)
+
+def required_uuid_field(**kwargs):
+    """Campo UUID obrigatório para Pydantic"""
+    return Field(**kwargs)
 
 # Enums
 class SystemAgentStatus(str, enum.Enum):

@@ -7,11 +7,13 @@ from sqlalchemy.orm import Session
 from sqlalchemy import and_, func, desc
 from datetime import datetime
 
+from data.entities.agent_entities import (
+    AgentEntity, AgentKnowledgeEntity, AgentExecutionEntity
+)
+from data.entities.user_entities import UserActivityEntity
 from models.agent_models import (
-    Agent, AgentKnowledge, AgentExecutionDB, LegacySystemAgent,
     AgentCreate, AgentUpdate, AgentResponse
 )
-from models.user_models import UserActivity
 
 
 class AgentRepository:
@@ -27,7 +29,7 @@ class AgentRepository:
     # OPERAÇÕES CRUD - AGENTES
     # ==========================================
     
-    def create_agent(self, agent_data: Dict[str, Any]) -> Agent:
+    def create_agent(self, agent_data: Dict[str, Any]) -> AgentEntity:
         """
         Cria um novo agente no banco
         
@@ -35,18 +37,18 @@ class AgentRepository:
             agent_data: Dados do agente já validados
             
         Returns:
-            Agent: Instância do agente criado
+            AgentEntity: Instância do agente criado
         """
         # Gerar UUID para o agente
         agent_data["id"] = str(uuid.uuid4())
         
-        db_agent = Agent(**agent_data)
+        db_agent = AgentEntity(**agent_data)
         self.db.add(db_agent)
         self.db.commit()
         self.db.refresh(db_agent)
         return db_agent
     
-    def get_agent_by_id(self, agent_id: str, user_id: Optional[str] = None) -> Optional[Agent]:
+    def get_agent_by_id(self, agent_id: str, user_id: Optional[str] = None) -> Optional[AgentEntity]:
         """
         Busca agente por ID
         
@@ -55,16 +57,16 @@ class AgentRepository:
             user_id: ID do usuário (filtro opcional)
             
         Returns:
-            Agent ou None
+            AgentEntity ou None
         """
-        query = self.db.query(Agent).filter(Agent.id == agent_id)
+        query = self.db.query(AgentEntity).filter(AgentEntity.id == agent_id)
         
         if user_id:
-            query = query.filter(Agent.user_id == user_id)
+            query = query.filter(AgentEntity.user_id == user_id)
         
         return query.first()
     
-    def get_agents_by_user(self, user_id: str, include_system: bool = True) -> List[Agent]:
+    def get_agents_by_user(self, user_id: str, include_system: bool = True) -> List[AgentEntity]:
         """
         Busca agentes do usuário
         
@@ -75,14 +77,14 @@ class AgentRepository:
         Returns:
             Lista de agentes
         """
-        query = self.db.query(Agent).filter(Agent.user_id == user_id)
+        query = self.db.query(AgentEntity).filter(AgentEntity.user_id == user_id)
         
         if not include_system:
-            query = query.filter(Agent.agent_type == "custom")
+            query = query.filter(AgentEntity.agent_type == "custom")
         
-        return query.order_by(desc(Agent.created_at)).all()
+        return query.order_by(desc(AgentEntity.created_at)).all()
     
-    def update_agent(self, agent_id: str, user_id: str, update_data: Dict[str, Any]) -> Optional[Agent]:
+    def update_agent(self, agent_id: str, user_id: str, update_data: Dict[str, Any]) -> Optional[AgentEntity]:
         """
         Atualiza agente
         
@@ -92,24 +94,24 @@ class AgentRepository:
             update_data: Dados para atualização
             
         Returns:
-            Agent atualizado ou None
+            AgentEntity atualizado ou None
         """
-        agent = self.db.query(Agent).filter(
-            and_(Agent.id == agent_id, Agent.user_id == user_id)
+        AgentEntity = self.db.query(AgentEntity).filter(
+            and_(AgentEntity.id == agent_id, AgentEntity.user_id == user_id)
         ).first()
         
-        if not agent:
+        if not AgentEntity:
             return None
         
         # Aplicar atualizações
         for field, value in update_data.items():
-            setattr(agent, field, value)
+            setattr(AgentEntity, field, value)
         
-        agent.updated_at = datetime.utcnow()
+        AgentEntity.updated_at = datetime.utcnow()
         self.db.commit()
-        self.db.refresh(agent)
+        self.db.refresh(AgentEntity)
         
-        return agent
+        return AgentEntity
     
     def delete_agent(self, agent_id: str, user_id: str) -> bool:
         """
@@ -122,14 +124,14 @@ class AgentRepository:
         Returns:
             True se deletado com sucesso
         """
-        agent = self.db.query(Agent).filter(
-            and_(Agent.id == agent_id, Agent.user_id == user_id)
+        AgentEntity = self.db.query(AgentEntity).filter(
+            and_(AgentEntity.id == agent_id, AgentEntity.user_id == user_id)
         ).first()
         
-        if not agent:
+        if not AgentEntity:
             return False
         
-        self.db.delete(agent)
+        self.db.delete(AgentEntity)
         self.db.commit()
         return True
     
@@ -141,17 +143,17 @@ class AgentRepository:
             agent_id: ID do agente
             usage_increment: Incremento no contador de uso
         """
-        agent = self.db.query(Agent).filter(Agent.id == agent_id).first()
-        if agent:
-            agent.last_used = datetime.utcnow()
-            agent.usage_count += usage_increment
+        AgentEntity = self.db.query(AgentEntity).filter(AgentEntity.id == agent_id).first()
+        if AgentEntity:
+            AgentEntity.last_used = datetime.utcnow()
+            AgentEntity.usage_count += usage_increment
             self.db.commit()
     
     # ==========================================
     # OPERAÇÕES - EXECUÇÕES
     # ==========================================
     
-    def create_execution(self, execution_data: Dict[str, Any]) -> AgentExecutionDB:
+    def create_execution(self, execution_data: Dict[str, Any]) -> AgentExecutionEntity:
         """
         Cria registro de execução
         
@@ -159,19 +161,19 @@ class AgentRepository:
             execution_data: Dados da execução
             
         Returns:
-            AgentExecutionDB: Execução criada
+            AgentExecutionEntity: Execução criada
         """
         # Gerar UUID para a execução se não fornecido
         if "id" not in execution_data:
             execution_data["id"] = str(uuid.uuid4())
             
-        execution = AgentExecutionDB(**execution_data)
+        execution = AgentExecutionEntity(**execution_data)
         self.db.add(execution)
         self.db.commit()
         self.db.refresh(execution)
         return execution
     
-    def get_agent_executions(self, agent_id: str, user_id: str, limit: int = 50) -> List[AgentExecutionDB]:
+    def get_agent_executions(self, agent_id: str, user_id: str, limit: int = 50) -> List[AgentExecutionEntity]:
         """
         Busca execuções do agente
         
@@ -183,18 +185,18 @@ class AgentRepository:
         Returns:
             Lista de execuções
         """
-        return self.db.query(AgentExecutionDB).filter(
+        return self.db.query(AgentExecutionEntity).filter(
             and_(
-                AgentExecutionDB.agent_id == agent_id,
-                AgentExecutionDB.user_id == user_id
+                AgentExecutionEntity.agent_id == agent_id,
+                AgentExecutionEntity.user_id == user_id
             )
-        ).order_by(desc(AgentExecutionDB.created_at)).limit(limit).all()
+        ).order_by(desc(AgentExecutionEntity.created_at)).limit(limit).all()
     
     # ==========================================
     # OPERAÇÕES - BASE DE CONHECIMENTO
     # ==========================================
     
-    def create_knowledge(self, knowledge_data: Dict[str, Any]) -> AgentKnowledge:
+    def create_knowledge(self, knowledge_data: Dict[str, Any]) -> AgentKnowledgeEntity:
         """
         Adiciona conhecimento ao agente
         
@@ -202,19 +204,19 @@ class AgentRepository:
             knowledge_data: Dados do conhecimento
             
         Returns:
-            AgentKnowledge: Conhecimento criado
+            AgentKnowledgeEntity: Conhecimento criado
         """
         # Gerar UUID para o conhecimento se não fornecido
         if "id" not in knowledge_data:
             knowledge_data["id"] = str(uuid.uuid4())
             
-        knowledge = AgentKnowledge(**knowledge_data)
+        knowledge = AgentKnowledgeEntity(**knowledge_data)
         self.db.add(knowledge)
         self.db.commit()
         self.db.refresh(knowledge)
         return knowledge
     
-    def get_agent_knowledge(self, agent_id: str) -> List[AgentKnowledge]:
+    def get_agent_knowledge(self, agent_id: str) -> List[AgentKnowledgeEntity]:
         """
         Busca conhecimento do agente
         
@@ -224,30 +226,15 @@ class AgentRepository:
         Returns:
             Lista de arquivos de conhecimento
         """
-        return self.db.query(AgentKnowledge).filter(
-            AgentKnowledge.agent_id == agent_id
-        ).all()
-    
-    # ==========================================
-    # OPERAÇÕES - AGENTES DO SISTEMA
-    # ==========================================
-    
-    def get_system_agents(self) -> List[LegacySystemAgent]:
-        """
-        Busca agentes do sistema
-        
-        Returns:
-            Lista de agentes do sistema
-        """
-        return self.db.query(LegacySystemAgent).filter(
-            LegacySystemAgent.is_active == True
+        return self.db.query(AgentKnowledgeEntity).filter(
+            AgentKnowledgeEntity.agent_id == agent_id
         ).all()
     
     # ==========================================
     # OPERAÇÕES - ATIVIDADES
     # ==========================================
     
-    def log_user_activity(self, activity_data: Dict[str, Any]) -> UserActivity:
+    def log_user_activity(self, activity_data: Dict[str, Any]) -> UserActivityEntity:
         """
         Registra atividade do usuário
         
@@ -255,9 +242,9 @@ class AgentRepository:
             activity_data: Dados da atividade
             
         Returns:
-            UserActivity: Atividade criada
+            UserActivityEntity: Atividade criada
         """
-        activity = UserActivity(**activity_data)
+        activity = UserActivityEntity(**activity_data)
         self.db.add(activity)
         self.db.commit()
         self.db.refresh(activity)

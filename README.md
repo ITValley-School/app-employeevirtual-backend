@@ -15,39 +15,60 @@ O EmployeeVirtual Backend é uma API REST que oferece funcionalidades avançadas
 - **🔐 Autenticação JWT** - Sistema seguro de autenticação e autorização
 - **🗄️ Banco de Dados Híbrido** - SQL Server/Azure SQL + MongoDB para máxima flexibilidade
 
+## 📚 Documentação de Arquitetura
+
+### 🏗️ Guias Essenciais
+- **[ARCHITECTURE_GUIDE.md](./ARCHITECTURE_GUIDE.md)** - Guia completo de Clean Code, DDD e responsabilidade única
+- **[IMPLEMENTATION_TEMPLATES.md](./IMPLEMENTATION_TEMPLATES.md)** - Templates práticos para implementar novos recursos
+- **[AI_GUIDELINES.md](./AI_GUIDELINES.md)** - Diretrizes específicas para assistentes de IA (Copilot, ChatGPT, etc.)
+
+> 📌 **IMPORTANTE**: Todos os desenvolvedores e IAs devem seguir estes guias para manter a consistência arquitetural.
+
 ## 🏗️ Arquitetura do Sistema
+
+### Clean Architecture + DDD
+```
+📦 Arquitetura em Camadas
+├── 🌐 API Layer (Controllers)     # Apenas HTTP handling
+├── 🔧 Service Layer (Business)    # Lógica de negócio
+├── 💾 Repository Layer (Data)     # Acesso aos dados  
+├── 📄 Model Layer (Domain)        # Entidades e DTOs
+└── 🔌 Dependencies                # Injeção de dependência
+```
 
 ### Estrutura de Pastas
 
 ```
 employeevirtual_backend/
-├── � api/                     # Endpoints da API REST
+├── 🌐 api/                     # Controllers HTTP (FastAPI)
 │   ├── auth_api.py            # Autenticação e gestão de usuários
 │   ├── agent_api.py           # Gestão de agentes de IA
 │   ├── flow_api.py            # Automações e workflows
 │   ├── chat_api.py            # Sistema de chat/conversação
 │   ├── dashboard_api.py       # Métricas e analytics
 │   └── file_api.py            # Upload e processamento de arquivos
-├── 📁 data/                    # Camada de dados
+├── � services/                # Business Logic Layer
+│   ├── user_service.py        # Lógica de negócio de usuários
+│   ├── agent_service.py       # Lógica de negócio de agentes
+│   ├── flow_service.py        # Lógica de negócio de flows
+│   ├── chat_service.py        # Lógica de negócio de chat
+│   └── dashboard_service.py   # Lógica de negócio de dashboard
+├── 💾 data/                    # Repository Layer
 │   ├── database.py            # Configuração SQL Server/Azure SQL
-│   └── mongodb.py             # Configuração MongoDB
-├── 📁 middlewares/             # Middlewares da aplicação
-│   ├── cors_middleware.py     # CORS para frontend
-│   ├── logging_middleware.py  # Sistema de logs
-│   └── auth_middleware.py     # Autenticação e rate limiting
-├── 📁 models/                  # Modelos de dados (Pydantic + SQLAlchemy)
-│   ├── user_models.py         # Modelos de usuários
-│   ├── agent_models.py        # Modelos de agentes
-│   ├── flow_models.py         # Modelos de flows
-│   ├── chat_models.py         # Modelos de chat
-│   ├── dashboard_models.py    # Modelos de dashboard
-│   └── file_models.py         # Modelos de arquivos
-├── 📁 services/                # Lógica de negócio
-│   ├── user_service.py        # Serviços de usuário
-│   ├── agent_service.py       # Serviços de agentes
-│   ├── flow_service.py        # Serviços de flows
-│   ├── chat_service.py        # Serviços de chat
-│   ├── dashboard_service.py   # Serviços de dashboard
+│   ├── mongodb.py             # Configuração MongoDB
+│   ├── user_repository.py     # Acesso aos dados de usuários
+│   ├── agent_repository.py    # Acesso aos dados de agentes
+│   └── chat_repository.py     # Acesso aos dados de chat
+├── � models/                  # Domain Layer (Pydantic + SQLAlchemy)
+│   ├── user_models.py         # DTOs e entidades de usuários
+│   ├── agent_models.py        # DTOs e entidades de agentes
+│   ├── flow_models.py         # DTOs e entidades de flows
+│   ├── chat_models.py         # DTOs e entidades de chat
+│   └── dashboard_models.py    # DTOs e entidades de dashboard
+├── 🔌 dependencies/            # Dependency Injection
+│   └── service_providers.py   # Provedores de serviços
+├── 🔐 auth/                    # Autenticação e autorização
+├── 🔄 middlewares/             # Middlewares da aplicação
 │   └── orion_service.py       # Integração com serviços Orion
 ├── main.py                     # Aplicação principal
 ├── requirements.txt            # Dependências Python

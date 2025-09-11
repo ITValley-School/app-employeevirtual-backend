@@ -2,12 +2,11 @@
 APIs para gerenciamento de chaves LLM
 """
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session
 from typing import List
 
-from data.database import get_db
 from auth.dependencies import get_current_user, require_enterprise_user
 from services.llm_key_service import LLMKeyService
+from dependencies.service_providers import get_llm_key_service
 from models.llm_models import (
     SystemLLMKeyCreate, SystemLLMKeyUpdate, SystemLLMKeyResponse,
     UserLLMKeyCreate, UserLLMKeyUpdate, UserLLMKeyResponse,
@@ -26,14 +25,14 @@ router = APIRouter()
 async def create_system_key(
     key_data: SystemLLMKeyCreate,
     current_user: User = Depends(require_enterprise_user),
-    db: Session = Depends(get_db)
+    llm_service: LLMKeyService = Depends(get_llm_key_service)
 ):
     """
     Cria uma nova chave LLM do sistema (apenas usuários enterprise)
     """
     try:
-        service = LLMKeyService(db)
-        key = await service.create_system_key(key_data)
+        
+        key = await llm_service.create_system_key(key_data)
         return key
     except Exception as e:
         raise HTTPException(
@@ -44,14 +43,14 @@ async def create_system_key(
 @router.get("/system/keys", response_model=List[SystemLLMKeyResponse])
 async def get_system_keys(
     current_user: User = Depends(require_enterprise_user),
-    db: Session = Depends(get_db)
+    llm_service: LLMKeyService = Depends(get_llm_key_service)
 ):
     """
     Lista todas as chaves LLM do sistema (apenas usuários enterprise)
     """
     try:
-        service = LLMKeyService(db)
-        keys = await service.get_system_keys()
+        
+        keys = await llm_service.get_system_keys()
         return keys
     except Exception as e:
         raise HTTPException(
@@ -63,14 +62,14 @@ async def get_system_keys(
 async def get_system_key(
     key_id: str,
     current_user: User = Depends(require_enterprise_user),
-    db: Session = Depends(get_db)
+    llm_service: LLMKeyService = Depends(get_llm_key_service)
 ):
     """
     Obtém uma chave LLM específica do sistema (apenas usuários enterprise)
     """
     try:
-        service = LLMKeyService(db)
-        key = service.repository.get_system_key_by_id(key_id)
+        
+        key = llm_service.repository.get_system_key_by_id(key_id)
         if not key:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -90,14 +89,14 @@ async def update_system_key(
     key_id: str,
     key_data: SystemLLMKeyUpdate,
     current_user: User = Depends(require_enterprise_user),
-    db: Session = Depends(get_db)
+    llm_service: LLMKeyService = Depends(get_llm_key_service)
 ):
     """
     Atualiza uma chave LLM do sistema (apenas usuários enterprise)
     """
     try:
-        service = LLMKeyService(db)
-        key = await service.update_system_key(key_id, key_data)
+        
+        key = await llm_service.update_system_key(key_id, key_data)
         if not key:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -120,14 +119,14 @@ async def update_system_key(
 async def create_user_key(
     key_data: UserLLMKeyCreate,
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    llm_service: LLMKeyService = Depends(get_llm_key_service)
 ):
     """
     Cria uma nova chave LLM para o usuário atual
     """
     try:
-        service = LLMKeyService(db)
-        key = await service.create_user_key(current_user.id, key_data)
+        
+        key = await llm_service.create_user_key(current_user.id, key_data)
         return key
     except Exception as e:
         raise HTTPException(
@@ -138,14 +137,14 @@ async def create_user_key(
 @router.get("/user/keys", response_model=List[UserLLMKeyResponse])
 async def get_user_keys(
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    llm_service: LLMKeyService = Depends(get_llm_key_service)
 ):
     """
     Lista todas as chaves LLM do usuário atual
     """
     try:
-        service = LLMKeyService(db)
-        keys = await service.get_user_keys(current_user.id)
+        
+        keys = await llm_service.get_user_keys(current_user.id)
         return keys
     except Exception as e:
         raise HTTPException(
@@ -157,14 +156,14 @@ async def get_user_keys(
 async def get_user_key(
     key_id: str,
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    llm_service: LLMKeyService = Depends(get_llm_key_service)
 ):
     """
     Obtém uma chave LLM específica do usuário atual
     """
     try:
-        service = LLMKeyService(db)
-        key = await service.get_user_key_by_id(key_id, current_user.id)
+        
+        key = await llm_service.get_user_key_by_id(key_id, current_user.id)
         if not key:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -184,14 +183,14 @@ async def update_user_key(
     key_id: str,
     key_data: UserLLMKeyUpdate,
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    llm_service: LLMKeyService = Depends(get_llm_key_service)
 ):
     """
     Atualiza uma chave LLM do usuário atual
     """
     try:
-        service = LLMKeyService(db)
-        key = await service.update_user_key(key_id, current_user.id, key_data)
+        
+        key = await llm_service.update_user_key(key_id, current_user.id, key_data)
         if not key:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -210,14 +209,14 @@ async def update_user_key(
 async def delete_user_key(
     key_id: str,
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    llm_service: LLMKeyService = Depends(get_llm_key_service)
 ):
     """
     Remove uma chave LLM do usuário atual
     """
     try:
-        service = LLMKeyService(db)
-        success = await service.delete_user_key(key_id, current_user.id)
+        
+        success = await llm_service.delete_user_key(key_id, current_user.id)
         if not success:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -240,14 +239,14 @@ async def delete_user_key(
 async def validate_api_key(
     validation_request: LLMKeyValidationRequest,
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    llm_service: LLMKeyService = Depends(get_llm_key_service)
 ):
     """
     Valida uma chave API com o provedor
     """
     try:
-        service = LLMKeyService(db)
-        result = await service.validate_api_key(validation_request)
+        
+        result = await llm_service.validate_api_key(validation_request)
         return result
     except Exception as e:
         raise HTTPException(
@@ -258,14 +257,14 @@ async def validate_api_key(
 @router.get("/usage/stats")
 async def get_usage_stats(
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    llm_service: LLMKeyService = Depends(get_llm_key_service)
 ):
     """
     Obtém estatísticas de uso das chaves do usuário atual
     """
     try:
-        service = LLMKeyService(db)
-        stats = await service.get_usage_stats(current_user.id)
+        
+        stats = await llm_service.get_usage_stats(current_user.id)
         return stats
     except Exception as e:
         raise HTTPException(
@@ -305,14 +304,14 @@ async def get_available_providers():
 async def get_agent_key_config(
     agent_id: str,
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    llm_service: LLMKeyService = Depends(get_llm_key_service)
 ):
     """
     Obtém a configuração de chave de um agente específico
     """
     try:
-        service = LLMKeyService(db)
-        key_config = await service.get_key_for_agent(agent_id, current_user.id)
+        
+        key_config = await llm_service.get_key_for_agent(agent_id, current_user.id)
         
         if not key_config:
             raise HTTPException(
@@ -339,14 +338,14 @@ async def get_agent_key_config(
 async def validate_agent_key(
     agent_id: str,
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    llm_service: LLMKeyService = Depends(get_llm_key_service)
 ):
     """
     Valida se a chave configurada para um agente está funcionando
     """
     try:
-        service = LLMKeyService(db)
-        key_config = await service.get_key_for_agent(agent_id, current_user.id)
+        
+        key_config = await llm_service.get_key_for_agent(agent_id, current_user.id)
         
         if not key_config:
             raise HTTPException(
@@ -360,7 +359,7 @@ async def validate_agent_key(
             api_key=key_config["api_key"]
         )
         
-        result = await service.validate_api_key(validation_request)
+        result = await llm_service.validate_api_key(validation_request)
         return result
         
     except HTTPException:

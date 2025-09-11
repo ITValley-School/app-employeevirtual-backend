@@ -1,21 +1,10 @@
 """
-Modelos de dados para usuários do sistema EmployeeVirtual
+Modelos de domínio para usuários do sistema EmployeeVirtual
 """
-import os
 from pydantic import BaseModel, Field, EmailStr
-from typing import Optional, List
+from typing import Optional
 from datetime import datetime
 from enum import Enum
-from sqlalchemy import Column, String, DateTime, Boolean, Text, Enum as SQLEnum, text
-from sqlalchemy.sql import func
-
-from models.uuid_models import UUIDColumn, generate_uuid, uuid_field, required_uuid_field
-from data.base import Base
-
-
-# Configuração de schema baseada no tipo de banco
-USE_SCHEMA = not os.getenv("DATABASE_URL", "").startswith("sqlite")
-SCHEMA_CONFIG = {'schema': 'empl'} if USE_SCHEMA else {}
 
 class UserPlan(str, Enum):
     """Planos de assinatura disponíveis"""
@@ -81,55 +70,4 @@ class UserProfile(BaseModel):
     
     class Config:
         from_attributes = True
-
-# Modelos SQLAlchemy (para banco de dados)
-class User(Base):
-    """Tabela de usuários"""
-    __tablename__ = "users"
-    __table_args__ = SCHEMA_CONFIG
-    
-    id = Column(UUIDColumn, primary_key=True, server_default=text("NEWID()"), index=True)
-    name = Column(String(100), nullable=False)
-    email = Column(String(255), unique=True, index=True, nullable=False)
-    password_hash = Column(String(255), nullable=False)
-    plan = Column(SQLEnum(UserPlan), default=UserPlan.FREE, nullable=False)
-    status = Column(SQLEnum(UserStatus), default=UserStatus.ACTIVE, nullable=False)
-    avatar_url = Column(String(500), nullable=True)
-    preferences = Column(Text, nullable=True)  # JSON string
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
-    last_login = Column(DateTime(timezone=True), nullable=True)
-    
-    def __repr__(self):
-        return f"<User(id={self.id}, email='{self.email}', plan='{self.plan}')>"
-
-class UserSession(Base):
-    """Tabela de sessões de usuário"""
-    __tablename__ = "user_sessions"
-    __table_args__ = {'schema': 'empl'}
-    
-    id = Column(UUIDColumn, primary_key=True, server_default=text("NEWID()"), index=True)
-    user_id = Column(UUIDColumn, nullable=False, index=True)
-    token = Column(String(500), unique=True, index=True, nullable=False)
-    expires_at = Column(DateTime(timezone=True), nullable=False)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    is_active = Column(Boolean, default=True)
-    
-    def __repr__(self):
-        return f"<UserSession(id={self.id}, user_id={self.user_id})>"
-
-class UserActivity(Base):
-    """Tabela de atividades do usuário"""
-    __tablename__ = "user_activities"
-    __table_args__ = {'schema': 'empl'}
-    
-    id = Column(UUIDColumn, primary_key=True, server_default=text("NEWID()"), index=True)
-    user_id = Column(UUIDColumn, nullable=False, index=True)
-    activity_type = Column(String(50), nullable=False)  # login, agent_created, flow_executed, etc.
-    description = Column(Text, nullable=True)
-    activity_metadata = Column(Text, nullable=True)  # JSON string
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    
-    def __repr__(self):
-        return f"<UserActivity(id={self.id}, user_id={self.user_id}, type='{self.activity_type}')>"
 

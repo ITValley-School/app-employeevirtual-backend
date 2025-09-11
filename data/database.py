@@ -14,7 +14,13 @@ AZURE_SQL_CONNECTION_STRING = os.getenv(
     "AZURE_SQL_CONNECTION_STRING"
 )
 
-if not AZURE_SQL_CONNECTION_STRING:
+# Usar SQLite temporariamente para desenvolvimento
+USE_SQLITE = True
+
+if USE_SQLITE:
+    # SQLite para desenvolvimento local
+    AZURE_SQL_CONNECTION_STRING = "sqlite:///./employeevirtual.db"
+elif not AZURE_SQL_CONNECTION_STRING:
     raise ValueError(
         "AZURE_SQL_CONNECTION_STRING environment variable is not set. "
         "Please configure this variable in your Azure App Service settings."

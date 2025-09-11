@@ -2,14 +2,13 @@
 API de agentes para o sistema EmployeeVirtual
 """
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session
 from typing import List, Dict, Any, Optional
 
 from models.agent_models import AgentCreate, AgentUpdate, AgentResponse, AgentExecutionRequest
 from models.user_models import UserResponse
 from services.agent_service import AgentService
 from auth.dependencies import get_current_user
-from data.database import get_db
+from dependencies import get_agent_service
 
 router = APIRouter()
 
@@ -17,7 +16,7 @@ router = APIRouter()
 async def create_agent(
     agent_data: AgentCreate,
     current_user: UserResponse = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    agent_service: AgentService = Depends(get_agent_service)
 ):
     """
     Cria um novo agente personalizado
@@ -25,13 +24,11 @@ async def create_agent(
     Args:
         agent_data: Dados do agente
         current_user: Usuário atual
-        db: Sessão do banco de dados
+        agent_service: Serviço de agentes
         
     Returns:
         Dados do agente criado
     """
-    agent_service = AgentService(db)
-    
     try:
         agent = agent_service.create_agent(current_user.id, agent_data)
         return agent
@@ -45,7 +42,7 @@ async def create_agent(
 async def get_user_agents(
     include_system: bool = True,
     current_user: UserResponse = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    agent_service: AgentService = Depends(get_agent_service)
 ):
     """
     Busca agentes do usuário
@@ -53,30 +50,26 @@ async def get_user_agents(
     Args:
         include_system: Incluir agentes do sistema
         current_user: Usuário atual
-        db: Sessão do banco de dados
+        agent_service: Serviço de agentes
         
     Returns:
         Lista de agentes
     """
-    agent_service = AgentService(db)
-    
     agents = agent_service.get_user_agents(current_user.id, include_system)
     
     return agents
 
 @router.get("/system")
-async def get_system_agents(db: Session = Depends(get_db)):
+async def get_system_agents(agent_service: AgentService = Depends(get_agent_service)):
     """
     Busca agentes do sistema (públicos)
     
     Args:
-        db: Sessão do banco de dados
+        agent_service: Serviço de agentes
         
     Returns:
         Lista de agentes do sistema
     """
-    agent_service = AgentService(db)
-    
     system_agents = agent_service.get_system_agents()
     
     return {
@@ -88,7 +81,7 @@ async def get_system_agents(db: Session = Depends(get_db)):
 async def get_agent(
     agent_id: str,
     current_user: UserResponse = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    agent_service: AgentService = Depends(get_agent_service)
 ):
     """
     Busca agente por ID
@@ -96,7 +89,7 @@ async def get_agent(
     Args:
         agent_id: ID do agente
         current_user: Usuário atual
-        db: Sessão do banco de dados
+        agent_service: Serviço de agentes
         
     Returns:
         Dados do agente
@@ -104,8 +97,6 @@ async def get_agent(
     Raises:
         HTTPException: Se agente não encontrado
     """
-    agent_service = AgentService(db)
-    
     agent = agent_service.get_agent_by_id(agent_id, current_user.id)
     
     if not agent:
@@ -121,7 +112,7 @@ async def update_agent(
     agent_id: str,
     agent_data: AgentUpdate,
     current_user: UserResponse = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    agent_service: AgentService = Depends(get_agent_service)
 ):
     """
     Atualiza agente
@@ -130,7 +121,7 @@ async def update_agent(
         agent_id: ID do agente
         agent_data: Dados a serem atualizados
         current_user: Usuário atual
-        db: Sessão do banco de dados
+        agent_service: Serviço de agentes
         
     Returns:
         Dados do agente atualizado
@@ -138,8 +129,6 @@ async def update_agent(
     Raises:
         HTTPException: Se agente não encontrado
     """
-    agent_service = AgentService(db)
-    
     agent = agent_service.update_agent(agent_id, current_user.id, agent_data)
     
     if not agent:
@@ -154,7 +143,7 @@ async def update_agent(
 async def delete_agent(
     agent_id: str,
     current_user: UserResponse = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    agent_service: AgentService = Depends(get_agent_service)
 ):
     """
     Deleta agente
@@ -162,7 +151,7 @@ async def delete_agent(
     Args:
         agent_id: ID do agente
         current_user: Usuário atual
-        db: Sessão do banco de dados
+        agent_service: Serviço de agentes
         
     Returns:
         Mensagem de sucesso
@@ -170,8 +159,6 @@ async def delete_agent(
     Raises:
         HTTPException: Se agente não encontrado
     """
-    agent_service = AgentService(db)
-    
     success = agent_service.delete_agent(agent_id, current_user.id)
     
     if not success:
@@ -187,7 +174,7 @@ async def execute_agent(
     agent_id: str,
     execution_data: AgentExecutionRequest,
     current_user: UserResponse = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    agent_service: AgentService = Depends(get_agent_service)
 ):
     """
     Executa um agente
@@ -196,7 +183,7 @@ async def execute_agent(
         agent_id: ID do agente
         execution_data: Dados da execução
         current_user: Usuário atual
-        db: Sessão do banco de dados
+        agent_service: Serviço de agentes
         
     Returns:
         Resultado da execução
@@ -204,8 +191,6 @@ async def execute_agent(
     Raises:
         HTTPException: Se agente não encontrado ou erro na execução
     """
-    agent_service = AgentService(db)
-    
     try:
         result = await agent_service.execute_agent(
             agent_id=agent_id,
@@ -233,19 +218,18 @@ async def execute_agent(
 async def validate_agent_config(
     agent_data: AgentCreate,
     current_user: UserResponse = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    agent_service: AgentService = Depends(get_agent_service)
 ):
     """
     Valida configuração do agente antes da criação
     
     Args:
         agent_data: Dados do agente para validar
-        db: Sessão do banco de dados
+        agent_service: Serviço de agentes
         
     Returns:
         Resultado da validação
     """
-    agent_service = AgentService(db)
     return agent_service.validate_agent_config(agent_data)
 
 @router.get("/{agent_id}/executions")
@@ -253,7 +237,7 @@ async def get_agent_executions(
     agent_id: str,
     limit: int = 50,
     current_user: UserResponse = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    agent_service: AgentService = Depends(get_agent_service)
 ):
     """
     Busca execuções do agente
@@ -262,13 +246,11 @@ async def get_agent_executions(
         agent_id: ID do agente
         limit: Limite de execuções
         current_user: Usuário atual
-        db: Sessão do banco de dados
+        agent_service: Serviço de agentes
         
     Returns:
         Lista de execuções
     """
-    agent_service = AgentService(db)
-    
     executions = agent_service.get_agent_executions(agent_id, current_user.id, limit)
     
     return {
@@ -281,7 +263,7 @@ async def add_knowledge_to_agent(
     agent_id: str,
     file_data: Dict[str, Any],
     current_user: UserResponse = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    agent_service: AgentService = Depends(get_agent_service)
 ):
     """
     Adiciona conhecimento ao agente
@@ -290,7 +272,7 @@ async def add_knowledge_to_agent(
         agent_id: ID do agente
         file_data: Dados do arquivo
         current_user: Usuário atual
-        db: Sessão do banco de dados
+        agent_service: Serviço de agentes
         
     Returns:
         Dados do conhecimento adicionado
@@ -298,8 +280,6 @@ async def add_knowledge_to_agent(
     Raises:
         HTTPException: Se agente não encontrado
     """
-    agent_service = AgentService(db)
-    
     try:
         knowledge = agent_service.add_knowledge_to_agent(
             agent_id=agent_id,
@@ -324,7 +304,7 @@ async def add_knowledge_to_agent(
 async def get_agent_knowledge(
     agent_id: str,
     current_user: UserResponse = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    agent_service: AgentService = Depends(get_agent_service)
 ):
     """
     Busca base de conhecimento do agente
@@ -332,13 +312,12 @@ async def get_agent_knowledge(
     Args:
         agent_id: ID do agente
         current_user: Usuário atual
-        db: Sessão do banco de dados
+        agent_service: Serviço de agentes
         
     Returns:
         Lista de arquivos de conhecimento
     """
     # Verificar se agente existe e pertence ao usuário
-    agent_service = AgentService(db)
     agent = agent_service.get_agent_by_id(agent_id, current_user.id)
     
     if not agent:
@@ -347,25 +326,11 @@ async def get_agent_knowledge(
             detail="Agente não encontrado"
         )
     
-    # Buscar conhecimento (implementar query direta)
-    from models.agent_models import AgentKnowledge
-    knowledge_files = db.query(AgentKnowledge).filter(
-        AgentKnowledge.agent_id == agent_id
-    ).all()
+    # Buscar conhecimento via serviço (não mais consulta SQL direta!)
+    knowledge_files = agent_service.get_agent_knowledge(agent_id, current_user.id)
     
     return {
-        "knowledge_files": [
-            {
-                "id": k.id,
-                "file_name": k.file_name,
-                "file_type": k.file_type,
-                "file_size": k.file_size,
-                "processed": k.processed,
-                "created_at": k.created_at,
-                "processed_at": k.processed_at
-            }
-            for k in knowledge_files
-        ],
+        "knowledge_files": knowledge_files,
         "total": len(knowledge_files)
     }
 

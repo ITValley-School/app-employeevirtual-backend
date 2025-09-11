@@ -2,14 +2,13 @@
 API de arquivos para o sistema EmployeeVirtual
 """
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
-from sqlalchemy.orm import Session
 from typing import List, Dict, Any, Optional
 
 from models.file_models import FileResponse, FileUpdate
 from models.user_models import UserResponse
 from services.file_service import FileService
 from auth.dependencies import get_current_user
-from data.database import get_db
+from dependencies.service_providers import get_file_service
 
 router = APIRouter()
 
@@ -19,7 +18,7 @@ async def upload_file(
     description: Optional[str] = None,
     tags: Optional[List[str]] = None,
     current_user: UserResponse = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    file_service: FileService = Depends(get_file_service)
 ):
     """
     Faz upload de um arquivo
@@ -37,7 +36,7 @@ async def upload_file(
     Raises:
         HTTPException: Se arquivo inválido ou erro no upload
     """
-    file_service = FileService(db)
+    
     
     try:
         uploaded_file = await file_service.upload_file(
@@ -66,7 +65,7 @@ async def get_user_files(
     tags: Optional[List[str]] = None,
     limit: int = 50,
     current_user: UserResponse = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    file_service: FileService = Depends(get_file_service)
 ):
     """
     Busca arquivos do usuário
@@ -81,7 +80,7 @@ async def get_user_files(
     Returns:
         Lista de arquivos
     """
-    file_service = FileService(db)
+    
     
     files = file_service.get_user_files(
         user_id=current_user.id,
@@ -96,7 +95,7 @@ async def get_user_files(
 async def get_file(
     file_id: int,
     current_user: UserResponse = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    file_service: FileService = Depends(get_file_service)
 ):
     """
     Busca arquivo por ID
@@ -112,7 +111,7 @@ async def get_file(
     Raises:
         HTTPException: Se arquivo não encontrado
     """
-    file_service = FileService(db)
+    
     
     file_data = file_service.get_file(file_id, current_user.id)
     
@@ -129,7 +128,7 @@ async def update_file(
     file_id: int,
     metadata: FileUpdate,
     current_user: UserResponse = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    file_service: FileService = Depends(get_file_service)
 ):
     """
     Atualiza metadados do arquivo
@@ -146,7 +145,7 @@ async def update_file(
     Raises:
         HTTPException: Se arquivo não encontrado
     """
-    file_service = FileService(db)
+    
     
     try:
         updated_file = file_service.update_file(
@@ -172,7 +171,7 @@ async def update_file(
 async def delete_file(
     file_id: int,
     current_user: UserResponse = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    file_service: FileService = Depends(get_file_service)
 ):
     """
     Deleta um arquivo
@@ -188,7 +187,7 @@ async def delete_file(
     Raises:
         HTTPException: Se arquivo não encontrado
     """
-    file_service = FileService(db)
+    
     
     success = file_service.delete_file(file_id, current_user.id)
     
@@ -204,7 +203,7 @@ async def delete_file(
 async def download_file(
     file_id: int,
     current_user: UserResponse = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    file_service: FileService = Depends(get_file_service)
 ):
     """
     Faz download de um arquivo
@@ -220,7 +219,7 @@ async def download_file(
     Raises:
         HTTPException: Se arquivo não encontrado
     """
-    file_service = FileService(db)
+    
     
     try:
         file_data = file_service.download_file(file_id, current_user.id)
@@ -244,7 +243,7 @@ async def share_file(
     share_with: List[str],
     permissions: str = "read",
     current_user: UserResponse = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    file_service: FileService = Depends(get_file_service)
 ):
     """
     Compartilha um arquivo com outros usuários
@@ -262,7 +261,7 @@ async def share_file(
     Raises:
         HTTPException: Se arquivo não encontrado
     """
-    file_service = FileService(db)
+    
     
     try:
         share_result = file_service.share_file(
@@ -289,7 +288,7 @@ async def share_file(
 async def get_shared_users(
     file_id: int,
     current_user: UserResponse = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    file_service: FileService = Depends(get_file_service)
 ):
     """
     Retorna lista de usuários com quem o arquivo foi compartilhado
@@ -305,7 +304,7 @@ async def get_shared_users(
     Raises:
         HTTPException: Se arquivo não encontrado
     """
-    file_service = FileService(db)
+    
     
     shared_users = file_service.get_shared_users(file_id, current_user.id)
     
@@ -323,7 +322,7 @@ async def process_file(
     process_type: str,
     options: Optional[Dict[str, Any]] = None,
     current_user: UserResponse = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    file_service: FileService = Depends(get_file_service)
 ):
     """
     Processa um arquivo (OCR, análise, conversão, etc.)
@@ -341,7 +340,7 @@ async def process_file(
     Raises:
         HTTPException: Se arquivo não encontrado
     """
-    file_service = FileService(db)
+    
     
     try:
         process_result = await file_service.process_file(
@@ -369,7 +368,7 @@ async def get_file_content(
     file_id: int,
     format: str = "text",
     current_user: UserResponse = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    file_service: FileService = Depends(get_file_service)
 ):
     """
     Retorna conteúdo processado do arquivo
@@ -386,7 +385,7 @@ async def get_file_content(
     Raises:
         HTTPException: Se arquivo não encontrado
     """
-    file_service = FileService(db)
+    
     
     try:
         content = file_service.get_file_content(
@@ -413,7 +412,7 @@ async def analyze_file(
     file_id: int,
     analysis_type: str,
     current_user: UserResponse = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    file_service: FileService = Depends(get_file_service)
 ):
     """
     Analisa um arquivo usando IA
@@ -430,7 +429,7 @@ async def analyze_file(
     Raises:
         HTTPException: Se arquivo não encontrado
     """
-    file_service = FileService(db)
+    
     
     try:
         analysis_result = await file_service.analyze_file(
@@ -459,7 +458,7 @@ async def search_files(
     tags: Optional[List[str]] = None,
     limit: int = 20,
     current_user: UserResponse = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    file_service: FileService = Depends(get_file_service)
 ):
     """
     Busca arquivos por texto, tipo ou tags
@@ -475,7 +474,7 @@ async def search_files(
     Returns:
         Lista de arquivos encontrados
     """
-    file_service = FileService(db)
+    
     
     search_results = file_service.search_files(
         user_id=current_user.id,

@@ -1,38 +1,10 @@
 """
-Importa todos os modelos para registro na base SQLAlchemy
+Models package - Import apenas quando necessário
+Para importar modelos específicos, use:
+from models.user_models import User, UserSession
+from models.agent_models import Agent
+from models.system_agent_models import SystemAgent
+etc.
 """
-from .user_models import *
-from .agent_models import *
-from .chat_models import *
-from .dashboard_models import *
-from .file_models import *
-from .flow_models import *
-from .llm_models import *
-
-# Lista todos os modelos importados
-__all__ = [
-    # User models
-    "User", "UserSession", "UserActivity", "UserMetrics",
-    
-    # Agent models  
-    "Agent", "AgentExecutionDB", "AgentKnowledge", "AgentMetricsDB", "LegacySystemAgent",
-    
-    # Chat models
-    "Conversation", "Message", "ConversationContext", "MessageReaction",
-    
-    # Dashboard models
-    "SystemMetrics", "FlowMetricsDB",
-    
-    # File models
-    "File", "FileProcessing", "DataLakeFile",
-    
-    # Flow models
-    "Flow", "FlowStep", "FlowExecution", "FlowExecutionStep", "FlowTemplate",
-    
-    # LLM models
-    "SystemLLMKey", "UserLLMKey",
-    
-    # Orion models
-    "OrionService"
-]
+# __init__.py limpo - sem importações automáticas
 
