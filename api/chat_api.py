@@ -1,3 +1,4 @@
+
 """
 API de chat para o sistema EmployeeVirtual
 """
@@ -11,6 +12,43 @@ from auth.dependencies import get_current_user
 from dependencies.service_providers import get_chat_service, get_agent_service
 
 router = APIRouter()
+
+@router.delete("/mongo/conversations/{conversation_id}", status_code=200)
+async def delete_mongo_conversation_by_id(
+    conversation_id: str,
+    current_user: UserResponse = Depends(get_current_user),
+    chat_service: ChatService = Depends(get_chat_service)
+):
+    """
+    Remove uma conversa do MongoDB
+    Args:
+        conversation_id: ID da conversa
+        current_user: Usuário atual
+        chat_service: Serviço de chat
+    Returns:
+        Mensagem de sucesso
+    Raises:
+        HTTPException: Se conversa não encontrada
+    """
+    try:
+        success = await chat_service.delete_mongo_conversation(conversation_id, current_user.id)
+        if success:
+            return {"message": "Conversa removida do MongoDB com sucesso", "conversation_id": conversation_id}
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Conversa não encontrada no MongoDB"
+            )
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(e)
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Erro ao remover conversa do MongoDB: {str(e)}"
+        )
 
 @router.post("/", response_model=ConversationResponse, status_code=status.HTTP_201_CREATED)
 async def create_chat_session(

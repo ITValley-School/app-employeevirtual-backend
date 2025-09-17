@@ -26,6 +26,24 @@ from pydantic_ai import Agent as PydanticAgent
 
 
 class ChatService:
+    async def delete_mongo_conversation(self, conversation_id: str, user_id: str) -> bool:
+        """
+        Remove uma conversa do MongoDB
+        Args:
+            conversation_id: ID da conversa
+            user_id: ID do usuário
+        Returns:
+            bool: True se removida com sucesso, False caso contrário
+        Raises:
+            ValueError: Se conversa não encontrada ou não pertence ao usuário
+        """
+        # Opcional: validar se a conversa pertence ao usuário usando SQL Server
+        conversation = self.chat_repository.get_conversation_by_id(conversation_id, user_id)
+        if not conversation:
+            raise ValueError("Conversa não encontrada ou não pertence ao usuário")
+        from data.mongodb import delete_conversation as mongo_delete_conversation
+        success = await mongo_delete_conversation(conversation_id)
+        return success
     """Serviço para gerenciamento de chat/conversação - Nova implementação"""
     
     def __init__(self, db: Session):
