@@ -26,6 +26,58 @@ from pydantic_ai import Agent as PydanticAgent
 
 
 class ChatService:
+    async def set_mongo_conversation_inactive(self, conversation_id: str, user_id: str) -> bool:
+        """
+        Atualiza o status da conversa para INACTIVE apenas no MongoDB
+        Args:
+            conversation_id: ID da conversa
+            user_id: ID do usuário
+        Returns:
+            bool: True se atualizado com sucesso, False caso contrário
+        Raises:
+            ValueError: Se conversa não encontrada ou não pertence ao usuário
+        """
+        # Opcional: validar se a conversa pertence ao usuário usando SQL Server
+        conversation = self.chat_repository.get_conversation_by_id(conversation_id, user_id)
+        if not conversation:
+            raise ValueError("Conversa não encontrada ou não pertence ao usuário")
+        from data.mongodb import update_conversation_metadata
+        updated_mongo = await update_conversation_metadata(conversation_id, {"status": "INACTIVE"})
+        # Registrar atividade
+        if updated_mongo:
+            self.user_repository.create_activity(
+                user_id=user_id,
+                activity_type="mongo_conversation_inactivated",
+                description=f"Conversa MongoDB '{conversation.title}' marcada como INACTIVE"
+            )
+        return bool(updated_mongo)
+    async def set_conversation_inactive(self, conversation_id: str, user_id: str) -> bool:
+        """
+        Atualiza o status da conversa para INACTIVE no SQL Server e MongoDB
+        Args:
+            conversation_id: ID da conversa
+            user_id: ID do usuário
+        Returns:
+            bool: True se atualizado com sucesso, False caso contrário
+        Raises:
+            ValueError: Se conversa não encontrada ou não pertence ao usuário
+        """
+        # SQL Server
+        conversation = self.chat_repository.get_conversation_by_id(conversation_id, user_id)
+        if not conversation:
+            raise ValueError("Conversa não encontrada ou não pertence ao usuário")
+        updated_sql = self.chat_repository.update_conversation(conversation_id, user_id, status="INACTIVE")
+        # MongoDB
+        from data.mongodb import update_conversation_metadata
+        updated_mongo = await update_conversation_metadata(conversation_id, {"status": "INACTIVE"})
+        # Registrar atividade
+        if updated_sql:
+            self.user_repository.create_activity(
+                user_id=user_id,
+                activity_type="conversation_inactivated",
+                description=f"Conversa '{conversation.title}' marcada como INACTIVE"
+            )
+        return bool(updated_sql and updated_mongo)
     async def delete_mongo_conversation(self, conversation_id: str, user_id: str) -> bool:
         """
         Remove uma conversa do MongoDB

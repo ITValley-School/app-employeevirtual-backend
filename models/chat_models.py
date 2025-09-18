@@ -18,6 +18,7 @@ class ConversationStatus(str, Enum):
     ACTIVE = "active"
     ARCHIVED = "archived"
     DELETED = "deleted"
+    INACTIVE = "inactive"
 
 # Modelos Pydantic (para API)
 class MessageBase(BaseModel):

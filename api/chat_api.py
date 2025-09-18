@@ -1,4 +1,3 @@
-
 """
 API de chat para o sistema EmployeeVirtual
 """
@@ -12,6 +11,28 @@ from auth.dependencies import get_current_user
 from dependencies.service_providers import get_chat_service, get_agent_service
 
 router = APIRouter()
+
+@router.get("/mongo/conversations", response_model=List[Dict[str, Any]])
+async def get_mongo_user_conversations(
+    current_user: UserResponse = Depends(get_current_user),
+    chat_service: ChatService = Depends(get_chat_service),
+    limit: int = Query(50, description="Número máximo de conversas")
+):
+    """
+    Lista apenas conversas ATIVAS do usuário no MongoDB.
+    Conversas inativas não são retornadas por esta rota.
+    """
+    try:
+        from data.mongodb import get_user_conversations
+        conversations = await get_user_conversations(current_user.id, limit=limit)
+        # Filtrar apenas conversas ativas
+        active_conversations = [conv for conv in conversations if conv.get("status") == "active"]
+        return active_conversations
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Erro ao buscar conversas do MongoDB: {str(e)}"
+        )
 
 @router.delete("/mongo/conversations/{conversation_id}", status_code=200)
 async def delete_mongo_conversation_by_id(
@@ -759,5 +780,79 @@ async def delete_conversation(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Erro ao remover conversa: {str(e)}"
+        )
+
+@router.patch("/conversations/{conversation_id}/inactive", status_code=200)
+async def set_conversation_inactive(
+    conversation_id: str,
+    current_user: UserResponse = Depends(get_current_user),
+    chat_service: ChatService = Depends(get_chat_service)
+):
+    """
+    Atualiza o status da conversa para INACTIVE no SQL Server e MongoDB
+    Args:
+        conversation_id: ID da conversa
+        current_user: Usuário atual
+        chat_service: Serviço de chat
+    Returns:
+        Mensagem de sucesso
+    Raises:
+        HTTPException: Se conversa não encontrada
+    """
+    try:
+        success = await chat_service.set_conversation_inactive(conversation_id, current_user.id)
+        if success:
+            return {"message": "Conversa marcada como INACTIVE", "conversation_id": conversation_id}
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Conversa não encontrada ou não foi possível atualizar"
+            )
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(e)
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Erro ao atualizar status da conversa: {str(e)}"
+        )
+
+@router.patch("/mongo/conversations/{conversation_id}/inactive", status_code=200)
+async def set_mongo_conversation_inactive(
+    conversation_id: str,
+    current_user: UserResponse = Depends(get_current_user),
+    chat_service: ChatService = Depends(get_chat_service)
+):
+    """
+    Atualiza o status da conversa para INACTIVE apenas no MongoDB
+    Args:
+        conversation_id: ID da conversa
+        current_user: Usuário atual
+        chat_service: Serviço de chat
+    Returns:
+        Mensagem de sucesso
+    Raises:
+        HTTPException: Se conversa não encontrada
+    """
+    try:
+        success = await chat_service.set_mongo_conversation_inactive(conversation_id, current_user.id)
+        if success:
+            return {"message": "Conversa MongoDB marcada como INACTIVE", "conversation_id": conversation_id}
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Conversa não encontrada ou não foi possível atualizar no MongoDB"
+            )
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(e)
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Erro ao atualizar status da conversa no MongoDB: {str(e)}"
         )
 
