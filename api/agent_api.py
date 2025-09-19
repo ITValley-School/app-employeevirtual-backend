@@ -1,3 +1,4 @@
+
 """
 API de agentes para o sistema EmployeeVirtual
 """
@@ -11,6 +12,24 @@ from auth.dependencies import get_current_user
 from dependencies.service_providers import get_agent_service
 
 router = APIRouter()
+
+@router.patch("/{agent_id}/status/inactive", response_model=AgentResponse)
+async def set_agent_inactive(
+    agent_id: str,
+    current_user: UserResponse = Depends(get_current_user),
+    agent_service: AgentService = Depends(get_agent_service)
+):
+    """
+    Altera o status do agente para 'inactive'.
+    """
+    try:
+        agent = await agent_service.set_agent_status_inactive(agent_id, current_user.id)
+        return agent
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
 
 @router.post("/", response_model=AgentResponse, status_code=status.HTTP_201_CREATED)
 async def create_agent(

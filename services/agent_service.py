@@ -17,6 +17,31 @@ from data.agent_repository import AgentRepository
 
 
 class AgentService:
+    async def set_agent_status_inactive(self, agent_id: str, user_id: str) -> AgentResponse:
+        """
+        Altera o status do agente para 'inactive' e inativa todas as conversas relacionadas (SQL Server e MongoDB).
+        """
+        agent = self.repository.get_agent_by_id(agent_id, user_id)
+        if not agent:
+            raise ValueError("Agente não encontrado")
+        # Atualiza status explicitamente no banco
+        from data.entities.agent_entities import AgentEntity
+        self.db.query(AgentEntity).filter(AgentEntity.id == agent_id).update({AgentEntity.status: "inactive"})
+        self.db.commit()
+        agent = self.repository.get_agent_by_id(agent_id, user_id)
+
+        # Inativar conversas no SQL Server
+        from data.chat_repository import ChatRepository
+        chat_repo = ChatRepository(self.db)
+        chat_repo.set_agent_conversations_inactive(agent_id)
+
+        # Inativar conversas no MongoDB
+        import asyncio
+        from data.mongodb import get_async_database, Collections
+        db = get_async_database()
+        await db[Collections.CHAT_CONVERSATIONS].update_many({"agent_id": agent_id}, {"$set": {"metadata.status": "inactive"}})
+
+        return AgentResponse.from_orm(agent)
     """
     Serviço para lógica de negócio de agentes
     Responsável apenas por orquestração e regras de negócio
@@ -56,7 +81,8 @@ class AgentService:
             "llm_provider": agent_data.llm_provider,
             "model": agent_data.model,
             "temperature": agent_data.temperature,
-            "max_tokens": agent_data.max_tokens
+            "max_tokens": agent_data.max_tokens,
+            "status": getattr(agent_data, "status", "active") or "active"
         }
         
         # Criar via repository

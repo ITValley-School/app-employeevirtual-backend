@@ -15,6 +15,14 @@ from models.chat_models import (
 
 
 class ChatRepository:
+    def set_agent_conversations_inactive(self, agent_id: str) -> int:
+        """
+        Altera status de todas conversas do agente para 'inactive'.
+        Retorna o número de conversas alteradas.
+        """
+        count = self.db.query(ConversationEntity).filter(ConversationEntity.agent_id == agent_id).update({ConversationEntity.status: ConversationStatus.INACTIVE})
+        self.db.commit()
+        return count
     """Repositório para operações de dados de chat/conversação"""
     
     def __init__(self, db: Session):
