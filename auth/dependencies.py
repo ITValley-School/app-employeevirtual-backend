@@ -13,7 +13,9 @@ from data.database import get_db
 from models.uuid_models import validate_uuid
 
 from auth.jwt_service import JWTService
+from jwt.exceptions import ExpiredSignatureError, InvalidTokenError
 from auth.config import ERROR_MESSAGES
+import logging
 
 security = HTTPBearer(auto_error=False)
 
@@ -40,6 +42,7 @@ async def get_current_user(
     db: Session = Depends(get_db)
 ) -> UserResponse:
     
+    
     token = extract_token_from_request(request, credentials)
     
     if not token:
@@ -49,12 +52,20 @@ async def get_current_user(
             headers={"WWW-Authenticate": "Bearer"},
         )
     
-    payload = JWTService.verify_token(token, "access")
-    
-    if payload is None:
+    try:
+        payload = JWTService.verify_token(token, "access")
+        
+    except ExpiredSignatureError:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=ERROR_MESSAGES["TOKEN_INVALID"],
+            detail="Seu token expirou. Por favor, faça login novamente.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+        
+    except InvalidTokenError as e:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token inválido. Acesso negado.",
             headers={"WWW-Authenticate": "Bearer"},
         )
     

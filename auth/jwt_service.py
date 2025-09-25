@@ -2,10 +2,12 @@
 Serviço JWT - EmployeeVirtual
 """
 import jwt
+from jwt.exceptions import ExpiredSignatureError, InvalidTokenError
 import secrets
 import hashlib
 from datetime import datetime, timedelta
 from typing import Optional, Dict, Any, Set
+import logging
 
 from auth.config import (
     JWT_SECRET_KEY,
@@ -109,10 +111,10 @@ class JWTService:
         if email and token_type == JWT_TYPE_ACCESS:
             payload["email"] = email
         
-        return jwt.encode(payload, JWT_SECRET_KEY, algorithm=JWT_ALGORITHM)
+        return jwt.encode(payload, JWT_SECRET_KEY, algorithm=JWT_ALGORITHM), payload["exp"]
     
     @staticmethod
-    def verify_token(token: str, expected_type: str = JWT_TYPE_ACCESS) -> Optional[Dict[str, Any]]:
+    def verify_token(token: str, expected_type: str = JWT_TYPE_ACCESS) -> Dict[str, Any]:
         """
         Verifica e decodifica um token JWT
         
@@ -121,12 +123,16 @@ class JWTService:
             expected_type: Tipo esperado do token
             
         Returns:
-            Payload do token ou None se inválido
+            Payload do token
+            
+        Raises:
+            ExpiredSignatureError: Token expirado
+            InvalidTokenError: Token inválido
         """
         try:
             token_hash = JWTService._get_token_hash(token)
             if token_hash in _token_blacklist:
-                return None
+                raise InvalidTokenError("Token foi invalidado")
             
             payload = jwt.decode(
                 token,
@@ -144,23 +150,26 @@ class JWTService:
             )
             
             if payload.get("type") != expected_type:
-                return None
+                raise InvalidTokenError(f"Tipo de token incorreto: {payload.get('type')}")
             if payload.get("iss") != JWT_ISSUER:
-                return None
+                raise InvalidTokenError("Emissor do token inválido")
             
             # Verificar se o user_id é um UUID válido
             user_id = payload.get("sub")
             if not user_id or not validate_uuid(user_id):
-                return None
+                raise InvalidTokenError("User ID inválido no token")
             
             return payload
             
-        except jwt.ExpiredSignatureError:
-            return None
-        except jwt.InvalidTokenError:
-            return None
-        except Exception:
-            return None
+        except ExpiredSignatureError:
+            logging.warning("Token expirado detectado")
+            raise  # Re-raise para capturar no dependencies
+        except InvalidTokenError:
+            logging.warning("Token inválido detectado")
+            raise  # Re-raise para capturar no dependencies
+        except Exception as e:
+            logging.error(f"Erro inesperado ao verificar token: {e}")
+            raise InvalidTokenError(f"Erro ao verificar token: {str(e)}")
     
     @staticmethod
     def get_user_id_from_token(token: str) -> Optional[str]:
@@ -173,11 +182,13 @@ class JWTService:
         Returns:
             UUID do usuário ou None se inválido
         """
-        payload = JWTService.verify_token(token)
-        if payload:
+        try:
+            payload = JWTService.verify_token(token)
             user_id = payload.get("sub")
             if validate_uuid(user_id):
                 return user_id
+        except (ExpiredSignatureError, InvalidTokenError):
+            pass
         return None
     
     @staticmethod
@@ -191,10 +202,11 @@ class JWTService:
         Returns:
             Email do usuário ou None se não disponível
         """
-        payload = JWTService.verify_token(token, JWT_TYPE_ACCESS)
-        if payload:
+        try:
+            payload = JWTService.verify_token(token, JWT_TYPE_ACCESS)
             return payload.get("email")
-        return None
+        except (ExpiredSignatureError, InvalidTokenError):
+            return None
     
     @staticmethod
     def blacklist_token(token: str) -> bool:
@@ -288,18 +300,19 @@ class JWTService:
         Returns:
             Novo access_token ou None se refresh_token inválido
         """
-        payload = JWTService.verify_token(refresh_token, JWT_TYPE_REFRESH)
-        if not payload:
+        try:
+            payload = JWTService.verify_token(refresh_token, JWT_TYPE_REFRESH)
+            
+            user_id = payload.get("sub")
+            if not user_id or not validate_uuid(user_id):
+                return None
+            
+            # Criar novo access_token (sem email para refresh)
+            return JWTService._create_token(
+                user_id=user_id,
+                email=None,
+                token_type=JWT_TYPE_ACCESS,
+                expires_minutes=ACCESS_TOKEN_EXPIRE_MINUTES
+            )
+        except (ExpiredSignatureError, InvalidTokenError):
             return None
-        
-        user_id = payload.get("sub")
-        if not user_id or not validate_uuid(user_id):
-            return None
-        
-        # Criar novo access_token (sem email para refresh)
-        return JWTService._create_token(
-            user_id=user_id,
-            email=None,
-            token_type=JWT_TYPE_ACCESS,
-            expires_minutes=ACCESS_TOKEN_EXPIRE_MINUTES
-        )

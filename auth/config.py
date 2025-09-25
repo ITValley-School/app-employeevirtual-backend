@@ -38,6 +38,8 @@ if ENVIRONMENT == "development":
 ERROR_MESSAGES = {
     "TOKEN_NOT_PROVIDED": "Token de acesso não fornecido",
     "TOKEN_INVALID": "Token inválido, expirado ou revogado", 
+    "TOKEN_EXPIRED": "Seu token expirou. Por favor, faça login novamente.",
+    "TOKEN_BLACKLISTED": "Sessão inválida. Faça login novamente.",
     "TOKEN_MALFORMED": "Token malformado",
     "USER_NOT_FOUND": "Usuário não encontrado ou inativo",
     "PREMIUM_REQUIRED": "Este recurso requer plano Premium ou Enterprise",
