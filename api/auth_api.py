@@ -172,7 +172,7 @@ async def refresh_token(
 
 @router.get("/me", response_model=UserResponse)
 async def get_current_user_info(
-    current_user = Depends(require_access)
+    user_token = Depends(require_access)
 ):
     """
     Retorna informações do usuário atual
@@ -183,7 +183,11 @@ async def get_current_user_info(
     Returns:
         Dados do usuário atual
     """
-    return current_user
+    return    {
+        "id": user_token["sub"],
+        "email": user_token["email"],
+        "token_info": "Dados extraídos do token JWT válido"
+    }
 
 @router.put("/me", response_model=UserResponse)
 async def update_current_user(
