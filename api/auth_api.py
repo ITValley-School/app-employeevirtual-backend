@@ -54,7 +54,7 @@ async def login_user(
         user = result["user"]
         
         # Verificar se usuário está ativo
-        if not user.is_active:
+        if user.status != "active":
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Usuário inativo"
