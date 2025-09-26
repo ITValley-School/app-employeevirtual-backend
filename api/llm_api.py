@@ -4,7 +4,7 @@ APIs para gerenciamento de chaves LLM
 from fastapi import APIRouter, Depends, HTTPException, status
 from typing import List
 
-from auth.dependencies import get_current_user, require_enterprise_user
+from itvalleysecurity.fastapi import require_access
 from services.llm_key_service import LLMKeyService
 from dependencies.service_providers import get_llm_key_service
 from models.llm_models import (
@@ -24,7 +24,7 @@ router = APIRouter()
 @router.post("/system/keys", response_model=SystemLLMKeyResponse)
 async def create_system_key(
     key_data: SystemLLMKeyCreate,
-    current_user: User = Depends(require_enterprise_user),
+    user_token = Depends(require_access),
     llm_service: LLMKeyService = Depends(get_llm_key_service)
 ):
     """
@@ -42,7 +42,7 @@ async def create_system_key(
 
 @router.get("/system/keys", response_model=List[SystemLLMKeyResponse])
 async def get_system_keys(
-    current_user: User = Depends(require_enterprise_user),
+    user_token = Depends(require_access),
     llm_service: LLMKeyService = Depends(get_llm_key_service)
 ):
     """
@@ -61,7 +61,7 @@ async def get_system_keys(
 @router.get("/system/keys/{key_id}", response_model=SystemLLMKeyResponse)
 async def get_system_key(
     key_id: str,
-    current_user: User = Depends(require_enterprise_user),
+    user_token = Depends(require_access),
     llm_service: LLMKeyService = Depends(get_llm_key_service)
 ):
     """
@@ -88,7 +88,7 @@ async def get_system_key(
 async def update_system_key(
     key_id: str,
     key_data: SystemLLMKeyUpdate,
-    current_user: User = Depends(require_enterprise_user),
+    user_token = Depends(require_access),
     llm_service: LLMKeyService = Depends(get_llm_key_service)
 ):
     """
@@ -118,7 +118,7 @@ async def update_system_key(
 @router.post("/user/keys", response_model=UserLLMKeyResponse)
 async def create_user_key(
     key_data: UserLLMKeyCreate,
-    current_user: User = Depends(get_current_user),
+    user_token = Depends(require_access),
     llm_service: LLMKeyService = Depends(get_llm_key_service)
 ):
     """
@@ -126,7 +126,7 @@ async def create_user_key(
     """
     try:
         
-        key = await llm_service.create_user_key(current_user.id, key_data)
+        key = await llm_service.create_user_key(user_token["sub"], key_data)
         return key
     except Exception as e:
         raise HTTPException(
@@ -136,7 +136,7 @@ async def create_user_key(
 
 @router.get("/user/keys", response_model=List[UserLLMKeyResponse])
 async def get_user_keys(
-    current_user: User = Depends(get_current_user),
+    user_token = Depends(require_access),
     llm_service: LLMKeyService = Depends(get_llm_key_service)
 ):
     """
@@ -144,7 +144,7 @@ async def get_user_keys(
     """
     try:
         
-        keys = await llm_service.get_user_keys(current_user.id)
+        keys = await llm_service.get_user_keys(user_token["sub"])
         return keys
     except Exception as e:
         raise HTTPException(
@@ -155,7 +155,7 @@ async def get_user_keys(
 @router.get("/user/keys/{key_id}", response_model=UserLLMKeyResponse)
 async def get_user_key(
     key_id: str,
-    current_user: User = Depends(get_current_user),
+    user_token = Depends(require_access),
     llm_service: LLMKeyService = Depends(get_llm_key_service)
 ):
     """
@@ -163,7 +163,7 @@ async def get_user_key(
     """
     try:
         
-        key = await llm_service.get_user_key_by_id(key_id, current_user.id)
+        key = await llm_service.get_user_key_by_id(key_id, user_token["sub"])
         if not key:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -182,7 +182,7 @@ async def get_user_key(
 async def update_user_key(
     key_id: str,
     key_data: UserLLMKeyUpdate,
-    current_user: User = Depends(get_current_user),
+    user_token = Depends(require_access),
     llm_service: LLMKeyService = Depends(get_llm_key_service)
 ):
     """
@@ -190,7 +190,7 @@ async def update_user_key(
     """
     try:
         
-        key = await llm_service.update_user_key(key_id, current_user.id, key_data)
+        key = await llm_service.update_user_key(key_id, user_token["sub"], key_data)
         if not key:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -208,7 +208,7 @@ async def update_user_key(
 @router.delete("/user/keys/{key_id}")
 async def delete_user_key(
     key_id: str,
-    current_user: User = Depends(get_current_user),
+    user_token = Depends(require_access),
     llm_service: LLMKeyService = Depends(get_llm_key_service)
 ):
     """
@@ -216,7 +216,7 @@ async def delete_user_key(
     """
     try:
         
-        success = await llm_service.delete_user_key(key_id, current_user.id)
+        success = await llm_service.delete_user_key(key_id, user_token["sub"])
         if not success:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -238,7 +238,7 @@ async def delete_user_key(
 @router.post("/validate", response_model=LLMKeyValidationResponse)
 async def validate_api_key(
     validation_request: LLMKeyValidationRequest,
-    current_user: User = Depends(get_current_user),
+    user_token = Depends(require_access),
     llm_service: LLMKeyService = Depends(get_llm_key_service)
 ):
     """
@@ -256,7 +256,7 @@ async def validate_api_key(
 
 @router.get("/usage/stats")
 async def get_usage_stats(
-    current_user: User = Depends(get_current_user),
+    user_token = Depends(require_access),
     llm_service: LLMKeyService = Depends(get_llm_key_service)
 ):
     """
@@ -264,7 +264,7 @@ async def get_usage_stats(
     """
     try:
         
-        stats = await llm_service.get_usage_stats(current_user.id)
+        stats = await llm_service.get_usage_stats(user_token["sub"])
         return stats
     except Exception as e:
         raise HTTPException(
@@ -303,7 +303,7 @@ async def get_available_providers():
 @router.get("/agents/{agent_id}/key")
 async def get_agent_key_config(
     agent_id: str,
-    current_user: User = Depends(get_current_user),
+    user_token = Depends(require_access),
     llm_service: LLMKeyService = Depends(get_llm_key_service)
 ):
     """
@@ -311,7 +311,7 @@ async def get_agent_key_config(
     """
     try:
         
-        key_config = await llm_service.get_key_for_agent(agent_id, current_user.id)
+        key_config = await llm_service.get_key_for_agent(agent_id, user_token["sub"])
         
         if not key_config:
             raise HTTPException(
@@ -337,7 +337,7 @@ async def get_agent_key_config(
 @router.post("/agents/{agent_id}/key/validate")
 async def validate_agent_key(
     agent_id: str,
-    current_user: User = Depends(get_current_user),
+    user_token = Depends(require_access),
     llm_service: LLMKeyService = Depends(get_llm_key_service)
 ):
     """
@@ -345,7 +345,7 @@ async def validate_agent_key(
     """
     try:
         
-        key_config = await llm_service.get_key_for_agent(agent_id, current_user.id)
+        key_config = await llm_service.get_key_for_agent(agent_id, user_token["sub"])
         
         if not key_config:
             raise HTTPException(

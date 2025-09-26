@@ -8,7 +8,7 @@ from typing import List, Dict, Any, Optional
 from models.agent_models import AgentCreate, AgentUpdate, AgentResponse, AgentExecutionRequest
 from models.user_models import UserResponse
 from services.agent_service import AgentService
-from auth.dependencies import get_current_user
+from itvalleysecurity.fastapi import require_access
 from dependencies.service_providers import get_agent_service
 
 router = APIRouter()
@@ -16,14 +16,14 @@ router = APIRouter()
 @router.patch("/{agent_id}/status/inactive", response_model=AgentResponse)
 async def set_agent_inactive(
     agent_id: str,
-    current_user: UserResponse = Depends(get_current_user),
+    user_token = Depends(require_access),
     agent_service: AgentService = Depends(get_agent_service)
 ):
     """
     Altera o status do agente para 'inactive'.
     """
     try:
-        agent = await agent_service.set_agent_status_inactive(agent_id, current_user.id)
+        agent = await agent_service.set_agent_status_inactive(agent_id, user_token["sub"])
         return agent
     except Exception as e:
         raise HTTPException(
@@ -34,7 +34,7 @@ async def set_agent_inactive(
 @router.post("/", response_model=AgentResponse, status_code=status.HTTP_201_CREATED)
 async def create_agent(
     agent_data: AgentCreate,
-    current_user: UserResponse = Depends(get_current_user),
+    user_token = Depends(require_access),
     agent_service: AgentService = Depends(get_agent_service)
 ):
     """
@@ -42,14 +42,14 @@ async def create_agent(
     
     Args:
         agent_data: Dados do agente
-        current_user: Usuário atual
+        user_token: Token do usuário autenticado
         agent_service: Serviço de agentes
         
     Returns:
         Dados do agente criado
     """
     try:
-        agent = agent_service.create_agent(current_user.id, agent_data)
+        agent = agent_service.create_agent(user_token["sub"], agent_data)
         return agent
     except Exception as e:
         raise HTTPException(
@@ -60,7 +60,7 @@ async def create_agent(
 @router.get("/", response_model=List[AgentResponse])
 async def get_user_agents(
     include_system: bool = True,
-    current_user: UserResponse = Depends(get_current_user),
+    user_token = Depends(require_access),
     agent_service: AgentService = Depends(get_agent_service)
 ):
     """
@@ -68,13 +68,13 @@ async def get_user_agents(
     
     Args:
         include_system: Incluir agentes do sistema
-        current_user: Usuário atual
+        user_token: Token do usuário autenticado
         agent_service: Serviço de agentes
         
     Returns:
         Lista de agentes
     """
-    agents = agent_service.get_user_agents(current_user.id, include_system)
+    agents = agent_service.get_user_agents(user_token["sub"], include_system)
     
     return agents
 
@@ -99,7 +99,7 @@ async def get_system_agents(agent_service: AgentService = Depends(get_agent_serv
 @router.get("/{agent_id}", response_model=AgentResponse)
 async def get_agent(
     agent_id: str,
-    current_user: UserResponse = Depends(get_current_user),
+    user_token = Depends(require_access),
     agent_service: AgentService = Depends(get_agent_service)
 ):
     """
@@ -107,7 +107,7 @@ async def get_agent(
     
     Args:
         agent_id: ID do agente
-        current_user: Usuário atual
+        user_token: Token do usuário autenticado
         agent_service: Serviço de agentes
         
     Returns:
@@ -116,7 +116,7 @@ async def get_agent(
     Raises:
         HTTPException: Se agente não encontrado
     """
-    agent = agent_service.get_agent_by_id(agent_id, current_user.id)
+    agent = agent_service.get_agent_by_id(agent_id, user_token["sub"])
     
     if not agent:
         raise HTTPException(
@@ -130,7 +130,7 @@ async def get_agent(
 async def update_agent(
     agent_id: str,
     agent_data: AgentUpdate,
-    current_user: UserResponse = Depends(get_current_user),
+    user_token = Depends(require_access),
     agent_service: AgentService = Depends(get_agent_service)
 ):
     """
@@ -139,7 +139,7 @@ async def update_agent(
     Args:
         agent_id: ID do agente
         agent_data: Dados a serem atualizados
-        current_user: Usuário atual
+        user_token: Token do usuário autenticado
         agent_service: Serviço de agentes
         
     Returns:
@@ -148,7 +148,7 @@ async def update_agent(
     Raises:
         HTTPException: Se agente não encontrado
     """
-    agent = agent_service.update_agent(agent_id, current_user.id, agent_data)
+    agent = agent_service.update_agent(agent_id, user_token["sub"], agent_data)
     
     if not agent:
         raise HTTPException(
@@ -161,7 +161,7 @@ async def update_agent(
 @router.delete("/{agent_id}")
 async def delete_agent(
     agent_id: str,
-    current_user: UserResponse = Depends(get_current_user),
+    user_token = Depends(require_access),
     agent_service: AgentService = Depends(get_agent_service)
 ):
     """
@@ -169,7 +169,7 @@ async def delete_agent(
     
     Args:
         agent_id: ID do agente
-        current_user: Usuário atual
+        user_token: Token do usuário autenticado
         agent_service: Serviço de agentes
         
     Returns:
@@ -178,7 +178,7 @@ async def delete_agent(
     Raises:
         HTTPException: Se agente não encontrado
     """
-    success = agent_service.delete_agent(agent_id, current_user.id)
+    success = agent_service.delete_agent(agent_id, user_token["sub"])
     
     if not success:
         raise HTTPException(
@@ -192,7 +192,7 @@ async def delete_agent(
 async def execute_agent(
     agent_id: str,
     execution_data: AgentExecutionRequest,
-    current_user: UserResponse = Depends(get_current_user),
+    user_token = Depends(require_access),
     agent_service: AgentService = Depends(get_agent_service)
 ):
     """
@@ -201,7 +201,7 @@ async def execute_agent(
     Args:
         agent_id: ID do agente
         execution_data: Dados da execução
-        current_user: Usuário atual
+        user_token: Token do usuário autenticado
         agent_service: Serviço de agentes
         
     Returns:
@@ -213,7 +213,7 @@ async def execute_agent(
     try:
         result = await agent_service.execute_agent(
             agent_id=agent_id,
-            user_id=current_user.id,
+            user_id=user_token["sub"],
             user_message=execution_data.user_message,
             context=execution_data.context
         )
@@ -236,7 +236,7 @@ async def execute_agent(
 @router.post("/validate")
 async def validate_agent_config(
     agent_data: AgentCreate,
-    current_user: UserResponse = Depends(get_current_user),
+    user_token = Depends(require_access),
     agent_service: AgentService = Depends(get_agent_service)
 ):
     """
@@ -255,7 +255,7 @@ async def validate_agent_config(
 async def get_agent_executions(
     agent_id: str,
     limit: int = 50,
-    current_user: UserResponse = Depends(get_current_user),
+    user_token = Depends(require_access),
     agent_service: AgentService = Depends(get_agent_service)
 ):
     """
@@ -264,13 +264,13 @@ async def get_agent_executions(
     Args:
         agent_id: ID do agente
         limit: Limite de execuções
-        current_user: Usuário atual
+        user_token: Token do usuário autenticado
         agent_service: Serviço de agentes
         
     Returns:
         Lista de execuções
     """
-    executions = agent_service.get_agent_executions(agent_id, current_user.id, limit)
+    executions = agent_service.get_agent_executions(agent_id, user_token["sub"], limit)
     
     return {
         "executions": executions,
@@ -281,7 +281,7 @@ async def get_agent_executions(
 async def add_knowledge_to_agent(
     agent_id: str,
     file_data: Dict[str, Any],
-    current_user: UserResponse = Depends(get_current_user),
+    user_token = Depends(require_access),
     agent_service: AgentService = Depends(get_agent_service)
 ):
     """
@@ -290,7 +290,7 @@ async def add_knowledge_to_agent(
     Args:
         agent_id: ID do agente
         file_data: Dados do arquivo
-        current_user: Usuário atual
+        user_token: Token do usuário autenticado
         agent_service: Serviço de agentes
         
     Returns:
@@ -302,7 +302,7 @@ async def add_knowledge_to_agent(
     try:
         knowledge = agent_service.add_knowledge_to_agent(
             agent_id=agent_id,
-            user_id=current_user.id,
+            user_id=user_token["sub"],
             file_data=file_data
         )
         
@@ -322,7 +322,7 @@ async def add_knowledge_to_agent(
 @router.get("/{agent_id}/knowledge")
 async def get_agent_knowledge(
     agent_id: str,
-    current_user: UserResponse = Depends(get_current_user),
+    user_token = Depends(require_access),
     agent_service: AgentService = Depends(get_agent_service)
 ):
     """
@@ -330,14 +330,14 @@ async def get_agent_knowledge(
     
     Args:
         agent_id: ID do agente
-        current_user: Usuário atual
+        user_token: Token do usuário autenticado
         agent_service: Serviço de agentes
         
     Returns:
         Lista de arquivos de conhecimento
     """
     # Verificar se agente existe e pertence ao usuário
-    agent = agent_service.get_agent_by_id(agent_id, current_user.id)
+    agent = agent_service.get_agent_by_id(agent_id, user_token["sub"])
     
     if not agent:
         raise HTTPException(
@@ -346,7 +346,7 @@ async def get_agent_knowledge(
         )
     
     # Buscar conhecimento via serviço (não mais consulta SQL direta!)
-    knowledge_files = agent_service.get_agent_knowledge(agent_id, current_user.id)
+    knowledge_files = agent_service.get_agent_knowledge(agent_id, user_token["sub"])
     
     return {
         "knowledge_files": knowledge_files,

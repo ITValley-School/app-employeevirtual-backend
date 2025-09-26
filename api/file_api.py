@@ -7,7 +7,7 @@ from typing import List, Dict, Any, Optional
 from models.file_models import FileResponse, FileUpdate
 from models.user_models import UserResponse
 from services.file_service import FileService
-from auth.dependencies import get_current_user
+from itvalleysecurity.fastapi import require_access
 from dependencies.service_providers import get_file_service
 
 router = APIRouter()
@@ -17,7 +17,7 @@ async def upload_file(
     file: UploadFile = File(...),
     description: Optional[str] = None,
     tags: Optional[List[str]] = None,
-    current_user: UserResponse = Depends(get_current_user),
+    user_token = Depends(require_access),
     file_service: FileService = Depends(get_file_service)
 ):
     """
@@ -27,7 +27,7 @@ async def upload_file(
         file: Arquivo a ser enviado
         description: Descrição do arquivo
         tags: Tags para categorização
-        current_user: Usuário atual
+        user_token: Token do usuário autenticado
         db: Sessão do banco de dados
         
     Returns:
@@ -40,7 +40,7 @@ async def upload_file(
     
     try:
         uploaded_file = await file_service.upload_file(
-            user_id=current_user.id,
+            user_id=user_token["sub"],
             file=file,
             description=description,
             tags=tags or []
@@ -64,7 +64,7 @@ async def get_user_files(
     file_type: Optional[str] = None,
     tags: Optional[List[str]] = None,
     limit: int = 50,
-    current_user: UserResponse = Depends(get_current_user),
+    user_token = Depends(require_access),
     file_service: FileService = Depends(get_file_service)
 ):
     """
@@ -74,7 +74,7 @@ async def get_user_files(
         file_type: Tipo de arquivo para filtrar
         tags: Tags para filtrar
         limit: Limite de arquivos
-        current_user: Usuário atual
+        user_token: Token do usuário autenticado
         db: Sessão do banco de dados
         
     Returns:
@@ -83,7 +83,7 @@ async def get_user_files(
     
     
     files = file_service.get_user_files(
-        user_id=current_user.id,
+        user_id=user_token["sub"],
         file_type=file_type,
         tags=tags,
         limit=limit
@@ -94,7 +94,7 @@ async def get_user_files(
 @router.get("/{file_id}", response_model=FileResponse)
 async def get_file(
     file_id: int,
-    current_user: UserResponse = Depends(get_current_user),
+    user_token = Depends(require_access),
     file_service: FileService = Depends(get_file_service)
 ):
     """
@@ -102,7 +102,7 @@ async def get_file(
     
     Args:
         file_id: ID do arquivo
-        current_user: Usuário atual
+        user_token: Token do usuário autenticado
         db: Sessão do banco de dados
         
     Returns:
@@ -113,7 +113,7 @@ async def get_file(
     """
     
     
-    file_data = file_service.get_file(file_id, current_user.id)
+    file_data = file_service.get_file(file_id, user_token["sub"])
     
     if not file_data:
         raise HTTPException(
@@ -127,7 +127,7 @@ async def get_file(
 async def update_file(
     file_id: int,
     metadata: FileUpdate,
-    current_user: UserResponse = Depends(get_current_user),
+    user_token = Depends(require_access),
     file_service: FileService = Depends(get_file_service)
 ):
     """
@@ -136,7 +136,7 @@ async def update_file(
     Args:
         file_id: ID do arquivo
         metadata: Novos metadados
-        current_user: Usuário atual
+        user_token: Token do usuário autenticado
         db: Sessão do banco de dados
         
     Returns:
@@ -150,7 +150,7 @@ async def update_file(
     try:
         updated_file = file_service.update_file(
             file_id=file_id,
-            user_id=current_user.id,
+            user_id=user_token["sub"],
             metadata=metadata
         )
         
@@ -170,7 +170,7 @@ async def update_file(
 @router.delete("/{file_id}")
 async def delete_file(
     file_id: int,
-    current_user: UserResponse = Depends(get_current_user),
+    user_token = Depends(require_access),
     file_service: FileService = Depends(get_file_service)
 ):
     """
@@ -178,7 +178,7 @@ async def delete_file(
     
     Args:
         file_id: ID do arquivo
-        current_user: Usuário atual
+        user_token: Token do usuário autenticado
         db: Sessão do banco de dados
         
     Returns:
@@ -189,7 +189,7 @@ async def delete_file(
     """
     
     
-    success = file_service.delete_file(file_id, current_user.id)
+    success = file_service.delete_file(file_id, user_token["sub"])
     
     if not success:
         raise HTTPException(
@@ -202,7 +202,7 @@ async def delete_file(
 @router.get("/{file_id}/download")
 async def download_file(
     file_id: int,
-    current_user: UserResponse = Depends(get_current_user),
+    user_token = Depends(require_access),
     file_service: FileService = Depends(get_file_service)
 ):
     """
@@ -210,7 +210,7 @@ async def download_file(
     
     Args:
         file_id: ID do arquivo
-        current_user: Usuário atual
+        user_token: Token do usuário autenticado
         db: Sessão do banco de dados
         
     Returns:
@@ -222,7 +222,7 @@ async def download_file(
     
     
     try:
-        file_data = file_service.download_file(file_id, current_user.id)
+        file_data = file_service.download_file(file_id, user_token["sub"])
         
         return file_data
         
@@ -242,7 +242,7 @@ async def share_file(
     file_id: int,
     share_with: List[str],
     permissions: str = "read",
-    current_user: UserResponse = Depends(get_current_user),
+    user_token = Depends(require_access),
     file_service: FileService = Depends(get_file_service)
 ):
     """
@@ -252,7 +252,7 @@ async def share_file(
         file_id: ID do arquivo
         share_with: Lista de emails dos usuários
         permissions: Permissões (read, write, admin)
-        current_user: Usuário atual
+        user_token: Token do usuário autenticado
         db: Sessão do banco de dados
         
     Returns:
@@ -266,7 +266,7 @@ async def share_file(
     try:
         share_result = file_service.share_file(
             file_id=file_id,
-            user_id=current_user.id,
+            user_id=user_token["sub"],
             share_with=share_with,
             permissions=permissions
         )
@@ -287,7 +287,7 @@ async def share_file(
 @router.get("/{file_id}/shared")
 async def get_shared_users(
     file_id: int,
-    current_user: UserResponse = Depends(get_current_user),
+    user_token = Depends(require_access),
     file_service: FileService = Depends(get_file_service)
 ):
     """
@@ -295,7 +295,7 @@ async def get_shared_users(
     
     Args:
         file_id: ID do arquivo
-        current_user: Usuário atual
+        user_token: Token do usuário autenticado
         db: Sessão do banco de dados
         
     Returns:
@@ -306,7 +306,7 @@ async def get_shared_users(
     """
     
     
-    shared_users = file_service.get_shared_users(file_id, current_user.id)
+    shared_users = file_service.get_shared_users(file_id, user_token["sub"])
     
     if shared_users is None:
         raise HTTPException(
@@ -321,7 +321,7 @@ async def process_file(
     file_id: int,
     process_type: str,
     options: Optional[Dict[str, Any]] = None,
-    current_user: UserResponse = Depends(get_current_user),
+    user_token = Depends(require_access),
     file_service: FileService = Depends(get_file_service)
 ):
     """
@@ -331,7 +331,7 @@ async def process_file(
         file_id: ID do arquivo
         process_type: Tipo de processamento
         options: Opções de processamento
-        current_user: Usuário atual
+        user_token: Token do usuário autenticado
         db: Sessão do banco de dados
         
     Returns:
@@ -345,7 +345,7 @@ async def process_file(
     try:
         process_result = await file_service.process_file(
             file_id=file_id,
-            user_id=current_user.id,
+            user_id=user_token["sub"],
             process_type=process_type,
             options=options or {}
         )
@@ -367,7 +367,7 @@ async def process_file(
 async def get_file_content(
     file_id: int,
     format: str = "text",
-    current_user: UserResponse = Depends(get_current_user),
+    user_token = Depends(require_access),
     file_service: FileService = Depends(get_file_service)
 ):
     """
@@ -376,7 +376,7 @@ async def get_file_content(
     Args:
         file_id: ID do arquivo
         format: Formato do conteúdo (text, json, html)
-        current_user: Usuário atual
+        user_token: Token do usuário autenticado
         db: Sessão do banco de dados
         
     Returns:
@@ -390,7 +390,7 @@ async def get_file_content(
     try:
         content = file_service.get_file_content(
             file_id=file_id,
-            user_id=current_user.id,
+            user_id=user_token["sub"],
             format=format
         )
         
@@ -411,7 +411,7 @@ async def get_file_content(
 async def analyze_file(
     file_id: int,
     analysis_type: str,
-    current_user: UserResponse = Depends(get_current_user),
+    user_token = Depends(require_access),
     file_service: FileService = Depends(get_file_service)
 ):
     """
@@ -420,7 +420,7 @@ async def analyze_file(
     Args:
         file_id: ID do arquivo
         analysis_type: Tipo de análise
-        current_user: Usuário atual
+        user_token: Token do usuário autenticado
         db: Sessão do banco de dados
         
     Returns:
@@ -434,7 +434,7 @@ async def analyze_file(
     try:
         analysis_result = await file_service.analyze_file(
             file_id=file_id,
-            user_id=current_user.id,
+            user_id=user_token["sub"],
             analysis_type=analysis_type
         )
         
@@ -457,7 +457,7 @@ async def search_files(
     file_type: Optional[str] = None,
     tags: Optional[List[str]] = None,
     limit: int = 20,
-    current_user: UserResponse = Depends(get_current_user),
+    user_token = Depends(require_access),
     file_service: FileService = Depends(get_file_service)
 ):
     """
@@ -468,7 +468,7 @@ async def search_files(
         file_type: Tipo de arquivo para filtrar
         tags: Tags para filtrar
         limit: Limite de resultados
-        current_user: Usuário atual
+        user_token: Token do usuário autenticado
         db: Sessão do banco de dados
         
     Returns:
@@ -477,7 +477,7 @@ async def search_files(
     
     
     search_results = file_service.search_files(
-        user_id=current_user.id,
+        user_id=user_token["sub"],
         query=query,
         file_type=file_type,
         tags=tags,

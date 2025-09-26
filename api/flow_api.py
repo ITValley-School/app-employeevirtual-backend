@@ -7,7 +7,7 @@ from typing import List, Dict, Any, Optional
 from models.flow_models import FlowCreate, FlowUpdate, FlowResponse, FlowExecutionRequest
 from models.user_models import UserResponse
 from services.flow_service import FlowService
-from auth.dependencies import get_current_user
+from itvalleysecurity.fastapi import require_access
 from dependencies.service_providers import get_flow_service
 
 router = APIRouter()
@@ -15,7 +15,7 @@ router = APIRouter()
 @router.post("/", response_model=FlowResponse, status_code=status.HTTP_201_CREATED)
 async def create_flow(
     flow_data: FlowCreate,
-    current_user: UserResponse = Depends(get_current_user),
+    user_token = Depends(require_access),
     flow_service: FlowService = Depends(get_flow_service)
 ):
     """
@@ -23,7 +23,7 @@ async def create_flow(
     
     Args:
         flow_data: Dados do flow
-        current_user: Usuário atual
+        user_token: Token do usuário autenticado
         db: Sessão do banco de dados
         
     Returns:
@@ -32,7 +32,7 @@ async def create_flow(
     
     
     try:
-        flow = flow_service.create_flow(current_user.id, flow_data)
+        flow = flow_service.create_flow(user_token["sub"], flow_data)
         return flow
     except Exception as e:
         raise HTTPException(
@@ -43,7 +43,7 @@ async def create_flow(
 @router.get("/", response_model=List[FlowResponse])
 async def get_user_flows(
     include_templates: bool = True,
-    current_user: UserResponse = Depends(get_current_user),
+    user_token = Depends(require_access),
     flow_service: FlowService = Depends(get_flow_service)
 ):
     """
@@ -51,7 +51,7 @@ async def get_user_flows(
     
     Args:
         include_templates: Incluir templates do sistema
-        current_user: Usuário atual
+        user_token: Token do usuário autenticado
         db: Sessão do banco de dados
         
     Returns:
@@ -59,7 +59,7 @@ async def get_user_flows(
     """
     
     
-    flows = flow_service.get_user_flows(current_user.id, include_templates)
+    flows = flow_service.get_user_flows(user_token["sub"], include_templates)
     
     return flows
 
@@ -86,7 +86,7 @@ async def get_flow_templates(flow_service: FlowService = Depends(get_flow_servic
 @router.get("/{flow_id}", response_model=FlowResponse)
 async def get_flow(
     flow_id: int,
-    current_user: UserResponse = Depends(get_current_user),
+    user_token = Depends(require_access),
     flow_service: FlowService = Depends(get_flow_service)
 ):
     """
@@ -94,7 +94,7 @@ async def get_flow(
     
     Args:
         flow_id: ID do flow
-        current_user: Usuário atual
+        user_token: Token do usuário autenticado
         db: Sessão do banco de dados
         
     Returns:
@@ -105,7 +105,7 @@ async def get_flow(
     """
     
     
-    flow = flow_service.get_flow_by_id(flow_id, current_user.id)
+    flow = flow_service.get_flow_by_id(flow_id, user_token["sub"])
     
     if not flow:
         raise HTTPException(
@@ -119,7 +119,7 @@ async def get_flow(
 async def update_flow(
     flow_id: int,
     flow_data: FlowUpdate,
-    current_user: UserResponse = Depends(get_current_user),
+    user_token = Depends(require_access),
     flow_service: FlowService = Depends(get_flow_service)
 ):
     """
@@ -128,7 +128,7 @@ async def update_flow(
     Args:
         flow_id: ID do flow
         flow_data: Dados a serem atualizados
-        current_user: Usuário atual
+        user_token: Token do usuário autenticado
         db: Sessão do banco de dados
         
     Returns:
@@ -139,7 +139,7 @@ async def update_flow(
     """
     
     
-    flow = flow_service.update_flow(flow_id, current_user.id, flow_data)
+    flow = flow_service.update_flow(flow_id, user_token["sub"], flow_data)
     
     if not flow:
         raise HTTPException(
@@ -152,7 +152,7 @@ async def update_flow(
 @router.delete("/{flow_id}")
 async def delete_flow(
     flow_id: int,
-    current_user: UserResponse = Depends(get_current_user),
+    user_token = Depends(require_access),
     flow_service: FlowService = Depends(get_flow_service)
 ):
     """
@@ -160,7 +160,7 @@ async def delete_flow(
     
     Args:
         flow_id: ID do flow
-        current_user: Usuário atual
+        user_token: Token do usuário autenticado
         db: Sessão do banco de dados
         
     Returns:
@@ -171,7 +171,7 @@ async def delete_flow(
     """
     
     
-    success = flow_service.delete_flow(flow_id, current_user.id)
+    success = flow_service.delete_flow(flow_id, user_token["sub"])
     
     if not success:
         raise HTTPException(
@@ -185,7 +185,7 @@ async def delete_flow(
 async def execute_flow(
     flow_id: int,
     execution_data: FlowExecutionRequest,
-    current_user: UserResponse = Depends(get_current_user),
+    user_token = Depends(require_access),
     flow_service: FlowService = Depends(get_flow_service)
 ):
     """
@@ -194,7 +194,7 @@ async def execute_flow(
     Args:
         flow_id: ID do flow
         execution_data: Dados da execução
-        current_user: Usuário atual
+        user_token: Token do usuário autenticado
         db: Sessão do banco de dados
         
     Returns:
@@ -208,7 +208,7 @@ async def execute_flow(
     try:
         result = await flow_service.execute_flow(
             flow_id=flow_id,
-            user_id=current_user.id,
+            user_id=user_token["sub"],
             input_data=execution_data.input_data,
             context=execution_data.context
         )
@@ -232,7 +232,7 @@ async def execute_flow(
 async def get_flow_executions(
     flow_id: int,
     limit: int = 50,
-    current_user: UserResponse = Depends(get_current_user),
+    user_token = Depends(require_access),
     flow_service: FlowService = Depends(get_flow_service)
 ):
     """
@@ -241,7 +241,7 @@ async def get_flow_executions(
     Args:
         flow_id: ID do flow
         limit: Limite de execuções
-        current_user: Usuário atual
+        user_token: Token do usuário autenticado
         db: Sessão do banco de dados
         
     Returns:
@@ -249,7 +249,7 @@ async def get_flow_executions(
     """
     
     
-    executions = flow_service.get_flow_executions(flow_id, current_user.id, limit)
+    executions = flow_service.get_flow_executions(flow_id, user_token["sub"], limit)
     
     return {
         "executions": executions,
@@ -260,7 +260,7 @@ async def get_flow_executions(
 async def duplicate_flow(
     flow_id: int,
     new_name: str,
-    current_user: UserResponse = Depends(get_current_user),
+    user_token = Depends(require_access),
     flow_service: FlowService = Depends(get_flow_service)
 ):
     """
@@ -269,7 +269,7 @@ async def duplicate_flow(
     Args:
         flow_id: ID do flow original
         new_name: Nome para o novo flow
-        current_user: Usuário atual
+        user_token: Token do usuário autenticado
         db: Sessão do banco de dados
         
     Returns:
@@ -283,7 +283,7 @@ async def duplicate_flow(
     try:
         duplicated_flow = flow_service.duplicate_flow(
             flow_id=flow_id,
-            user_id=current_user.id,
+            user_id=user_token["sub"],
             new_name=new_name
         )
         
@@ -304,7 +304,7 @@ async def duplicate_flow(
 async def export_flow(
     flow_id: int,
     format: str = "json",
-    current_user: UserResponse = Depends(get_current_user),
+    user_token = Depends(require_access),
     flow_service: FlowService = Depends(get_flow_service)
 ):
     """
@@ -313,7 +313,7 @@ async def export_flow(
     Args:
         flow_id: ID do flow
         format: Formato de exportação (json, yaml, xml)
-        current_user: Usuário atual
+        user_token: Token do usuário autenticado
         db: Sessão do banco de dados
         
     Returns:
@@ -327,7 +327,7 @@ async def export_flow(
     try:
         exported_data = flow_service.export_flow(
             flow_id=flow_id,
-            user_id=current_user.id,
+            user_id=user_token["sub"],
             format=format
         )
         
@@ -347,7 +347,7 @@ async def export_flow(
 @router.post("/import")
 async def import_flow(
     flow_data: Dict[str, Any],
-    current_user: UserResponse = Depends(get_current_user),
+    user_token = Depends(require_access),
     flow_service: FlowService = Depends(get_flow_service)
 ):
     """
@@ -355,7 +355,7 @@ async def import_flow(
     
     Args:
         flow_data: Dados do flow para importar
-        current_user: Usuário atual
+        user_token: Token do usuário autenticado
         db: Sessão do banco de dados
         
     Returns:
@@ -368,7 +368,7 @@ async def import_flow(
     
     try:
         imported_flow = flow_service.import_flow(
-            user_id=current_user.id,
+            user_id=user_token["sub"],
             flow_data=flow_data
         )
         
@@ -388,7 +388,7 @@ async def import_flow(
 @router.get("/{flow_id}/status")
 async def get_flow_status(
     flow_id: int,
-    current_user: UserResponse = Depends(get_current_user),
+    user_token = Depends(require_access),
     flow_service: FlowService = Depends(get_flow_service)
 ):
     """
@@ -396,7 +396,7 @@ async def get_flow_status(
     
     Args:
         flow_id: ID do flow
-        current_user: Usuário atual
+        user_token: Token do usuário autenticado
         db: Sessão do banco de dados
         
     Returns:
@@ -407,7 +407,7 @@ async def get_flow_status(
     """
     
     
-    status_info = flow_service.get_flow_status(flow_id, current_user.id)
+    status_info = flow_service.get_flow_status(flow_id, user_token["sub"])
     
     if not status_info:
         raise HTTPException(
@@ -420,7 +420,7 @@ async def get_flow_status(
 @router.post("/{flow_id}/pause")
 async def pause_flow(
     flow_id: int,
-    current_user: UserResponse = Depends(get_current_user),
+    user_token = Depends(require_access),
     flow_service: FlowService = Depends(get_flow_service)
 ):
     """
@@ -428,7 +428,7 @@ async def pause_flow(
     
     Args:
         flow_id: ID do flow
-        current_user: Usuário atual
+        user_token: Token do usuário autenticado
         db: Sessão do banco de dados
         
     Returns:
@@ -440,7 +440,7 @@ async def pause_flow(
     
     
     try:
-        updated_status = flow_service.pause_flow(flow_id, current_user.id)
+        updated_status = flow_service.pause_flow(flow_id, user_token["sub"])
         
         return updated_status
         
@@ -458,7 +458,7 @@ async def pause_flow(
 @router.post("/{flow_id}/resume")
 async def resume_flow(
     flow_id: int,
-    current_user: UserResponse = Depends(get_current_user),
+    user_token = Depends(require_access),
     flow_service: FlowService = Depends(get_flow_service)
 ):
     """
@@ -466,7 +466,7 @@ async def resume_flow(
     
     Args:
         flow_id: ID do flow
-        current_user: Usuário atual
+        user_token: Token do usuário autenticado
         db: Sessão do banco de dados
         
     Returns:
@@ -478,7 +478,7 @@ async def resume_flow(
     
     
     try:
-        updated_status = flow_service.resume_flow(flow_id, current_user.id)
+        updated_status = flow_service.resume_flow(flow_id, user_token["sub"])
         
         return updated_status
         

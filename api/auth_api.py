@@ -14,8 +14,8 @@ from auth.config import ACCESS_TOKEN_EXPIRE_MINUTES
 from auth.dependencies import get_current_user
 from dependencies.service_providers import get_user_service
 
-
 from itvalleysecurity.fastapi import login_response, require_access
+
 
 
 import logging
@@ -178,12 +178,12 @@ async def get_current_user_info(
     Retorna informações do usuário atual
     
     Args:
-        current_user: Usuário atual autenticado
+        user_token: Token do usuário autenticado
         
     Returns:
         Dados do usuário atual
     """
-    return    {
+    return {
         "id": user_token["sub"],
         "email": user_token["email"],
         "token_info": "Dados extraídos do token JWT válido"

@@ -7,14 +7,14 @@ from typing import List, Dict, Any, Optional
 from models.chat_models import ChatResponse, ConversationResponse, ConversationCreate, MessageResponse, ConversationWithMessages
 from models.user_models import UserResponse
 from services.chat_service import ChatService
-from auth.dependencies import get_current_user
+from itvalleysecurity.fastapi import require_access
 from dependencies.service_providers import get_chat_service, get_agent_service
 
 router = APIRouter()
 
 @router.get("/mongo/conversations", response_model=List[Dict[str, Any]])
 async def get_mongo_user_conversations(
-    current_user: UserResponse = Depends(get_current_user),
+    user_token = Depends(require_access),
     chat_service: ChatService = Depends(get_chat_service),
     limit: int = Query(50, description="Número máximo de conversas")
 ):
@@ -24,7 +24,7 @@ async def get_mongo_user_conversations(
     """
     try:
         from data.mongodb import get_user_conversations
-        conversations = await get_user_conversations(current_user.id, limit=limit)
+        conversations = await get_user_conversations(user_token["sub"], limit=limit)
         # Filtrar apenas conversas ativas
         active_conversations = [conv for conv in conversations if conv.get("status") == "active"]
         return active_conversations
@@ -37,14 +37,14 @@ async def get_mongo_user_conversations(
 @router.delete("/mongo/conversations/{conversation_id}", status_code=200)
 async def delete_mongo_conversation_by_id(
     conversation_id: str,
-    current_user: UserResponse = Depends(get_current_user),
+    user_token = Depends(require_access),
     chat_service: ChatService = Depends(get_chat_service)
 ):
     """
     Remove uma conversa do MongoDB
     Args:
         conversation_id: ID da conversa
-        current_user: Usuário atual
+        user_token: Token do usuário autenticado
         chat_service: Serviço de chat
     Returns:
         Mensagem de sucesso
@@ -52,7 +52,7 @@ async def delete_mongo_conversation_by_id(
         HTTPException: Se conversa não encontrada
     """
     try:
-        success = await chat_service.delete_mongo_conversation(conversation_id, current_user.id)
+        success = await chat_service.delete_mongo_conversation(conversation_id, user_token["sub"])
         if success:
             return {"message": "Conversa removida do MongoDB com sucesso", "conversation_id": conversation_id}
         else:
@@ -74,7 +74,7 @@ async def delete_mongo_conversation_by_id(
 @router.post("/", response_model=ConversationResponse, status_code=status.HTTP_201_CREATED)
 async def create_chat_session(
     chat_data: ConversationCreate,
-    current_user: UserResponse = Depends(get_current_user),
+    user_token = Depends(require_access),
     chat_service: ChatService = Depends(get_chat_service)
 ):
     """
@@ -82,14 +82,14 @@ async def create_chat_session(
     
     Args:
         chat_data: Dados da conversa
-        current_user: Usuário atual
+        user_token: Token do usuário autenticado
         chat_service: Serviço de chat
         
     Returns:
         Dados da conversa criada
     """
     try:
-        chat_session = await chat_service.create_conversation(current_user.id, chat_data)
+        chat_session = await chat_service.create_conversation(user_token["sub"], chat_data)
         return chat_session
     except Exception as e:
         raise HTTPException(
@@ -99,14 +99,14 @@ async def create_chat_session(
 
 @router.get("/", response_model=List[ConversationResponse])
 async def get_user_chat_sessions(
-    current_user: UserResponse = Depends(get_current_user),
+    user_token = Depends(require_access),
     chat_service: ChatService = Depends(get_chat_service)
 ):
     """
     Busca sessões de chat do usuário usando MongoDB
     
     Args:
-        current_user: Usuário atual
+        user_token: Token do usuário autenticado
         db: Sessão do banco de dados
         
     Returns:
@@ -114,13 +114,13 @@ async def get_user_chat_sessions(
     """
     
     
-    sessions = await chat_service.get_user_conversations(current_user.id)
+    sessions = await chat_service.get_user_conversations(user_token["sub"])
     
     return sessions
 
 @router.get("/conversations", response_model=List[Dict[str, Any]])
 async def get_conversations(
-    current_user: UserResponse = Depends(get_current_user),
+    user_token = Depends(require_access),
     chat_service: ChatService = Depends(get_chat_service),
     limit: int = Query(50, description="Número máximo de conversas")
 ):
@@ -128,7 +128,7 @@ async def get_conversations(
     Lista as conversas do usuário
     
     Args:
-        current_user: Usuário atual
+        user_token: Token do usuário autenticado
         db: Sessão do banco de dados
         limit: Limite de conversas
         
@@ -139,7 +139,7 @@ async def get_conversations(
     
     try:
         # Usar o repositório diretamente para pegar as conversações como objetos SQLAlchemy
-        conversations = chat_service.chat_repository.get_user_conversations(current_user.id, skip=0, limit=limit)
+        conversations = chat_service.chat_repository.get_user_conversations(user_token["sub"], skip=0, limit=limit)
         return [
             {
                 "id": str(conv.id),
@@ -161,7 +161,7 @@ async def get_conversations(
 @router.get("/conversations/{conversation_id}", response_model=ConversationWithMessages)
 async def get_conversation_history(
     conversation_id: str,
-    current_user: UserResponse = Depends(get_current_user),
+    user_token = Depends(require_access),
     chat_service: ChatService = Depends(get_chat_service)
 ):
     """
@@ -169,7 +169,7 @@ async def get_conversation_history(
     
     Args:
         conversation_id: ID da conversa
-        current_user: Usuário atual
+        user_token: Token do usuário autenticado
         chat_service: Serviço de chat
         
     Returns:
@@ -177,7 +177,7 @@ async def get_conversation_history(
     """
     
     try:
-        conversation = await chat_service.get_conversation_with_messages(conversation_id, current_user.id)
+        conversation = await chat_service.get_conversation_with_messages(conversation_id, user_token["sub"])
         if not conversation:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -193,7 +193,7 @@ async def get_conversation_history(
 @router.get("/conversations/{conversation_id}/messages", response_model=List[Dict[str, Any]])
 async def get_conversation_messages(
     conversation_id: str,
-    current_user: UserResponse = Depends(get_current_user),
+    user_token = Depends(require_access),
     chat_service: ChatService = Depends(get_chat_service),
     limit: int = Query(100, description="Número máximo de mensagens")
 ):
@@ -202,7 +202,7 @@ async def get_conversation_messages(
     
     Args:
         conversation_id: ID da conversa
-        current_user: Usuário atual
+        user_token: Token do usuário autenticado
         db: Sessão do banco de dados
         limit: Limite de mensagens
         
@@ -212,7 +212,7 @@ async def get_conversation_messages(
     
     
     try:
-        messages = chat_service.get_conversation_messages(conversation_id, current_user.id, limit=limit)
+        messages = chat_service.get_conversation_messages(conversation_id, user_token["sub"], limit=limit)
         return [
             {
                 "id": str(msg.id),
@@ -235,7 +235,7 @@ async def get_conversation_messages(
 @router.get("/{session_id}", response_model=ConversationResponse)
 async def get_chat_session(
     session_id: int,
-    current_user: UserResponse = Depends(get_current_user),
+    user_token = Depends(require_access),
     chat_service: ChatService = Depends(get_chat_service)
 ):
     """
@@ -243,7 +243,7 @@ async def get_chat_session(
     
     Args:
         session_id: ID da sessão
-        current_user: Usuário atual
+        user_token: Token do usuário autenticado
         db: Sessão do banco de dados
         
     Returns:
@@ -254,7 +254,7 @@ async def get_chat_session(
     """
     
     
-    session = chat_service.get_chat_session(session_id, current_user.id)
+    session = chat_service.get_chat_session(session_id, user_token["sub"])
     
     if not session:
         raise HTTPException(
@@ -268,7 +268,7 @@ async def get_chat_session(
 async def get_chat_messages(
     session_id: int,
     limit: int = 50,
-    current_user: UserResponse = Depends(get_current_user),
+    user_token = Depends(require_access),
     chat_service: ChatService = Depends(get_chat_service)
 ):
     """
@@ -277,7 +277,7 @@ async def get_chat_messages(
     Args:
         session_id: ID da sessão
         limit: Limite de mensagens
-        current_user: Usuário atual
+        user_token: Token do usuário autenticado
         db: Sessão do banco de dados
         
     Returns:
@@ -288,7 +288,7 @@ async def get_chat_messages(
     """
     
     
-    messages = chat_service.get_chat_messages(session_id, current_user.id, limit)
+    messages = chat_service.get_chat_messages(session_id, user_token["sub"], limit)
     
     if messages is None:
         raise HTTPException(
@@ -302,7 +302,7 @@ async def get_chat_messages(
 async def send_message(
     session_id: int,
     message: str,
-    current_user: UserResponse = Depends(get_current_user),
+    user_token = Depends(require_access),
     chat_service: ChatService = Depends(get_chat_service)
 ):
     """
@@ -311,7 +311,7 @@ async def send_message(
     Args:
         session_id: ID da sessão
         message: Conteúdo da mensagem
-        current_user: Usuário atual
+        user_token: Token do usuário autenticado
         db: Sessão do banco de dados
         
     Returns:
@@ -325,7 +325,7 @@ async def send_message(
     try:
         chat_message = chat_service.send_message(
             session_id=session_id,
-            user_id=current_user.id,
+            user_id=user_token["sub"],
             message=message
         )
         
@@ -346,7 +346,7 @@ async def send_message(
 async def send_ai_message(
     session_id: int,
     message: str,
-    current_user: UserResponse = Depends(get_current_user),
+    user_token = Depends(require_access),
     chat_service: ChatService = Depends(get_chat_service)
 ):
     """
@@ -355,7 +355,7 @@ async def send_ai_message(
     Args:
         session_id: ID da sessão
         message: Conteúdo da mensagem
-        current_user: Usuário atual
+        user_token: Token do usuário autenticado
         db: Sessão do banco de dados
         
     Returns:
@@ -369,7 +369,7 @@ async def send_ai_message(
     try:
         ai_message = await chat_service.send_ai_message(
             session_id=session_id,
-            user_id=current_user.id,
+            user_id=user_token["sub"],
             message=message
         )
         
@@ -389,7 +389,7 @@ async def send_ai_message(
 @router.delete("/{session_id}")
 async def delete_chat_session(
     session_id: int,
-    current_user: UserResponse = Depends(get_current_user),
+    user_token = Depends(require_access),
     chat_service: ChatService = Depends(get_chat_service)
 ):
     """
@@ -397,7 +397,7 @@ async def delete_chat_session(
     
     Args:
         session_id: ID da sessão
-        current_user: Usuário atual
+        user_token: Token do usuário autenticado
         db: Sessão do banco de dados
         
     Returns:
@@ -408,7 +408,7 @@ async def delete_chat_session(
     """
     
     
-    success = chat_service.delete_chat_session(session_id, current_user.id)
+    success = chat_service.delete_chat_session(session_id, user_token["sub"])
     
     if not success:
         raise HTTPException(
@@ -421,7 +421,7 @@ async def delete_chat_session(
 @router.post("/{session_id}/clear")
 async def clear_chat_session(
     session_id: int,
-    current_user: UserResponse = Depends(get_current_user),
+    user_token = Depends(require_access),
     chat_service: ChatService = Depends(get_chat_service)
 ):
     """
@@ -429,7 +429,7 @@ async def clear_chat_session(
     
     Args:
         session_id: ID da sessão
-        current_user: Usuário atual
+        user_token: Token do usuário autenticado
         db: Sessão do banco de dados
         
     Returns:
@@ -440,7 +440,7 @@ async def clear_chat_session(
     """
     
     
-    success = chat_service.clear_chat_session(session_id, current_user.id)
+    success = chat_service.clear_chat_session(session_id, user_token["sub"])
     
     if not success:
         raise HTTPException(
@@ -454,7 +454,7 @@ async def clear_chat_session(
 async def rename_chat_session(
     session_id: int,
     new_name: str,
-    current_user: UserResponse = Depends(get_current_user),
+    user_token = Depends(require_access),
     chat_service: ChatService = Depends(get_chat_service)
 ):
     """
@@ -463,7 +463,7 @@ async def rename_chat_session(
     Args:
         session_id: ID da sessão
         new_name: Novo nome da sessão
-        current_user: Usuário atual
+        user_token: Token do usuário autenticado
         db: Sessão do banco de dados
         
     Returns:
@@ -477,7 +477,7 @@ async def rename_chat_session(
     try:
         renamed_session = chat_service.rename_chat_session(
             session_id=session_id,
-            user_id=current_user.id,
+            user_id=user_token["sub"],
             new_name=new_name
         )
         
@@ -498,7 +498,7 @@ async def rename_chat_session(
 async def export_chat_session(
     session_id: int,
     format: str = "json",
-    current_user: UserResponse = Depends(get_current_user),
+    user_token = Depends(require_access),
     chat_service: ChatService = Depends(get_chat_service)
 ):
     """
@@ -507,7 +507,7 @@ async def export_chat_session(
     Args:
         session_id: ID da sessão
         format: Formato de exportação (json, txt, pdf)
-        current_user: Usuário atual
+        user_token: Token do usuário autenticado
         db: Sessão do banco de dados
         
     Returns:
@@ -521,7 +521,7 @@ async def export_chat_session(
     try:
         exported_data = chat_service.export_chat_session(
             session_id=session_id,
-            user_id=current_user.id,
+            user_id=user_token["sub"],
             format=format
         )
         
@@ -542,7 +542,7 @@ async def export_chat_session(
 async def share_chat_session(
     session_id: int,
     share_with: List[str],
-    current_user: UserResponse = Depends(get_current_user),
+    user_token = Depends(require_access),
     chat_service: ChatService = Depends(get_chat_service)
 ):
     """
@@ -551,7 +551,7 @@ async def share_chat_session(
     Args:
         session_id: ID da sessão
         share_with: Lista de emails dos usuários
-        current_user: Usuário atual
+        user_token: Token do usuário autenticado
         db: Sessão do banco de dados
         
     Returns:
@@ -565,7 +565,7 @@ async def share_chat_session(
     try:
         share_result = chat_service.share_chat_session(
             session_id=session_id,
-            user_id=current_user.id,
+            user_id=user_token["sub"],
             share_with=share_with
         )
         
@@ -585,7 +585,7 @@ async def share_chat_session(
 @router.get("/{session_id}/analytics")
 async def get_chat_analytics(
     session_id: int,
-    current_user: UserResponse = Depends(get_current_user),
+    user_token = Depends(require_access),
     chat_service: ChatService = Depends(get_chat_service)
 ):
     """
@@ -593,7 +593,7 @@ async def get_chat_analytics(
     
     Args:
         session_id: ID da sessão
-        current_user: Usuário atual
+        user_token: Token do usuário autenticado
         db: Sessão do banco de dados
         
     Returns:
@@ -604,7 +604,7 @@ async def get_chat_analytics(
     """
     
     
-    analytics = chat_service.get_chat_analytics(session_id, current_user.id)
+    analytics = chat_service.get_chat_analytics(session_id, user_token["sub"])
     
     if not analytics:
         raise HTTPException(
@@ -618,7 +618,7 @@ async def get_chat_analytics(
 async def quick_chat(
     message: str,
     context: Optional[Dict[str, Any]] = None,
-    current_user: UserResponse = Depends(get_current_user),
+    user_token = Depends(require_access),
     chat_service: ChatService = Depends(get_chat_service)
 ):
     """
@@ -627,7 +627,7 @@ async def quick_chat(
     Args:
         message: Mensagem do usuário
         context: Contexto adicional
-        current_user: Usuário atual
+        user_token: Token do usuário autenticado
         db: Sessão do banco de dados
         
     Returns:
@@ -637,7 +637,7 @@ async def quick_chat(
     
     try:
         response = await chat_service.quick_chat(
-            user_id=current_user.id,
+            user_id=user_token["sub"],
             message=message,
             context=context or {}
         )
@@ -655,7 +655,7 @@ async def chat_with_agent(
     message: str,
     agent_id: str,
     context: Optional[Dict[str, Any]] = None,
-    current_user: UserResponse = Depends(get_current_user),
+    user_token = Depends(require_access),
     chat_service: ChatService = Depends(get_chat_service),
     agent_service = Depends(get_agent_service)
 ):
@@ -666,7 +666,7 @@ async def chat_with_agent(
         message: Mensagem do usuário
         agent_id: ID do agente (UUID)
         context: Contexto adicional
-        current_user: Usuário atual
+        user_token: Token do usuário autenticado
         chat_service: Serviço de chat
         agent_service: Serviço de agentes
         
@@ -677,7 +677,7 @@ async def chat_with_agent(
     
     try:
         # Verificar se o agente existe e pertence ao usuário
-        agent = agent_service.get_agent_by_id(agent_id, current_user.id)
+        agent = agent_service.get_agent_by_id(agent_id, user_token["sub"])
         if not agent:
             # Tentar buscar como agente do sistema
             system_agents = agent_service.get_system_agents()
@@ -705,7 +705,7 @@ async def chat_with_agent(
                 agent_id=agent_id,
                 title=f"Conversa com {agent.name if agent else 'Agente'}"
             )
-            conversation = await chat_service.create_conversation(current_user.id, conversation_data)
+            conversation = await chat_service.create_conversation(user_token["sub"], conversation_data)
             conversation_id = str(conversation.id)
             print(f"✅ Nova conversa criada: {conversation_id}")
         
@@ -720,7 +720,7 @@ async def chat_with_agent(
         )
         
         # Processar chat usando arquitetura híbrida
-        chat_response = await chat_service.process_chat_request(current_user.id, chat_request)
+        chat_response = await chat_service.process_chat_request(user_token["sub"], chat_request)
         
         # Retornar resposta com informações da conversa
         return {
@@ -741,7 +741,7 @@ async def chat_with_agent(
 @router.delete("/conversations/{conversation_id}")
 async def delete_conversation(
     conversation_id: str,
-    current_user: UserResponse = Depends(get_current_user),
+    user_token = Depends(require_access),
     chat_service: ChatService = Depends(get_chat_service)
 ):
     """
@@ -749,7 +749,7 @@ async def delete_conversation(
     
     Args:
         conversation_id: ID da conversa (UUID)
-        current_user: Usuário atual
+        user_token: Token do usuário autenticado
         db: Sessão do banco de dados
         
     Returns:
@@ -761,7 +761,7 @@ async def delete_conversation(
     
     
     try:
-        success = chat_service.delete_conversation(conversation_id, current_user.id)
+        success = chat_service.delete_conversation(conversation_id, user_token["sub"])
         
         if success:
             return {"message": "Conversa removida com sucesso", "conversation_id": conversation_id}
@@ -785,14 +785,14 @@ async def delete_conversation(
 @router.patch("/conversations/{conversation_id}/inactive", status_code=200)
 async def set_conversation_inactive(
     conversation_id: str,
-    current_user: UserResponse = Depends(get_current_user),
+    user_token = Depends(require_access),
     chat_service: ChatService = Depends(get_chat_service)
 ):
     """
     Atualiza o status da conversa para INACTIVE no SQL Server e MongoDB
     Args:
         conversation_id: ID da conversa
-        current_user: Usuário atual
+        user_token: Token do usuário autenticado
         chat_service: Serviço de chat
     Returns:
         Mensagem de sucesso
@@ -800,7 +800,7 @@ async def set_conversation_inactive(
         HTTPException: Se conversa não encontrada
     """
     try:
-        success = await chat_service.set_conversation_inactive(conversation_id, current_user.id)
+        success = await chat_service.set_conversation_inactive(conversation_id, user_token["sub"])
         if success:
             return {"message": "Conversa marcada como INACTIVE", "conversation_id": conversation_id}
         else:
@@ -822,14 +822,14 @@ async def set_conversation_inactive(
 @router.patch("/mongo/conversations/{conversation_id}/inactive", status_code=200)
 async def set_mongo_conversation_inactive(
     conversation_id: str,
-    current_user: UserResponse = Depends(get_current_user),
+    user_token = Depends(require_access),
     chat_service: ChatService = Depends(get_chat_service)
 ):
     """
     Atualiza o status da conversa para INACTIVE apenas no MongoDB
     Args:
         conversation_id: ID da conversa
-        current_user: Usuário atual
+        user_token: Token do usuário autenticado
         chat_service: Serviço de chat
     Returns:
         Mensagem de sucesso
@@ -837,7 +837,7 @@ async def set_mongo_conversation_inactive(
         HTTPException: Se conversa não encontrada
     """
     try:
-        success = await chat_service.set_mongo_conversation_inactive(conversation_id, current_user.id)
+        success = await chat_service.set_mongo_conversation_inactive(conversation_id, user_token["sub"])
         if success:
             return {"message": "Conversa MongoDB marcada como INACTIVE", "conversation_id": conversation_id}
         else:
