@@ -1,7 +1,7 @@
 """
 API de autenticação para o sistema EmployeeVirtual
 """
-from fastapi import APIRouter, Depends, HTTPException, status, Response
+from fastapi import APIRouter, Depends, HTTPException, status, Response, Request
 from datetime import datetime, timedelta, timezone
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from typing import Dict, Any
@@ -13,6 +13,11 @@ from auth.jwt_service import JWTService
 from auth.config import ACCESS_TOKEN_EXPIRE_MINUTES
 from auth.dependencies import get_current_user
 from dependencies.service_providers import get_user_service
+
+
+from itvalleysecurity.fastapi import login_response, require_access
+
+
 import logging
 
 
@@ -68,6 +73,9 @@ async def login_user(
     
     try:
         result = user_service.authenticate_user(login_data)
+        #id = result["id"]
+        #email = result["email"]
+        logging.info(f"Resultado da autenticação: {result}")
         
         if not result:
             raise HTTPException(
@@ -77,39 +85,10 @@ async def login_user(
         
         user = result["user"]
         
-        # se quisermos gerar um token Refresh - ainda tenho que estudar como funciona isso
-        #tokens = JWTService.create_token_pair(user.id, user.email)
-        
 
-        expires_at = datetime.now(timezone.utc) + timedelta(minutes=int(ACCESS_TOKEN_EXPIRE_MINUTES))
-        expires_minutes = ACCESS_TOKEN_EXPIRE_MINUTES
-        logging.info(f"Access token expira em {expires_minutes} minutos")
-        tokens, expire = JWTService._create_token(user.id, user.email, "access", expires_minutes)
 
-        response.set_cookie(
-            key="access_token",
-            value=tokens,
-            httponly=True,
-            secure=False,      # True em HTTPS (produção)
-            samesite="lax",      # "none" + Secure=True se for cross-site
-            path="/",
-            #nos meus testes locais o cookie se apaga sozinho no tempo abaixo (max_age)
-            max_age=expires_minutes*60,
-            #expires=expires_at   # opcional: espelha o exp do JWT
-        )
-        
-        return {
-            "token_type": "Access",
-            "expires_at": expire,
-            "access_token": tokens,
-            #"user": user
-            #"access_token": tokens["access_token"],
-            #"refresh_token": tokens["refresh_token"],
-            #"token_type": tokens["token_type"],
-            #"expires_at": expires_at,
-            #"user": user
-        }
-        
+        return login_response(response, sub = user.id, email= user.email, set_cookies=True)
+
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -193,7 +172,7 @@ async def refresh_token(
 
 @router.get("/me", response_model=UserResponse)
 async def get_current_user_info(
-    current_user: UserResponse = Depends(get_current_user)
+    current_user = Depends(require_access)
 ):
     """
     Retorna informações do usuário atual
