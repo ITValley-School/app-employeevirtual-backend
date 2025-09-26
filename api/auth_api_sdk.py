@@ -90,19 +90,24 @@ async def logout_user(response: Response):
     
     return {"message": "Logout realizado com sucesso"}
 
-@router.get("/me")
+@router.get("/me", response_model=UserResponse)
 async def get_current_user_info(
-    user_token = Depends(require_access)
+    user_token = Depends(require_access),
+    user_service: UserService = Depends(get_user_service)
 ):
     """
-    Retorna informações do usuário atual a partir do token JWT
-    (Não precisa consultar banco - dados já validados pelo SDK)
+    Retorna informações do usuário atual
     """
-    return {
-        "id": user_token["sub"],
-        "email": user_token["email"],
-        "token_info": "Dados extraídos do token JWT válido"
-    }
+    user_id = user_token["sub"]
+    user = user_service.get_user_by_id(user_id)
+    
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Usuário não encontrado"
+        )
+    
+    return user
 
 @router.put("/me", response_model=UserResponse)
 async def update_current_user(
