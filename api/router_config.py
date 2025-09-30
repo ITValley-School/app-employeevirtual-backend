@@ -10,6 +10,7 @@ from api.flow_api import router as flow_router
 from api.chat_api import router as chat_router
 from api.dashboard_api import router as dashboard_router
 from api.file_api import router as file_router
+from api.metadata_api import router as metada_agent_router
 
 # System Agents APIs
 from api.system_agent_api import router as system_agent_router
@@ -51,6 +52,12 @@ ROUTER_CONFIG = [
         "router": system_agent_router,
         "prefix": "/api",
         "tags": ["System Agents"]
+    },
+        # Metadata APIs
+    {
+        "router": metada_agent_router,
+        "prefix": "/api",
+        "tags": ["MetadadosAPI"]
     }
 ]
 
