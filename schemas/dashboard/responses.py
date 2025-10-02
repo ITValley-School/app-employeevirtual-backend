@@ -16,10 +16,36 @@ class DashboardMetricsResponse(BaseModel):
     period: str = Field(..., description="Período das métricas")
     generated_at: datetime = Field(..., description="Data de geração")
 
+class DashboardOverviewResponse(BaseModel):
+    """Response para visão geral do dashboard"""
+    user_id: str = Field(..., description="ID do usuário")
+    total_agents: int = Field(..., description="Total de agentes")
+    total_flows: int = Field(..., description="Total de flows")
+    total_chats: int = Field(..., description="Total de chats")
+    total_executions: int = Field(..., description="Total de execuções")
+    active_sessions: int = Field(..., description="Sessões ativas")
+    generated_at: datetime = Field(..., description="Data de geração")
+
 class DashboardStatsResponse(BaseModel):
     """Response para estatísticas do dashboard"""
     user_id: str = Field(..., description="ID do usuário")
     stats: Dict[str, Any] = Field(..., description="Estatísticas detalhadas")
     trends: Dict[str, str] = Field(..., description="Tendências")
     insights: List[str] = Field(..., description="Insights gerados")
+    generated_at: datetime = Field(..., description="Data de geração")
+
+class DashboardChartResponse(BaseModel):
+    """Response para gráficos do dashboard"""
+    chart_type: str = Field(..., description="Tipo do gráfico")
+    period: str = Field(..., description="Período")
+    data: List[Dict[str, Any]] = Field(..., description="Dados do gráfico")
+    labels: List[str] = Field(..., description="Rótulos do gráfico")
+    generated_at: datetime = Field(..., description="Data de geração")
+
+class DashboardReportResponse(BaseModel):
+    """Response para relatórios do dashboard"""
+    report_type: str = Field(..., description="Tipo do relatório")
+    period: str = Field(..., description="Período")
+    format: str = Field(..., description="Formato do relatório")
+    data: List[Dict[str, Any]] = Field(..., description="Dados do relatório")
     generated_at: datetime = Field(..., description="Data de geração")

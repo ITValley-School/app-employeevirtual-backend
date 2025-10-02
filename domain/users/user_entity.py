@@ -139,6 +139,36 @@ class UserEntity:
         """
         return self.is_active() and self.plan != "free"
     
+    def get_id(self) -> str:
+        """
+        Retorna o ID do usuário
+        """
+        return self.id
+    
+    def get_email(self) -> str:
+        """
+        Retorna o email do usuário
+        """
+        return self.email
+    
+    def get_name(self) -> str:
+        """
+        Retorna o nome do usuário
+        """
+        return self.name
+    
+    def get_status(self) -> str:
+        """
+        Retorna o status do usuário
+        """
+        return self.status
+    
+    def get_plan(self) -> str:
+        """
+        Retorna o plano do usuário
+        """
+        return self.plan
+    
     def get_plan_limits(self) -> dict:
         """
         Retorna limites do plano atual

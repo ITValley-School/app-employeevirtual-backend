@@ -2,7 +2,7 @@
 API de usuários - Implementação IT Valley
 Seguindo padrão IT Valley Architecture
 """
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Depends, status, Query
 from typing import Optional
 from sqlalchemy.orm import Session
 
@@ -15,6 +15,7 @@ from schemas.users.responses import (
 )
 from services.user_service import UserService
 from mappers.user_mapper import UserMapper
+from factories.user_factory import UserFactory
 from config.database import db_config
 from auth.dependencies import get_current_user
 from auth.jwt_service import JWTService
@@ -42,22 +43,12 @@ async def create_user(
         
     Returns:
         UserResponse: Usuário criado
-        
-    Raises:
-        HTTPException: Se email já existe
     """
-    try:
-        # 1. Cria usuário via Service
-        user = user_service.create_user(dto)
-        
-        # 2. Converte para Response via Mapper
-        return UserMapper.to_public(user)
-        
-    except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
-        )
+    # Service orquestra criação e validações
+    user = user_service.create_user(dto)
+    
+    # Converte para Response via Mapper
+    return UserMapper.to_public(user)
 
 
 @router.get("/{user_id}", response_model=UserDetailResponse)
@@ -76,23 +67,12 @@ async def get_user(
         
     Returns:
         UserDetailResponse: Dados detalhados do usuário
-        
-    Raises:
-        HTTPException: Se usuário não encontrado
     """
-    # Busca usuário
-    user = user_service.get_user_by_id(user_id)
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Usuário não encontrado"
-        )
-    
-    # Busca estatísticas
-    stats = user_service.get_user_stats(user_id)
+    # Service orquestra busca e validações
+    result = user_service.get_user_detail(user_id)
     
     # Converte para Response
-    return UserMapper.to_detail(user, stats)
+    return UserMapper.to_detail(result['user'], result['stats'])
 
 
 @router.put("/{user_id}", response_model=UserResponse)
@@ -113,27 +93,12 @@ async def update_user(
         
     Returns:
         UserResponse: Usuário atualizado
-        
-    Raises:
-        HTTPException: Se usuário não encontrado ou email já existe
     """
-    try:
-        # Atualiza usuário
-        user = user_service.update_user(user_id, dto)
-        if not user:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Usuário não encontrado"
-            )
-        
-        # Converte para Response
-        return UserMapper.to_public(user)
-        
-    except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
-        )
+    # Service orquestra atualização e validações
+    user = user_service.update_user(user_id, dto)
+    
+    # Converte para Response
+    return UserMapper.to_public(user)
 
 
 @router.get("/", response_model=UserListResponse)
@@ -182,29 +147,11 @@ async def login_user(
     Raises:
         HTTPException: Se credenciais inválidas
     """
-    # Autentica usuário
-    user = user_service.authenticate_user(dto)
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Credenciais inválidas"
-        )
+    # Service orquestra autenticação e geração de token
+    login_result = user_service.authenticate_user(dto)
     
-    # Gera token
-    jwt_service = JWTService()
-    access_token = jwt_service.create_access_token(
-        data={"sub": user.id, "email": user.email}
-    )
-    
-    # Converte usuário para Response
-    user_response = UserMapper.to_public(user)
-    
-    return UserLoginResponse(
-        user=user_response,
-        access_token=access_token,
-        token_type="bearer",
-        expires_in=settings.access_token_expire_minutes * 60
-    )
+    # Converte para Response via Mapper
+    return UserMapper.to_login_response(login_result)
 
 
 @router.patch("/{user_id}/activate", response_model=UserResponse)
@@ -223,16 +170,9 @@ async def activate_user(
         
     Returns:
         UserResponse: Usuário ativado
-        
-    Raises:
-        HTTPException: Se usuário não encontrado
     """
+    # Service orquestra ativação e validações
     user = user_service.activate_user(user_id)
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Usuário não encontrado"
-        )
     
     return UserMapper.to_public(user)
 
@@ -253,16 +193,9 @@ async def deactivate_user(
         
     Returns:
         UserResponse: Usuário desativado
-        
-    Raises:
-        HTTPException: Se usuário não encontrado
     """
+    # Service orquestra desativação e validações
     user = user_service.deactivate_user(user_id)
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Usuário não encontrado"
-        )
     
     return UserMapper.to_public(user)
 
@@ -285,22 +218,8 @@ async def change_user_plan(
         
     Returns:
         UserResponse: Usuário com plano alterado
-        
-    Raises:
-        HTTPException: Se usuário não encontrado ou plano inválido
     """
-    try:
-        user = user_service.change_user_plan(user_id, new_plan)
-        if not user:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Usuário não encontrado"
-            )
-        
-        return UserMapper.to_public(user)
-        
-    except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
-        )
+    # Service orquestra mudança de plano e validações
+    user = user_service.change_user_plan(user_id, new_plan)
+    
+    return UserMapper.to_public(user)

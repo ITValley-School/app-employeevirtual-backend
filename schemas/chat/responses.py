@@ -44,6 +44,21 @@ class ChatMessageResponse(BaseModel):
     timestamp: datetime = Field(..., description="Timestamp da mensagem")
     metadata: Optional[Dict[str, Any]] = Field(None, description="Metadados da mensagem")
 
+class ChatSessionResponse(BaseModel):
+    """Response para sessão de chat"""
+    id: str = Field(..., description="ID da sessão")
+    title: str = Field(..., description="Título da sessão")
+    user_id: str = Field(..., description="ID do usuário")
+    status: str = Field(..., description="Status da sessão")
+    created_at: datetime = Field(..., description="Data de criação")
+
+class ChatHistoryResponse(BaseModel):
+    """Response para histórico de mensagens"""
+    messages: List[ChatMessageResponse] = Field(..., description="Lista de mensagens")
+    total: int = Field(..., description="Total de mensagens")
+    page: int = Field(..., description="Página atual")
+    size: int = Field(..., description="Tamanho da página")
+
 class ChatSendResponse(BaseModel):
     """Response para envio de mensagem"""
     chat_id: str = Field(..., description="ID do chat")

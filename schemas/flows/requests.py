@@ -40,6 +40,6 @@ class FlowUpdateRequest(BaseModel):
 
 class FlowExecuteRequest(BaseModel):
     """Request para execução de flow"""
-    trigger_data: Dict[str, Any] = Field(..., description="Dados do trigger")
+    input_data: Dict[str, Any] = Field(..., description="Dados de entrada")
+    session_id: Optional[str] = Field(None, description="ID da sessão")
     context: Optional[Dict[str, Any]] = Field(None, description="Contexto adicional")
-    user_id: Optional[str] = Field(None, description="ID do usuário")

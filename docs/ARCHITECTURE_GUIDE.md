@@ -462,6 +462,7 @@ class ClienteCreateRequest(BaseModel):
  pass
 python
 🏭 Factory - PODE e NÃO PODE
+
 ✅ PODE:
 Ser única porta de criação de entidades
 Fazer validações de criação
@@ -469,12 +470,14 @@ Extrair dados de DTOs usando _get()
 Fornecer helpers para Service (email_from, id_from)
 Converter tipos de dados
 Gerar IDs únicos
+
 ❌ NÃO PODE:
 Acessar banco de dados
 Depender de Repository
 Fazer validações que precisam de dados externos
 Retornar entidades parciais
 Ter múltiplas formas de criar a mesma entidade
+
 # ✅ CORRETO
 def criar_cliente(dto: ClienteCreateRequest, repo) -> Cliente:
  email = email_from(dto) # Helper da Factory
@@ -484,6 +487,7 @@ def criar_cliente(dto: ClienteCreateRequest, repo) -> Cliente:
  cliente = criar_cliente(dto) # Factory cria
  repo.add(cliente)
  return cliente
+
 # ❌ ERRADO
 def criar_cliente(dto: ClienteCreateRequest, repo) -> Cliente:
  if repo.existe_email(dto.email): # ERRO: acessou dto.email
@@ -494,7 +498,9 @@ def criar_cliente(dto: ClienteCreateRequest, repo) -> Cliente:
  repo.add(cliente)
  return cliente
 python
+
 🏛️ Domain - PODE e NÃO PODE
+
 ✅ PODE:
 Definir entidades como dataclass
 Implementar comportamentos (ativar, desativar)
@@ -502,12 +508,14 @@ Validar invariantes da entidade
 Aplicar regras de negócio puras
 Usar método aplicar_atualizacao_from_any()
 Ter propriedades calculadas
+
 ❌ NÃO PODE:
 Importar Pydantic, FastAPI, SQLAlchemy
 Acessar banco de dados
 Ter @staticmethod criar() (só Factory cria)
 Depender de camadas externas
 Fazer validações que precisam de dados externos
+
 # ✅ CORRETO
 def criar_cliente(dto: Any) -> Cliente:
  nome = _get(dto, "nome")
@@ -682,6 +690,7 @@ projeto/
 │ │ ├── test_cliente_entity.py
 │ │ ├── test_cliente_factory.py
 │ │ └── test_cliente_service.py
+
 Explicação dos Diretórios:
 📁 api/: Todos os endpoints da sua API. Um arquivo por entidade.
 📁 schemas/: Contratos de entrada e saída. Separados por entidade, com requests e responses.

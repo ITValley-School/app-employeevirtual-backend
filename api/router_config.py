@@ -6,6 +6,10 @@ from fastapi import FastAPI
 # Imports dos routers - IT Valley Architecture
 from api.users_api import router as users_router
 from api.agents_api import router as agents_router
+from api.flows_api import router as flows_router
+from api.chat_api import router as chat_router
+from api.dashboard_api import router as dashboard_router
+from api.metadata_api import router as metadata_router
 
 # Configuração das rotas
 ROUTER_CONFIG = [
@@ -18,6 +22,26 @@ ROUTER_CONFIG = [
         "router": agents_router,
         "prefix": "/api",
         "tags": ["Agentes"]
+    },
+    {
+        "router": flows_router,
+        "prefix": "/api",
+        "tags": ["Flows"]
+    },
+    {
+        "router": chat_router,
+        "prefix": "/api",
+        "tags": ["Chat"]
+    },
+    {
+        "router": dashboard_router,
+        "prefix": "/api",
+        "tags": ["Dashboard"]
+    },
+    {
+        "router": metadata_router,
+        "prefix": "/api",
+        "tags": ["Metadados"]
     }
 ]
 

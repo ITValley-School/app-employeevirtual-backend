@@ -51,13 +51,11 @@ class FlowListResponse(BaseModel):
 class FlowExecuteResponse(BaseModel):
     """Response para execução de flow"""
     flow_id: str = Field(..., description="ID do flow")
-    execution_id: str = Field(..., description="ID da execução")
-    status: str = Field(..., description="Status da execução")
-    steps_completed: int = Field(..., description="Passos completados")
-    total_steps: int = Field(..., description="Total de passos")
+    input_data: Dict[str, Any] = Field(..., description="Dados de entrada")
+    output_data: Dict[str, Any] = Field(..., description="Dados de saída")
     execution_time: float = Field(..., description="Tempo de execução em segundos")
-    result: Optional[Dict[str, Any]] = Field(None, description="Resultado da execução")
-    timestamp: datetime = Field(..., description="Timestamp da execução")
+    steps_completed: int = Field(..., description="Passos completados")
+    session_id: Optional[str] = Field(None, description="ID da sessão")
 
 class FlowStatsResponse(BaseModel):
     """Response para estatísticas do flow"""

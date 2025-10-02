@@ -23,6 +23,12 @@ class ChatMessageRequest(BaseModel):
     message: str = Field(..., min_length=1, description="Mensagem do usuário")
     context: Optional[Dict[str, Any]] = Field(None, description="Contexto adicional")
 
+class ChatSessionRequest(BaseModel):
+    """Request para criação de sessão de chat"""
+    title: str = Field(..., min_length=2, max_length=100, description="Título da sessão")
+    agent_id: Optional[str] = Field(None, description="ID do agente associado")
+    context: Optional[Dict[str, Any]] = Field(None, description="Contexto da sessão")
+
 class ChatUpdateRequest(BaseModel):
     """Request para atualização de chat"""
     title: Optional[str] = Field(None, min_length=2, max_length=100)

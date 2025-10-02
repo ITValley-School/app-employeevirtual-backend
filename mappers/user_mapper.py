@@ -10,7 +10,8 @@ from schemas.users.responses import (
     UserResponse, 
     UserDetailResponse, 
     UserListResponse,
-    UserStatsResponse
+    UserStatsResponse,
+    UserLoginResponse
 )
 from data.entities.user_entities import UserEntity
 
@@ -105,6 +106,26 @@ class UserMapper:
             total_flows=stats.get('total_flows', 0),
             total_executions=stats.get('total_executions', 0),
             last_activity=stats.get('last_activity')
+        )
+    
+    @staticmethod
+    def to_login_response(login_result: dict) -> UserLoginResponse:
+        """
+        Converte resultado do login para UserLoginResponse
+        
+        Args:
+            login_result: Resultado do login com user, token e dados
+            
+        Returns:
+            UserLoginResponse: Resposta de login formatada
+        """
+        user_response = UserMapper.to_public(login_result["user"])
+        
+        return UserLoginResponse(
+            user=user_response,
+            access_token=login_result["access_token"],
+            token_type=login_result["token_type"],
+            expires_in=login_result["expires_in"]
         )
     
     @staticmethod

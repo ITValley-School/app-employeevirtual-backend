@@ -102,30 +102,44 @@ class UserService:
         
         return updated_user
     
-    def authenticate_user(self, dto: UserLoginRequest) -> Optional[UserEntity]:
+    def authenticate_user(self, dto: UserLoginRequest) -> dict:
         """
-        Autentica usuário
+        Autentica usuário e gera token
         
         Args:
             dto: Dados de login
             
         Returns:
-            UserEntity: Usuário autenticado ou None
+            dict: Resultado do login com user, token e dados
         """
         # 1. Busca usuário
         user = self.user_repository.get_user_by_email(dto.email)
         if not user:
-            return None
+            raise ValueError("Credenciais inválidas")
         
         # 2. Verifica senha via Factory
         if not UserFactory.verify_password(dto.password, user.password_hash):
-            return None
+            raise ValueError("Credenciais inválidas")
         
         # 3. Atualiza último login
         user.update_last_login()
         self.user_repository.update(user)
         
-        return user
+        # 4. Gera token
+        from auth.jwt_service import JWTService
+        from config.settings import settings
+        
+        jwt_service = JWTService()
+        access_token = jwt_service.create_access_token(
+            data={"sub": user.get_id(), "email": user.get_email()}
+        )
+        
+        return {
+            "user": user,
+            "access_token": access_token,
+            "token_type": "bearer",
+            "expires_in": settings.access_token_expire_minutes * 60
+        }
     
     def list_users(self, page: int = 1, size: int = 10, status: Optional[str] = None) -> tuple[List[UserEntity], int]:
         """

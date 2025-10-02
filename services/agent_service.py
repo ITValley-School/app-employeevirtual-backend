@@ -63,6 +63,29 @@ class AgentService:
         """
         # Simula busca (em implementação real, usaria repository)
         return None
+    
+    def get_agent_detail(self, agent_id: str, user_id: str) -> Dict[str, Any]:
+        """
+        Busca agente com detalhes e estatísticas
+        
+        Args:
+            agent_id: ID do agente
+            user_id: ID do usuário
+            
+        Returns:
+            Dict com agent e stats
+        """
+        # Simula busca (em implementação real, usaria repository)
+        agent = self.get_agent_by_id(agent_id, user_id)
+        if not agent:
+            raise ValueError("Agente não encontrado")
+        
+        stats = self.get_agent_stats(agent_id, user_id)
+        
+        return {
+            'agent': agent,
+            'stats': stats
+        }
         
     def list_agents(self, user_id: str, page: int = 1, size: int = 10, status: Optional[str] = None) -> Tuple[List[AgentEntity], int]:
         """
@@ -116,7 +139,7 @@ class AgentService:
             'tokens_used': 50
         }
     
-    def activate_agent(self, agent_id: str, user_id: str) -> Optional[AgentEntity]:
+    def activate_agent(self, agent_id: str, user_id: str) -> AgentEntity:
         """
         Ativa agente
         
@@ -125,12 +148,25 @@ class AgentService:
             user_id: ID do usuário
             
         Returns:
-            AgentEntity: Agente ativado ou None
+            AgentEntity: Agente ativado
+            
+        Raises:
+            ValueError: Se agente não encontrado
         """
-        # Simula ativação
-        return None
+        # Busca agente
+        agent = self.get_agent_by_id(agent_id, user_id)
+        if not agent:
+            raise ValueError("Agente não encontrado")
+        
+        # Aplica regra de negócio via Domain
+        agent.activate()
+        
+        # Simula persistência (em implementação real, usaria repository)
+        # self.agent_repository.update(agent)
+        
+        return agent
     
-    def deactivate_agent(self, agent_id: str, user_id: str) -> Optional[AgentEntity]:
+    def deactivate_agent(self, agent_id: str, user_id: str) -> AgentEntity:
         """
         Desativa agente
         
@@ -139,12 +175,25 @@ class AgentService:
             user_id: ID do usuário
             
         Returns:
-            AgentEntity: Agente desativado ou None
+            AgentEntity: Agente desativado
+            
+        Raises:
+            ValueError: Se agente não encontrado
         """
-        # Simula desativação
-        return None
+        # Busca agente
+        agent = self.get_agent_by_id(agent_id, user_id)
+        if not agent:
+            raise ValueError("Agente não encontrado")
+        
+        # Aplica regra de negócio via Domain
+        agent.deactivate()
+        
+        # Simula persistência (em implementação real, usaria repository)
+        # self.agent_repository.update(agent)
+        
+        return agent
     
-    def start_training(self, agent_id: str, user_id: str) -> Optional[AgentEntity]:
+    def start_training(self, agent_id: str, user_id: str) -> AgentEntity:
         """
         Inicia treinamento do agente
         
@@ -153,7 +202,20 @@ class AgentService:
             user_id: ID do usuário
             
         Returns:
-            AgentEntity: Agente em treinamento ou None
+            AgentEntity: Agente em treinamento
+            
+        Raises:
+            ValueError: Se agente não encontrado
         """
-        # Simula início de treinamento
-        return None
+        # Busca agente
+        agent = self.get_agent_by_id(agent_id, user_id)
+        if not agent:
+            raise ValueError("Agente não encontrado")
+        
+        # Aplica regra de negócio via Domain
+        agent.start_training()
+        
+        # Simula persistência (em implementação real, usaria repository)
+        # self.agent_repository.update(agent)
+        
+        return agent

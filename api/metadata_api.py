@@ -1,106 +1,60 @@
-# app/api/metadados_api.py
 """
-API de Metadados - Endpoints para extração via PydanticAI.
+API de Metadados - Implementação IT Valley
+Seguindo padrão IT Valley Architecture
 """
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, Depends, status
+from sqlalchemy.orm import Session
 
-
-# Imports dos schemas
-from schemas.metadata.request import MetadataPDFRequest, MetadataStringRequest
-from integration.pydanticIA.payload.request import MetadataRequest
-
-from schemas.metadata.response import  MetadadosResponse
-
-# Import do service
+from schemas.metadata.request import MetadataStringRequest as MetadataRequest
+from schemas.metadata.response import MetadadosResponse as MetadataResponse
 from services.metadata_service import MetadataService
-from integration.pydanticIA.repository.metadata_repository import PydanticAIRepository
-from integration.pydanticIA.payload.response import MetadadoAIPayload
+from mappers.metadata_mapper import MetadataMapper
+from config.database import db_config
+from auth.dependencies import get_current_user
+from data.entities.user_entities import UserEntity
+
+router = APIRouter(prefix="/metadata", tags=["metadata"])
 
 
-router = APIRouter(prefix="/metadados", tags=["Metadados"])
+def get_metadata_service(db: Session = Depends(db_config.get_session)) -> MetadataService:
+    """Dependency para MetadataService"""
+    return MetadataService(db)
 
 
-@router.post(
-    "/extrair",
-    response_model=MetadadoAIPayload,
-    status_code=status.HTTP_200_OK,
-    summary="Extrai metadados de texto",
-    description="Recebe um texto e retorna metadados estruturados extraídos pela IA"
-)
-async def extrair_metadados_string(request: MetadataRequest):
+@router.post("/extract", response_model=MetadataResponse, status_code=status.HTTP_200_OK)
+async def extract_metadata(
+    request: MetadataRequest,
+    metadata_service: MetadataService = Depends(get_metadata_service),
+    current_user: UserEntity = Depends(get_current_user)
+):
     """
-    Extrai metadados de um texto usando PydanticAI.
+    Extrai metadados de texto
     
-    **Fluxo:**
-    1. Recebe texto (mínimo 100 caracteres)
-    2. PydanticAI analisa e extrai metadados
-    3. Retorna payload estruturado
-    
-    **Exemplo de uso:**
-    ```json
-    {
-      "texto": "A receita da empresa no terceiro trimestre de 2024 foi de R$ 2,4 milhões..."
-    }
-    ```
+    Args:
+        request: Dados do texto para extração
+        metadata_service: Serviço de metadados
+        current_user: Usuário autenticado
+        
+    Returns:
+        MetadataResponse: Metadados extraídos
     """
-    try:
-        # Chamar service PydanticAI
-        #service = MetadataService()
-        servicePydantic = PydanticAIRepository()
-        #responseMetadata = await service.extract_metadata(request)
-        responseMetadata = await servicePydantic.create_metadata(request)
-
-        # Por enquanto, retornar o payload direto
-        # Depois vamos adicionar Mapper (Payload → Entity → DTO)
-        return  responseMetadata
+    # Service orquestra extração e validações
+    result = metadata_service.extract_metadata(request, current_user.get_id())
     
-    except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
-        )
-    
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Erro ao extrair metadados: {str(e)}"
-        )
+    # Converte para Response via Mapper
+    return MetadataMapper.to_response(result)
 
 
-@router.post(
-    "/extrair-simples",
-    status_code=status.HTTP_200_OK,
-    summary="Extrai metadados (versão simplificada)",
-    description="Recebe texto direto e retorna metadados"
-)
-async def extrair_metadados_simples(texto: str ):
+@router.get("/health", response_model=dict)
+async def health_check():
     """
-    Versão simplificada - recebe texto direto (query param ou body).
+    Health check da API de metadados
     
-    **Útil para testes rápidos via Swagger.**
-    """
-    try:
-        payload = await _pydantic_service.extract_metadata(texto)
-        return payload
-    
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=str(e)
-        )
-
-
-@router.get(
-    "/health",
-    status_code=status.HTTP_200_OK,
-    summary="Health check da API"
-)
-def health_check():
-    """
-    Verifica se a API está rodando.
+    Returns:
+        dict: Status da API
     """
     return {
         "status": "ok",
-        "service": "Metadados API",
-        "pydantic_ai_ready": _pydantic_service is not None
+        "service": "Metadata API",
+        "architecture": "IT Valley"
     }
