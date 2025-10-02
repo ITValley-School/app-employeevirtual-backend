@@ -3,61 +3,21 @@ Configuração centralizada de routers da API EmployeeVirtual
 """
 from fastapi import FastAPI
 
-# Imports dos routers
-from api.auth_api import router as auth_router
-from api.agent_api import router as agent_router
-from api.flow_api import router as flow_router
-from api.chat_api import router as chat_router
-from api.dashboard_api import router as dashboard_router
-from api.file_api import router as file_router
-from api.metadata_api import router as metada_agent_router
-
-# System Agents APIs
-from api.system_agent_api import router as system_agent_router
+# Imports dos routers - IT Valley Architecture
+from api.users_api import router as users_router
+from api.agents_api import router as agents_router
 
 # Configuração das rotas
 ROUTER_CONFIG = [
     {
-        "router": auth_router,
-        "prefix": "/api/auth",
-        "tags": ["Autenticação"]
+        "router": users_router,
+        "prefix": "/api",
+        "tags": ["Usuários"]
     },
     {
-        "router": agent_router,
-        "prefix": "/api/agents", 
+        "router": agents_router,
+        "prefix": "/api",
         "tags": ["Agentes"]
-    },
-    {
-        "router": flow_router,
-        "prefix": "/api/flows",
-        "tags": ["Flows/Automações"]
-    },
-    {
-        "router": chat_router,
-        "prefix": "/api/chat",
-        "tags": ["Chat/Conversação"]
-    },
-    {
-        "router": dashboard_router,
-        "prefix": "/api/dashboard",
-        "tags": ["Dashboard/Métricas"]
-    },
-    {
-        "router": file_router,
-        "prefix": "/api/files",
-        "tags": ["Arquivos"]
-    },
-    # System Agents APIs
-    {
-        "router": system_agent_router,
-        "prefix": "/api",
-        "tags": ["System Agents"]
-    },
-        # Metadata APIs
-    {
-        "router": metada_agent_router,
-        "prefix": "/api",
-        "tags": ["MetadadosAPI"]
     }
 ]
 

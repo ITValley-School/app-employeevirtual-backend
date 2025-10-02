@@ -18,7 +18,7 @@ from auth.config import (
     ACCESS_TOKEN_EXPIRE_MINUTES,
     REFRESH_TOKEN_EXPIRE_DAYS
 )
-from models.uuid_models import validate_uuid
+# Removido import antigo - validação será feita diretamente
 
 # Blacklist de tokens em memória
 _token_blacklist: Set[str] = set()
@@ -41,7 +41,8 @@ class JWTService:
         Returns:
             Token JWT de acesso
         """
-        if not validate_uuid(user_id):
+        # Validação básica de UUID
+        if not user_id or len(user_id) != 32:
             raise ValueError("Invalid user_id UUID")
             
         return JWTService._create_token(
@@ -62,7 +63,8 @@ class JWTService:
         Returns:
             Token JWT de refresh
         """
-        if not validate_uuid(user_id):
+        # Validação básica de UUID
+        if not user_id or len(user_id) != 32:
             raise ValueError("Invalid user_id UUID")
             
         return JWTService._create_token(
@@ -277,7 +279,8 @@ class JWTService:
         Returns:
             Dicionário com access_token e refresh_token
         """
-        if not validate_uuid(user_id):
+        # Validação básica de UUID
+        if not user_id or len(user_id) != 32:
             raise ValueError("Invalid user_id UUID")
             
         access_token = JWTService.create_access_token(user_id, email)

@@ -7,17 +7,26 @@ from fastapi import Depends, HTTPException, status, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 
-from models.user_models import UserResponse
+from schemas.users.responses import UserResponse
 from services.user_service import UserService
-from data.database import get_db
-from models.uuid_models import validate_uuid
+from config.database import db_config
+from data.entities.user_entities import UserEntity
 
 from auth.jwt_service import JWTService
 from jwt.exceptions import ExpiredSignatureError, InvalidTokenError
 from auth.config import ERROR_MESSAGES
 import logging
+import re
 
 security = HTTPBearer(auto_error=False)
+
+def validate_uuid(uuid_string: str) -> bool:
+    """Valida se uma string é um UUID válido"""
+    uuid_pattern = re.compile(
+        r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$',
+        re.IGNORECASE
+    )
+    return bool(uuid_pattern.match(uuid_string))
 
 def get_client_ip(request: Request) -> str:
     forwarded_for = request.headers.get("X-Forwarded-For")
@@ -39,8 +48,8 @@ def extract_token_from_request(request: Request, credentials: Optional[HTTPAutho
 async def get_current_user(
     request: Request,
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
-    db: Session = Depends(get_db)
-) -> UserResponse:
+    db: Session = Depends(db_config.get_session)
+) -> UserEntity:
     
     
     token = extract_token_from_request(request, credentials)
@@ -91,7 +100,7 @@ async def get_current_user(
 async def get_current_user_optional(
     request: Request,
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
-    db: Session = Depends(get_db)
+    db: Session = Depends(db_config.get_session)
 ) -> Optional[UserResponse]:
     try:
         return await get_current_user(request, credentials, db)

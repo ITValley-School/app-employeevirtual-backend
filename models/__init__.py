@@ -1,10 +1,5 @@
 """
-Models package - Import apenas quando necessário
-Para importar modelos específicos, use:
-from models.user_models import User, UserSession
-from models.agent_models import Agent
-from models.system_agent_models import SystemAgent
-etc.
+Models package - Arquitetura IT Valley
+Schemas estão em schemas/ e entidades em domain/
 """
-# __init__.py limpo - sem importações automáticas
 

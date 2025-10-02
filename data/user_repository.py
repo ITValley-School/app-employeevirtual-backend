@@ -7,7 +7,17 @@ from sqlalchemy.orm import Session
 from sqlalchemy import and_, func, desc, cast, Date
 
 from data.entities.user_entities import UserEntity, UserSessionEntity, UserActivityEntity
-from models.uuid_models import validate_uuid
+# Validação de UUID local
+def validate_uuid(uuid_string: str) -> bool:
+    """Valida se string é um UUID válido"""
+    if not uuid_string or len(uuid_string) != 32:
+        return False
+    try:
+        # Verifica se é hexadecimal
+        int(uuid_string, 16)
+        return True
+    except ValueError:
+        return False
 
 
 class UserRepository:
@@ -19,7 +29,10 @@ class UserRepository:
     # CRUD Usuários
     def create_user(self, name: str, email: str, password_hash: str, plan: str = "free") -> UserEntity:
         """Cria um novo usuário"""
-        from models.uuid_models import generate_uuid
+        # Geração de UUID local
+        import uuid
+        def generate_uuid():
+            return uuid.uuid4().hex
         
         db_user = UserEntity(
             id=generate_uuid(),  # Gerar UUID manualmente
@@ -88,7 +101,10 @@ class UserRepository:
         if not validate_uuid(user_id):
             raise ValueError("Invalid user_id UUID")
         
-        from models.uuid_models import generate_uuid
+        # Geração de UUID local
+        import uuid
+        def generate_uuid():
+            return uuid.uuid4().hex
             
         db_session = UserSessionEntity(
             id=generate_uuid(),  # Gerar UUID manualmente
@@ -157,7 +173,10 @@ class UserRepository:
             import json
             activity_metadata = json.dumps(metadata)
         
-        from models.uuid_models import generate_uuid
+        # Geração de UUID local
+        import uuid
+        def generate_uuid():
+            return uuid.uuid4().hex
         
         db_activity = UserActivityEntity(
             id=generate_uuid(),  # Gerar UUID manualmente

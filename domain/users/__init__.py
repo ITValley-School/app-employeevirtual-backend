@@ -1,0 +1,3 @@
+"""
+Domain para usuários
+"""

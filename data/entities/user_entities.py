@@ -5,9 +5,27 @@ import os
 from sqlalchemy import Column, String, DateTime, Boolean, Text, Enum as SQLEnum, text
 from sqlalchemy.sql import func
 
-from models.uuid_models import UUIDColumn
 from data.base import Base
-from models.user_models import UserPlan, UserStatus
+from sqlalchemy import Column, String, DateTime, Boolean, Text, Enum as SQLEnum, text
+from sqlalchemy.sql import func
+from enum import Enum
+
+# Enums locais
+class UserPlan(str, Enum):
+    """Planos de assinatura disponíveis"""
+    FREE = "free"
+    BASIC = "basic"
+    PRO = "pro"
+    ENTERPRISE = "enterprise"
+
+class UserStatus(str, Enum):
+    """Status do usuário"""
+    ACTIVE = "active"
+    INACTIVE = "inactive"
+    SUSPENDED = "suspended"
+    PENDING = "pending"
+
+# UUID Column removido - usando Column(String(32)) diretamente
 
 
 # Configuração de schema baseada no tipo de banco
@@ -20,7 +38,7 @@ class UserEntity(Base):
     __tablename__ = "users"
     __table_args__ = SCHEMA_CONFIG
     
-    id = Column(UUIDColumn, primary_key=True, server_default=text("NEWID()"), index=True)
+    id = Column(String(32), primary_key=True, server_default=text("NEWID()"), index=True)
     name = Column(String(100), nullable=False)
     email = Column(String(255), unique=True, index=True, nullable=False)
     password_hash = Column(String(255), nullable=False)
@@ -41,8 +59,8 @@ class UserSessionEntity(Base):
     __tablename__ = "user_sessions"
     __table_args__ = SCHEMA_CONFIG
     
-    id = Column(UUIDColumn, primary_key=True, server_default=text("NEWID()"), index=True)
-    user_id = Column(UUIDColumn, nullable=False, index=True)
+    id = Column(String(32), primary_key=True, server_default=text("NEWID()"), index=True)
+    user_id = Column(String(32), nullable=False, index=True)
     token = Column(String(500), unique=True, index=True, nullable=False)
     expires_at = Column(DateTime(timezone=True), nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
@@ -57,8 +75,8 @@ class UserActivityEntity(Base):
     __tablename__ = "user_activities"
     __table_args__ = SCHEMA_CONFIG
     
-    id = Column(UUIDColumn, primary_key=True, server_default=text("NEWID()"), index=True)
-    user_id = Column(UUIDColumn, nullable=False, index=True)
+    id = Column(String(32), primary_key=True, server_default=text("NEWID()"), index=True)
+    user_id = Column(String(32), nullable=False, index=True)
     activity_type = Column(String(50), nullable=False)  # login, agent_created, flow_executed, etc.
     description = Column(Text, nullable=True)
     activity_metadata = Column(Text, nullable=True)  # JSON string
