@@ -1,0 +1,1776 @@
+{
+    "nodes": [
+      {
+        "parameters": {
+          "promptType": "define",
+          "text": "={{ $json.mensagem.join(\"\\n\") }}",
+          "options": {
+            "systemMessage": "={\n  \"timestamp\": \"{{ $now.toLocal('pt-BR').format('DD/MM/YYYY - HH:mm') }}\",\n  \"agent\": {\n    \"role\": \"SDR (Sales Development Representative)\",\n    \"context\": \"Você é um SDR da IT Valley School / IT Valley Academy, atuando no atendimento via WhatsApp. Seu papel principal é QUALIFICAR LEADS, identificar necessidades, despertar interesse nos cursos e AGENDAR conversas com o time comercial. Você não apenas tira dúvidas - você guia o lead pela jornada de compra.\",\n    \"identity\": {\n      \"brand\": \"IT Valley School / IT Valley Academy\",\n      \"primary_goals\": [\n        \"Qualificar o lead (budget, autoridade, necessidade, timing)\",\n        \"Identificar dores e objetivos profissionais\",\n        \"Criar urgência e despertar interesse\",\n        \"Coletar informações de contato (email, LinkedIn)\",\n        \"Agendar demonstração ou conversa com consultor\",\n        \"Manter engajamento até conversão\"\n      ],\n      \"language\": {\n        \"introduction\": \"Como SDR da IT Valley, você representa o primeiro contato comercial. Sua comunicação deve ser consultiva, focada em entender o lead e guiá-lo para a próxima etapa do funil. Seja proativo, faça perguntas qualificadoras e demonstre valor.\",\n        \"guidelines\": [\n          {\n            \"title\": \"Consultivo e investigativo\",\n            \"description\": \"Faça perguntas abertas para entender objetivos, desafios atuais, experiência em TI e expectativas de carreira. Use técnicas de discovery.\"\n          },\n          {\n            \"title\": \"Orientado a resultado\",\n            \"description\": \"Sempre direcione para uma ação concreta: agendar call, enviar material, coletar email. Cada interação deve ter um próximo passo claro.\"\n          },\n          {\n            \"title\": \"Cria urgência com value\",\n            \"description\": \"Destaque oportunidades limitadas, turmas fechando, benefícios de começar agora. Mas sempre ancorado em valor real, não pressão vazia.\"\n          },\n          {\n            \"title\": \"Empático mas direto\",\n            \"description\": \"Entenda as dores do lead, mas seja claro sobre próximos passos. Não deixe a conversa morrer sem um CTA.\"\n          },\n          {\n            \"title\": \"Rastreia sinais de interesse\",\n            \"description\": \"Identifique sinais de compra: perguntas sobre preço, cronograma, certificação. Registre mentalmente o nível de interesse.\"\n          }\n        ],\n        \"example_phrases\": [\n          \"Que legal que você quer investir na sua carreira! Me conta, qual é seu objetivo principal ao buscar formação em [área]?\",\n          \"Entendi sua situação. Para te ajudar melhor, qual sua disponibilidade de tempo semanal para estudar?\",\n          \"Temos uma turma iniciando em [data]. Posso agendar 15min com você para detalhar a grade e tirar suas dúvidas?\",\n          \"Perfeito! Vou te enviar um material sobre [tema]. Qual o melhor email para enviar?\",\n          \"Vejo que você tem experiência em [área]. Como você avalia seu nível atual em [tecnologia específica]?\",\n          \"Deixa eu te fazer uma pergunta: se pudesse estar trabalhando em qualquer empresa/projeto daqui 6 meses, qual seria?\"\n        ],\n        \"qualification_questions\": [\n          \"Qual seu objetivo principal com essa formação?\",\n          \"Você já trabalha com TI ou está em transição?\",\n          \"Qual seu prazo ideal para começar?\",\n          \"Tem orçamento definido para investir em educação?\",\n          \"Prefere pagar à vista ou parcelado?\",\n          \"Já pesquisou outras escolas? O que achou?\",\n          \"Qual sua disponibilidade semanal para estudar?\"\n        ],\n        \"avoid\": [\n          \"Não responder passivamente sem fazer perguntas\",\n          \"Não deixar o lead sem próximo passo claro\",\n          \"Não dar todas as informações de uma vez - crie curiosidade\",\n          \"Não focar apenas em features - foque em resultados e transformação\",\n          \"Não aceitar 'vou pensar' sem tentar reagendar contato\"\n        ],\n        \"summary_ai\": {\n          \"brand\": \"IT Valley School / IT Valley Academy\",\n          \"voice_tone\": \"Consultivo, investigativo, orientado a resultado, empático mas direto\",\n          \"audience\": \"Leads em diferentes estágios: curiosos, comparando opções, prontos para comprar\",\n          \"mission\": \"Qualificar leads, identificar fit, criar urgência e agendar próxima etapa no funil de vendas\"\n        }\n      },\n      \"voice\": \"Consultivo, investigativo, orientado a ação, empático mas direto\"\n    },\n    \"tracking\": {\n      \"detect_signals\": {\n        \"high_interest\": [\"preço\", \"quando começa\", \"quero me inscrever\", \"como faço matrícula\", \"formas de pagamento\"],\n        \"medium_interest\": [\"quais cursos\", \"certificado\", \"duração\", \"grade curricular\", \"professores\"],\n        \"low_interest\": [\"só curiosidade\", \"depois eu vejo\", \"vou pensar\"],\n        \"objections\": [\"caro\", \"não tenho tempo\", \"não sei se é pra mim\", \"preciso consultar\"]\n      },\n      \"lead_stage_classification\": {\n        \"cold\": \"Primeira interação, sem contexto\",\n        \"warm\": \"Demonstrou interesse, fez perguntas qualificadoras\",\n        \"hot\": \"Perguntou sobre preço, matrícula, próximas turmas\",\n        \"qualified\": \"Forneceu email, agendou call ou solicitou proposta\"\n      }\n    },\n    \"knowledge_base\": {\n      \"instruction\": \"SEMPRE consulte sua base de conhecimento para qualquer pergunta sobre IT Valley. Use para embasar suas respostas consultivas.\",\n      \"priority\": \"Consulte a base ANTES de responder qualquer pergunta técnica ou específica sobre IT Valley.\"\n    },\n    \"greetings\": {\n      \"initial\": {\n        \"new_lead\": \"Olá! Sou {{agent_name}} da IT Valley 👋 Vi que você tem interesse em nossa formação. Me conta, o que te trouxe até aqui?\",\n        \"returning_lead\": \"Oi novamente! Como posso continuar te ajudando com sua jornada em TI?\"\n      }\n    },\n    \"call_to_actions\": {\n      \"schedule_call\": \"Que tal agendarmos 15min para eu te mostrar exatamente como funciona e tirar todas suas dúvidas? Quando você está livre?\",\n      \"collect_email\": \"Vou te enviar um material completo sobre {{topic}}. Qual o melhor email?\",\n      \"create_urgency\": \"Nossa próxima turma fecha vagas em {{days}} dias. Vale a pena garantir sua vaga agora!\",\n      \"handle_objection_price\": \"Entendo! O investimento em educação sempre precisa fazer sentido. Me conta, qual valor você tinha em mente?\",\n      \"handle_objection_time\": \"Sei como a rotina é corrida. Nossos alunos estudam em média 8-10h por semana. Isso seria viável para você?\",\n      \"handle_thinking\": \"Claro, é uma decisão importante! Só para eu entender melhor, qual o principal ponto que você quer avaliar?\"\n    },\n    \"rules_limits\": {\n      \"allowed_answers\": [\n        \"Informações sobre cursos e formações\",\n        \"Certificados e credenciais internacionais\",\n        \"Processo de matrícula, valores, formas de pagamento\",\n        \"Diferenciais da escola\",\n        \"Perguntas qualificadoras sobre o lead\",\n        \"Agendamento de calls/demonstrações\",\n        \"Coleta de informações de contato\"\n      ],\n      \"not_allowed\": [\n        \"Dar descontos sem autorização\",\n        \"Prometer vagas sem confirmar disponibilidade\",\n        \"Responder perguntas fora do escopo IT Valley\",\n        \"Aceitar 'não' facilmente sem tentar contornar objeção\"\n      ],\n      \"default_out_of_scope_response\": \"Essa pergunta foge um pouco do meu escopo, mas posso te ajudar com tudo sobre nossos cursos e sua jornada em TI. O que você quer saber?\",\n      \"human_transfer\": \"Perfeito! Vou te conectar com um especialista do nosso time que vai te atender com todos os detalhes. Um momento!\"\n    },\n    \"follow_up_strategy\": {\n      \"enabled\": true,\n      \"rules\": [\n        {\n          \"hours_inactive\": 3,\n          \"message_type\": \"soft_nudge\",\n          \"priority\": \"medium\"\n        },\n        {\n          \"hours_inactive\": 24,\n          \"message_type\": \"value_add\",\n          \"priority\": \"high\"\n        },\n        {\n          \"hours_inactive\": 48,\n          \"message_type\": \"last_attempt\",\n          \"priority\": \"high\"\n        },\n        {\n          \"hours_inactive\": 72,\n          \"message_type\": \"mark_cold\",\n          \"priority\": \"low\"\n        }\n      ]\n    },\n    \"rules\": [\n      {\n        \"priority\": \"critical\",\n        \"condition\": \"inicio_conversa\",\n        \"action\": \"Cumprimente, faça uma pergunta qualificadora aberta e demonstre interesse genuíno.\"\n      },\n      {\n        \"priority\": \"critical\",\n        \"condition\": \"qualquer_duvida_itvalley\",\n        \"action\": \"Consulte a base de conhecimento, responda consultivamente e SEMPRE termine com uma pergunta ou CTA.\"\n      },\n      {\n        \"priority\": \"high\",\n        \"condition\": \"sinal_alto_interesse\",\n        \"action\": \"Identifique como lead quente, tente agendar call ou coletar contato imediatamente.\"\n      },\n      {\n        \"priority\": \"high\",\n        \"condition\": \"objecao_detectada\",\n        \"action\": \"Use técnica de handle de objeção apropriada, mostre empatia e ofereça solução.\"\n      },\n      {\n        \"priority\": \"medium\",\n        \"condition\": \"lead_evasivo\",\n        \"action\": \"Faça perguntas mais diretas, crie urgência moderada, sugira próximo passo simples.\"\n      },\n      {\n        \"priority\": \"high\",\n        \"condition\": \"fim_conversa_sem_cta\",\n        \"action\": \"NUNCA deixe conversa morrer sem próximo passo: agendar, enviar material, coletar email.\"\n      }\n    ],\n    \"official_channels\": {\n      \"instagram\": \"@itvalley\",\n      \"website\": \"https://br.itvalleyschool.com\",\n      \"linkedin\": \"IT Valley School / Academy\",\n      \"youtube\": \"@ITValley\"\n    }\n  },\n  \"user_message\": \"{{ $json.mensagem }}\"\n}\n"
+          }
+        },
+        "id": "525a9a73-d44a-429f-b27c-cad704762063",
+        "name": "Agente W2C Support",
+        "type": "@n8n/n8n-nodes-langchain.agent",
+        "typeVersion": 1.7,
+        "position": [2528, 288]
+      },
+      {
+        "parameters": {
+          "options": {}
+        },
+        "id": "5b11896c-8637-4f1c-9a17-42a1c06872a6",
+        "name": "OpenAI Model",
+        "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+        "typeVersion": 1,
+        "position": [2448, 544],
+        "credentials": {
+          "openAiApi": {
+            "id": "aXDEsvfb3433TJWc",
+            "name": "W2C Opneai"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "sessionIdType": "customKey",
+          "sessionKey": "={{ $('DADOS_WB').item.json.lead.numero }}",
+          "sessionTTL": 604800,
+          "contextWindowLength": 1000
+        },
+        "type": "@n8n/n8n-nodes-langchain.memoryRedisChat",
+        "typeVersion": 1.4,
+        "position": [2608, 560],
+        "id": "663ca841-ccf6-4a31-b5d1-caeadeac6c11",
+        "name": "Redis Chat Memory",
+        "credentials": {
+          "redis": {
+            "id": "xzPJBqhKhipsox07",
+            "name": "npm-redis"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "httpMethod": "POST",
+          "path": "suport-itvalley",
+          "options": {}
+        },
+        "type": "n8n-nodes-base.webhook",
+        "typeVersion": 2,
+        "position": [-848, 304],
+        "id": "eb61debe-47b8-4bb5-bfc0-03c004096b5c",
+        "name": "Webhook",
+        "webhookId": "c6ace526-e54b-44e4-8817-8a44278a2dc5"
+      },
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "=https://app-evolutionapi-itvalley.azurewebsites.net/message/sendText/suportivalley",
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "apikey",
+                "value": "=C63EDB604679-463B-A0E9-313F470D69B5"
+              }
+            ]
+          },
+          "sendBody": true,
+          "specifyBody": "json",
+          "jsonBody": "={\n    \"number\": \"{{ $('DADOS_WB').item.json.lead.numero }}\",\n    \"text\": {{ JSON.stringify($json.output) }},\n\"delay\": 1600,\n    \"presence\": \"composing\"\n} ",
+          "options": {}
+        },
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [3056, 288],
+        "id": "23ceabcd-3c11-4751-9e9f-63461a15fe4b",
+        "name": "Evolution retorna mensagens"
+      },
+      {
+        "parameters": {
+          "assignments": {
+            "assignments": [
+              {
+                "id": "6d8b2f5e-1ca6-47f2-aba8-bf8ef5fb2fd1",
+                "name": "body.instance",
+                "value": "={{ $json.body.instance }}",
+                "type": "string"
+              },
+              {
+                "id": "de44dd79-0d4c-42be-936c-bca290ef2afc",
+                "name": "body.server_url",
+                "value": "={{ $json.body.server_url }}",
+                "type": "string"
+              },
+              {
+                "id": "e9a52bd9-bfa6-487a-b23b-6ec8810dd7b7",
+                "name": "lead.numero",
+                "value": "={{ $json.body.data.key.remoteJid }}",
+                "type": "string"
+              },
+              {
+                "id": "b129ff83-9d6c-4195-b466-eb363eecc6d3",
+                "name": "lead.mensagem",
+                "value": "={{ $json.body.data.message.conversation }}",
+                "type": "string"
+              },
+              {
+                "id": "1d61c431-5b41-4753-aaaa-2a41f263830f",
+                "name": "body.apikey",
+                "value": "={{ $json.body.apikey }}",
+                "type": "string"
+              },
+              {
+                "id": "3048d629-b408-4cfc-bbb8-bff61192e9e8",
+                "name": "lead.fromMe",
+                "value": "={{ $json.body.data.key.fromMe }}",
+                "type": "boolean"
+              },
+              {
+                "id": "6a99500b-c4f0-41d6-be3e-7d15ebd4ecac",
+                "name": "lead.pushName",
+                "value": "={{ $json.body.data.pushName }}",
+                "type": "string"
+              },
+              {
+                "id": "68f9d4b9-a1df-456f-a338-f09d37b4884f",
+                "name": "lead.messagem_tipo",
+                "value": "={{ $json.body.data.messageType }}",
+                "type": "string"
+              },
+              {
+                "id": "50f25934-7be8-41fb-b7cf-e5f8e6637215",
+                "name": "=lead.mensagem_media",
+                "value": "={{ $json.body.data.message.base64 }}",
+                "type": "string"
+              },
+              {
+                "id": "a5a8c448-9631-4e8d-9931-f3d43d8f0767",
+                "name": "mensagem_ia_voz",
+                "value": "={{ $json.body.data.mensagem_ia_voz === true }}",
+                "type": "boolean"
+              }
+            ]
+          },
+          "options": {}
+        },
+        "type": "n8n-nodes-base.set",
+        "typeVersion": 3.4,
+        "position": [-672, 304],
+        "id": "660ec827-3549-4793-9a53-81bcf9a87eac",
+        "name": "DADOS_WB"
+      },
+      {
+        "parameters": {
+          "rules": {
+            "values": [
+              {
+                "conditions": {
+                  "options": {
+                    "caseSensitive": true,
+                    "leftValue": "",
+                    "typeValidation": "strict",
+                    "version": 2
+                  },
+                  "conditions": [
+                    {
+                      "leftValue": "={{ $('DADOS_WB').item.json.lead.messagem_tipo }}",
+                      "rightValue": "conversation",
+                      "operator": {
+                        "type": "string",
+                        "operation": "equals"
+                      },
+                      "id": "e46c1a0f-7c8e-4c72-a7b0-dfee6315537f"
+                    }
+                  ],
+                  "combinator": "and"
+                },
+                "renameOutput": true,
+                "outputKey": "conversation"
+              },
+              {
+                "conditions": {
+                  "options": {
+                    "caseSensitive": true,
+                    "leftValue": "",
+                    "typeValidation": "strict",
+                    "version": 2
+                  },
+                  "conditions": [
+                    {
+                      "id": "4da253c3-6cb1-4ba5-8270-44e18b87d010",
+                      "leftValue": "={{ $('DADOS_WB').item.json.lead.messagem_tipo }}",
+                      "rightValue": "audioMessage",
+                      "operator": {
+                        "type": "string",
+                        "operation": "equals",
+                        "name": "filter.operator.equals"
+                      }
+                    }
+                  ],
+                  "combinator": "and"
+                },
+                "renameOutput": true,
+                "outputKey": "audioMessage"
+              },
+              {
+                "conditions": {
+                  "options": {
+                    "caseSensitive": true,
+                    "leftValue": "",
+                    "typeValidation": "strict",
+                    "version": 2
+                  },
+                  "conditions": [
+                    {
+                      "id": "9ff9202d-d731-4b39-9c1d-57b744be438c",
+                      "leftValue": "={{ $('DADOS_WB').item.json.lead.messagem_tipo }}",
+                      "rightValue": "imageMessage",
+                      "operator": {
+                        "type": "string",
+                        "operation": "equals",
+                        "name": "filter.operator.equals"
+                      }
+                    }
+                  ],
+                  "combinator": "and"
+                },
+                "renameOutput": true,
+                "outputKey": "imageMessage"
+              },
+              {
+                "conditions": {
+                  "options": {
+                    "caseSensitive": true,
+                    "leftValue": "",
+                    "typeValidation": "strict",
+                    "version": 2
+                  },
+                  "conditions": [
+                    {
+                      "id": "2bad1920-a35d-482a-a4a6-9f50b97cf0be",
+                      "leftValue": "documentMessage",
+                      "rightValue": "={{ $('DADOS_WB').item.json.lead.messagem_tipo }}",
+                      "operator": {
+                        "type": "string",
+                        "operation": "equals",
+                        "name": "filter.operator.equals"
+                      }
+                    }
+                  ],
+                  "combinator": "and"
+                },
+                "renameOutput": true,
+                "outputKey": "documentMessage"
+              },
+              {
+                "conditions": {
+                  "options": {
+                    "caseSensitive": true,
+                    "leftValue": "",
+                    "typeValidation": "strict",
+                    "version": 2
+                  },
+                  "conditions": [
+                    {
+                      "id": "0d575d2e-7159-4f46-bd88-4ded93774acd",
+                      "leftValue": "iaVozMessage",
+                      "rightValue": "={{ $('DADOS_WB').item.json.lead.messagem_tipo }}",
+                      "operator": {
+                        "type": "string",
+                        "operation": "equals",
+                        "name": "filter.operator.equals"
+                      }
+                    }
+                  ],
+                  "combinator": "and"
+                },
+                "renameOutput": true,
+                "outputKey": "iaVozMessage"
+              }
+            ]
+          },
+          "options": {}
+        },
+        "type": "n8n-nodes-base.switch",
+        "typeVersion": 3.2,
+        "position": [-16, 288],
+        "id": "6ec012fb-04f5-454c-a24e-d690b993f76c",
+        "name": "TIPO MENSAGEM"
+      },
+      {
+        "parameters": {
+          "conditions": {
+            "options": {
+              "caseSensitive": true,
+              "leftValue": "",
+              "typeValidation": "strict",
+              "version": 2
+            },
+            "conditions": [
+              {
+                "id": "76df8c01-abe4-4ee1-86b4-5751a97d0408",
+                "leftValue": "={{ $json.lead.fromMe }}",
+                "rightValue": "",
+                "operator": {
+                  "type": "boolean",
+                  "operation": "false",
+                  "singleValue": true
+                }
+              }
+            ],
+            "combinator": "and"
+          },
+          "options": {}
+        },
+        "type": "n8n-nodes-base.filter",
+        "typeVersion": 2.2,
+        "position": [-272, 384],
+        "id": "28ea4676-8a4a-4ee0-8e55-435f861a093d",
+        "name": "MENSAGEM LEAD"
+      },
+      {
+        "parameters": {},
+        "type": "n8n-nodes-base.noOp",
+        "typeVersion": 1,
+        "position": [448, 128],
+        "id": "59abb351-06ea-4c0a-be1c-99948d6532e9",
+        "name": "No Operation, do nothing"
+      },
+      {
+        "parameters": {
+          "assignments": {
+            "assignments": [
+              {
+                "id": "d95bc967-d211-407c-aef2-a380d04a025c",
+                "name": "output",
+                "value": "={{ $json.output }}",
+                "type": "string"
+              }
+            ]
+          },
+          "options": {}
+        },
+        "type": "n8n-nodes-base.set",
+        "typeVersion": 3.4,
+        "position": [2848, 288],
+        "id": "21670f35-29ee-4b77-8745-b4262aea1377",
+        "name": "Edit Fields"
+      },
+      {
+        "parameters": {
+          "operation": "get",
+          "propertyName": "mensagem",
+          "key": "={{ $('DADOS_WB').item.json.lead.numero }}-mensagem",
+          "options": {}
+        },
+        "type": "n8n-nodes-base.redis",
+        "typeVersion": 1,
+        "position": [1472, 368],
+        "id": "3c47bf3d-98aa-485f-907c-e319ac27d505",
+        "name": "GET MENSAGEM",
+        "credentials": {
+          "redis": {
+            "id": "xzPJBqhKhipsox07",
+            "name": "npm-redis"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "amount": 10
+        },
+        "type": "n8n-nodes-base.wait",
+        "typeVersion": 1.1,
+        "position": [1600, 208],
+        "id": "bf4ac5f0-e9e4-4f53-9520-c5f8955065b2",
+        "name": "Wait",
+        "webhookId": "8a84a3fa-e5cf-478c-a4c5-2f13af869fde"
+      },
+      {
+        "parameters": {
+          "operation": "push",
+          "list": "={{ $('DADOS_WB').first().json.lead.numero }}-mensagem",
+          "messageData": "={{ $json.content }}\n",
+          "tail": true
+        },
+        "type": "n8n-nodes-base.redis",
+        "typeVersion": 1,
+        "position": [1312, 208],
+        "id": "a2258f76-4049-4786-bd12-6b344e7ea8d7",
+        "name": "PUSH MENSAGEM",
+        "credentials": {
+          "redis": {
+            "id": "xzPJBqhKhipsox07",
+            "name": "npm-redis"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "operation": "get",
+          "propertyName": "mensagem",
+          "key": "={{ $('DADOS_WB').item.json.lead.numero }}-mensagem",
+          "options": {}
+        },
+        "type": "n8n-nodes-base.redis",
+        "typeVersion": 1,
+        "position": [1744, 400],
+        "id": "c589c17c-34c9-4c96-afba-28e4e77a569a",
+        "name": "GET MENSAGEM4",
+        "credentials": {
+          "redis": {
+            "id": "xzPJBqhKhipsox07",
+            "name": "npm-redis"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "conditions": {
+            "options": {
+              "caseSensitive": true,
+              "leftValue": "",
+              "typeValidation": "strict",
+              "version": 2
+            },
+            "conditions": [
+              {
+                "id": "fe51b7ac-e39a-4811-aaaf-4ae7d8eb77a0",
+                "leftValue": "={{ $('GET MENSAGEM').item.json.mensagem.length }}",
+                "rightValue": "={{ $json.mensagem.length }}",
+                "operator": {
+                  "type": "number",
+                  "operation": "equals"
+                }
+              }
+            ],
+            "combinator": "and"
+          },
+          "options": {}
+        },
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 2.2,
+        "position": [1904, 208],
+        "id": "e243721a-db1d-4dd4-82c6-7f8fe6efee4e",
+        "name": "PAROU DE MANDAR MENSAGEM"
+      },
+      {
+        "parameters": {
+          "operation": "delete",
+          "key": "={{ $('DADOS_WB').item.json.lead.numero }}-mensagem"
+        },
+        "type": "n8n-nodes-base.redis",
+        "typeVersion": 1,
+        "position": [2128, 400],
+        "id": "d2cf174d-ba88-4cdb-8894-c3e9c4374f26",
+        "name": "DELETAR MENSAGENS",
+        "credentials": {
+          "redis": {
+            "id": "xzPJBqhKhipsox07",
+            "name": "npm-redis"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "assignments": {
+            "assignments": [
+              {
+                "name": "lead.mensagem_media",
+                "value": "={{ $json.lead.mensagem_media }}",
+                "type": "string",
+                "id": "46c14d30-399c-4091-813c717e73f664b0"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "name": "Edit Fields - Imagem",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [192, 464],
+      "id": "09610c3e-763c-4c59-8dda-ea8c43a703d2"
+    },
+    {
+      "parameters": {
+        "fields": {
+          "values": [
+            {
+              "name": "ocr_text",
+              "stringValue": "={{ $json.responses[0].fullTextAnnotation.text }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "name": "Extrair Texto",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3,
+      "position": [720, 464],
+      "id": "65f88922-47c5-4aa7-bb31-8317297fe72c"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [880, 384],
+      "id": "058e8a52-6ffd-4e9b-9e47-90f38d5fa3b7",
+      "name": "OCR1"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "name": "base64",
+              "value": "={{ $json.lead.mensagem_media }}",
+              "type": "string",
+              "id": "46c14d30-399c-4091-813c-717e73f664b0"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "name": "Edit Fields - PDF Base",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [112, 640],
+      "id": "41986c4f-d067-4eed-8090-0e76cba7ffef"
+    },
+    {
+      "parameters": {
+        "operation": "toBinary",
+        "sourceProperty": "lead.mensagem_media",
+        "binaryPropertyName": "image",
+        "options": {
+          "fileName": "imagem.jpg",
+          "mimeType": "image/jpeg"
+        }
+      },
+      "name": "Convert to File - Imagem1",
+      "type": "n8n-nodes-base.convertToFile",
+      "typeVersion": 1.1,
+      "position": [368, 464],
+      "id": "709de637-0229-4355-a614-045435b8590e"
+    },
+    {
+      "parameters": {
+        "operation": "toBinary",
+        "sourceProperty": "base64",
+        "binaryPropertyName": "pdf_file",
+        "options": {
+          "fileName": "file.pdf",
+          "mimeType": "application/pdf"
+        }
+      },
+      "name": "Convert to File - PDF1",
+      "type": "n8n-nodes-base.convertToFile",
+      "typeVersion": 1.1,
+      "position": [272, 640],
+      "id": "75c28d4c-b689-4681-b69f-d09fde14004d"
+    },
+    {
+      "parameters": {
+        "jsCode": "const item = $input.item;\n\nif (!item.binary || !item.binary.pdf_file) {\n  throw new Error(\"Arquivo PDF não encontrado em binary\");\n}\n\nconst base64 = item.binary.pdf_file.data.replace(/\\n/g, '');\n\nreturn [\n  {\n    json: {\n      base64_pdf: base64\n    }\n  }\n];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [448, 640],
+      "id": "49f02a72-0eb8-4309-b762-05984c2ff60f",
+      "name": "CODE - BASE"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://vision.googleapis.com/v1/files:annotate?key=AIzaSyBmAoy0dd9PqTKG3njqwLqTKLbu_H-LBdQ",
+        "sendHeaders": true,
+        "specifyHeaders": "json",
+        "jsonHeaders": "{\n  \"Content-Type\": \"application/json\"\n}\n",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"requests\": [\n    {\n      \"inputConfig\": {\n        \"mimeType\": \"application/pdf\",\n        \"content\": \"{{ $json.base64_pdf }}\"\n      },\n      \"features\": [\n        {\n          \"type\": \"DOCUMENT_TEXT_DETECTION\"\n        }\n      ]\n    }\n  ]\n}\n",
+        "options": {}
+      },
+      "name": "OCR - Extrai o PDF1",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [608, 640],
+      "id": "4d3210a5-e74d-4e4d-8a63-174f3f6bef11"
+    },
+    {
+      "parameters": {
+        "jsCode": "const responses = $json.responses?.[0]?.responses?.[0]?.fullTextAnnotation?.pages || [];\n\nlet textoExtraido = \"\";\n\nfor (const page of responses) {\n  for (const block of page.blocks || []) {\n    for (const paragraph of block.paragraphs || []) {\n      for (const word of paragraph.words || []) {\n        const palavra = word.symbols.map(s => s.text).join('');\n        textoExtraido += palavra + ' ';\n      }\n    }\n  }\n}\n\ntextoExtraido = textoExtraido.trim();\n\nreturn [\n  {\n    json: {\n      lead: {\n        mensagem: textoExtraido || 'Nenhuma informação extraída do PDF.'\n      }\n    }\n  }\n];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [768, 640],
+      "id": "e6fa1daa-2a24-4a97-a6b2-f97f31cb7876",
+      "name": "Code - Organiza o Texto1"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "5f0de115-6deb-449f-a1b7-95eae47cb666",
+              "name": "content",
+              "value": "={{\n  $json.lead?.mensagem\n    ? $json.lead.mensagem\n    : (\n        $json.responses?.[0]?.fullTextAnnotation?.text ||\n        $json.responses?.[0]?.textAnnotations?.[0]?.description?.replace(/\\n/g, ' ') ||\n        ($json.responses?.[0]?.paragraphs?.[0]?.words\n          ? $json.responses[0].paragraphs[0].words.map(w => w.symbols.map(s => s.text).join('')).join(' ')\n          : null\n        ) ||\n        $json.text ||\n        'Nenhuma informação encontrada.'\n      )\n}}\n",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [1136, 320],
+      "id": "127d0adc-7835-4fd2-8be8-27644759622f",
+      "name": "Envia Mensagem - Estruturada1"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.mensagem_tipo }}\n",
+              "value2": "ia_voz"
+            }
+          ]
+        }
+      },
+      "name": "IF VERIFICA IA VOZ1",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [-480, 304],
+      "id": "e3167b55-53cb-4fed-96cd-a3ed93208921"
+    },
+    {
+      "parameters": {
+        "values": {
+          "string": [
+            {
+              "name": "lead.mensagem_tipo = \"ia_voz\"",
+              "value": "Olá! Sou o assistente virtual oficial do W2C Games 🎯\n\nRecebemos sua mensagem e estou aqui para ajudá-lo com:\n\n✅ Inscrições nas competições\n✅ Regulamentos e dúvidas técnicas\n✅ Calendário de etapas\n✅ Certificados e habitualidade\n✅ Sistema Shooting House\n\nComo posso ajudá-lo hoje?"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "name": "SET MSG IA VOZ1",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 1,
+      "position": [-272, 224],
+      "id": "dad9a339-a353-4502-b834-b6c202dad64a"
+    },
+    {
+      "parameters": {
+        "operation": "toBinary",
+        "sourceProperty": "lead.mensagem_media",
+        "options": {
+          "fileName": "audio.mp3",
+          "mimeType": "audio/mpeg"
+        }
+      },
+      "type": "n8n-nodes-base.convertToFile",
+      "typeVersion": 1.1,
+      "position": [304, 304],
+      "id": "f3d83392-fea5-432f-bdff-80d5c997dc58",
+      "name": "Convert Audio1"
+    },
+    {
+      "parameters": {
+        "resource": "audio",
+        "operation": "transcribe",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 1.8,
+      "position": [528, 304],
+      "id": "8ffb3067-7688-4234-8ec3-198799931e5c",
+      "name": "Transcreve audio1",
+      "credentials": {
+        "openAiApi": {
+          "id": "aXDEsvfb3433TJWc",
+          "name": "W2C Opneai"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://vision.googleapis.com/v1/images:annotate?key=AIzaSyBmAoy0dd9PqTKG3njqwLqTKLbu_H-LBdQ",
+        "sendHeaders": true,
+        "specifyHeaders": "json",
+        "jsonHeaders": "{\n  \"Content-Type\": \"application/json\"\n}\n",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"requests\": [\n    {\n      \"image\": {\n        \"content\": \"{{ $('Edit Fields - Imagem').item.json.lead.mensagem_media }}\"\n      },\n      \"features\": [\n        {\n          \"type\": \"TEXT_DETECTION\"\n        }\n      ]\n    }\n  ]\n}\n",
+        "options": {}
+      },
+      "name": "OCR Extrai Imagem1",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [560, 464],
+      "id": "12b9d013-5daf-4413-882d-3831469a6b23"
+    },
+    {
+      "parameters": {
+        "height": 880,
+        "width": 1020,
+        "color": 3
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [-48, -16],
+      "typeVersion": 1,
+      "id": "1ea0f807-d0a6-495f-93e7-3c0072738814",
+      "name": "Sticky Note4"
+    },
+    {
+      "parameters": {
+        "height": 640,
+        "width": 1220,
+        "color": 4
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [1072, 16],
+      "typeVersion": 1,
+      "id": "f9602217-8713-4011-ba90-96cf484cecf2",
+      "name": "Sticky Note5"
+    },
+    {
+      "parameters": {
+        "height": 1060,
+        "width": 960,
+        "color": 4
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [2368, -16],
+      "typeVersion": 1,
+      "id": "856e8398-9207-4d9d-b354-614b64196834",
+      "name": "Sticky Note6"
+    },
+    {
+      "parameters": {
+        "height": 500,
+        "width": 800,
+        "color": 6
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [-928, 128],
+      "typeVersion": 1,
+      "id": "f5dae3de-e264-4ec7-b34e-9009d47cca02",
+      "name": "Sticky Note7"
+    },
+    {
+      "parameters": {
+        "mode": "retrieve-as-tool",
+        "toolDescription": "SEMPRE use esta ferramenta para responder perguntas sobre:\n- Regulamentos e regras\n- Competições (El Patrón, Headshot, Open National, etc)  \n- Inscrições e certificados\n- Categorias e calendário\n- Habitualidade e progressão\n- Sistema Shooting House\n- Clubes e Pro Hub",
+        "pineconeIndex": {
+          "__rl": true,
+          "value": "sup",
+          "mode": "list",
+          "cachedResultName": "sup"
+        },
+        "options": {
+          "pineconeNamespace": "default"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.vectorStorePinecone",
+      "typeVersion": 1.3,
+      "position": [2800, 560],
+      "id": "60fa44ce-34a8-4e53-8ff8-525050dce25c",
+      "name": "Pinecone Vector Store",
+      "credentials": {
+        "pineconeApi": {
+          "id": "ftP3DJ600LJZHU3j",
+          "name": "w2c-credentials"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.embeddingsOpenAi",
+      "typeVersion": 1.2,
+      "position": [2784, 736],
+      "id": "4012c171-f21c-4032-b87b-92a6ed8c071d",
+      "name": "Embeddings OpenAI2",
+      "credentials": {
+        "openAiApi": {
+          "id": "aXDEsvfb3433TJWc",
+          "name": "W2C Opneai"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "set",
+        "key": "={{ $('DADOS_WB').item.json.lead.numero }}-tracking",
+        "value": "={{ JSON.stringify({\n  last_interaction: $now.toISO(),\n  last_message: $('DADOS_WB').item.json.lead.mensagem,\n  pushName: $('DADOS_WB').item.json.lead.pushName,\n  stage: 'active',\n  follow_up_count: 0,\n  message_count: 1,\n  created_at: $now.toISO()\n}) }}",
+        "ttl": 604800,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [3232, 288],
+      "id": "aa1f9c3e-5d2a-4c12-8b45-e319ac27d506",
+      "name": "UPDATE LEAD TRACKING",
+      "credentials": {
+        "redis": {
+          "id": "xzPJBqhKhipsox07",
+          "name": "npm-redis"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 2
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [-848, 880],
+      "id": "schedule-follow-up-trigger",
+      "name": "Schedule Follow-up Check"
+    },
+    {
+      "parameters": {
+        "operation": "keys",
+        "keyPattern": "*-tracking"
+      },
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [-672, 880],
+      "id": "redis-get-all-tracking",
+      "name": "GET ALL TRACKING KEYS",
+      "credentials": {
+        "redis": {
+          "id": "xzPJBqhKhipsox07",
+          "name": "npm-redis"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const keys = $input.first().json.keys || [];\nconst results = [];\n\nfor (const key of keys) {\n  results.push({\n    json: {\n      key: key,\n      numero: key.replace('-tracking', '')\n    }\n  });\n}\n\nreturn results;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-480, 880],
+      "id": "split-tracking-keys",
+      "name": "Split Tracking Keys"
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "propertyName": "tracking_data",
+        "key": "={{ $json.key }}"
+      },
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [-288, 880],
+      "id": "get-tracking-data",
+      "name": "GET TRACKING DATA",
+      "credentials": {
+        "redis": {
+          "id": "xzPJBqhKhipsox07",
+          "name": "npm-redis"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const now = new Date();\nconst items = $input.all();\nconst leads = [];\n\nfor (const item of items) {\n  try {\n    const tracking = JSON.parse(item.json.tracking_data);\n    const lastInteraction = new Date(tracking.last_interaction);\n    const hoursSince = (now - lastInteraction) / (1000 * 60 * 60);\n    \n    // Só processa se stage for 'active' ou 'warm'\n    if (tracking.stage !== 'cold' && tracking.stage !== 'qualified') {\n      let followUpType = null;\n      \n      if (hoursSince >= 72 && tracking.follow_up_count === 2) {\n        followUpType = 'mark_cold';\n      } else if (hoursSince >= 48 && tracking.follow_up_count === 1) {\n        followUpType = 'last_attempt';\n      } else if (hoursSince >= 24 && tracking.follow_up_count === 0) {\n        followUpType = 'value_add';\n      } else if (hoursSince >= 3 && tracking.follow_up_count === 0) {\n        followUpType = 'soft_nudge';\n      }\n      \n      if (followUpType) {\n        leads.push({\n          json: {\n            numero: item.json.numero,\n            pushName: tracking.pushName || 'Lead',\n            hours_inactive: Math.floor(hoursSince),\n            follow_up_count: tracking.follow_up_count,\n            follow_up_type: followUpType,\n            stage: tracking.stage,\n            last_message: tracking.last_message || ''\n          }\n        });\n      }\n    }\n  } catch (error) {\n    console.error('Erro ao processar tracking:', error);\n  }\n}\n\nreturn leads;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-96, 880],
+      "id": "filter-inactive-leads",
+      "name": "Filter Inactive Leads"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.follow_up_type }}",
+                    "rightValue": "soft_nudge",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "3h_followup"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.follow_up_type }}",
+                    "rightValue": "value_add",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "24h_followup"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.follow_up_type }}",
+                    "rightValue": "last_attempt",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "48h_followup"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.follow_up_type }}",
+                    "rightValue": "mark_cold",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "cold_lead"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [96, 880],
+      "id": "switch-followup-type",
+      "name": "SWITCH FOLLOW-UP TYPE"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "msg-3h",
+              "name": "message",
+              "value": "={{ $json.pushName }}, vi que você demonstrou interesse na IT Valley! 😊\n\nTem alguma dúvida que posso esclarecer sobre nossos cursos de IA, Dados ou pós-graduação?",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [304, 704],
+      "id": "set-message-3h",
+      "name": "Message 3h"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "msg-24h",
+              "name": "message",
+              "value": "=Oi {{ $json.pushName }}! 👋\n\nPreparei um material que pode te ajudar a entender melhor como a IT Valley pode acelerar sua carreira em TI.\n\nNossa próxima turma está com vagas limitadas. Quer saber mais?",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [304, 880],
+      "id": "set-message-24h",
+      "name": "Message 24h"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "msg-48h",
+              "name": "message",
+              "value": "={{ $json.pushName }}, notei que você ainda não finalizou sua consulta sobre a IT Valley.\n\nSe tiver qualquer dúvida sobre investimento, formas de pagamento ou cronograma, estou aqui para ajudar!\n\nQual seria o melhor horário para conversarmos 15min?",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [304, 1056],
+      "id": "set-message-48h",
+      "name": "Message 48h"
+    },
+    {
+      "parameters": {
+        "operation": "set",
+        "key": "={{ $json.numero }}-tracking",
+        "value": "={{ JSON.stringify({\n  last_interaction: $now.toISO(),\n  stage: 'cold',\n  follow_up_count: 3,\n  marked_cold_at: $now.toISO()\n}) }}",
+        "ttl": 604800
+      },
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [304, 1232],
+      "id": "mark-as-cold",
+      "name": "MARK AS COLD",
+      "credentials": {
+        "redis": {
+          "id": "xzPJBqhKhipsox07",
+          "name": "npm-redis"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://app-evolutionapi-itvalley.azurewebsites.net/message/sendText/suportivalley",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "C63EDB604679-463B-A0E9-313F470D69B5"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"number\": \"{{ $json.numero }}\",\n  \"text\": {{ JSON.stringify($json.message) }},\n  \"delay\": 1600,\n  \"presence\": \"composing\"\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [544, 704],
+      "id": "send-followup-3h",
+      "name": "Send Follow-up 3h"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://app-evolutionapi-itvalley.azurewebsites.net/message/sendText/suportivalley",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "C63EDB604679-463B-A0E9-313F470D69B5"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"number\": \"{{ $json.numero }}\",\n  \"text\": {{ JSON.stringify($json.message) }},\n  \"delay\": 1600,\n  \"presence\": \"composing\"\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [544, 880],
+      "id": "send-followup-24h",
+      "name": "Send Follow-up 24h"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://app-evolutionapi-itvalley.azurewebsites.net/message/sendText/suportivalley",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "C63EDB604679-463B-A0E9-313F470D69B5"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"number\": \"{{ $json.numero }}\",\n  \"text\": {{ JSON.stringify($json.message) }},\n  \"delay\": 1600,\n  \"presence\": \"composing\"\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [544, 1056],
+      "id": "send-followup-48h",
+      "name": "Send Follow-up 48h"
+    },
+    {
+      "parameters": {
+        "operation": "set",
+        "key": "={{ $json.numero }}-tracking",
+        "value": "={{ JSON.stringify({\n  last_interaction: $now.toISO(),\n  stage: $json.stage,\n  follow_up_count: $json.follow_up_count + 1,\n  last_followup_sent: $now.toISO(),\n  pushName: $json.pushName\n}) }}",
+        "ttl": 604800
+      },
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [768, 704],
+      "id": "update-tracking-3h",
+      "name": "Update Tracking 3h",
+      "credentials": {
+        "redis": {
+          "id": "xzPJBqhKhipsox07",
+          "name": "npm-redis"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "set",
+        "key": "={{ $json.numero }}-tracking",
+        "value": "={{ JSON.stringify({\n  last_interaction: $now.toISO(),\n  stage: $json.stage,\n  follow_up_count: $json.follow_up_count + 1,\n  last_followup_sent: $now.toISO(),\n  pushName: $json.pushName\n}) }}",
+        "ttl": 604800
+      },
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [768, 880],
+      "id": "update-tracking-24h",
+      "name": "Update Tracking 24h",
+      "credentials": {
+        "redis": {
+          "id": "xzPJBqhKhipsox07",
+          "name": "npm-redis"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "set",
+        "key": "={{ $json.numero }}-tracking",
+        "value": "={{ JSON.stringify({\n  last_interaction: $now.toISO(),\n  stage: $json.stage,\n  follow_up_count: $json.follow_up_count + 1,\n  last_followup_sent: $now.toISO(),\n  pushName: $json.pushName\n}) }}",
+        "ttl": 604800
+      },
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [768, 1056],
+      "id": "update-tracking-48h",
+      "name": "Update Tracking 48h",
+      "credentials": {
+        "redis": {
+          "id": "xzPJBqhKhipsox07",
+          "name": "npm-redis"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "height": 640,
+        "width": 1200,
+        "color": 5
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [-928, 656],
+      "typeVersion": 1,
+      "id": "sticky-followup-system",
+      "name": "Sticky Note - Follow-up System"
+    }
+  ],
+  "connections": {
+    "Agente W2C Support": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Agente W2C Support",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Redis Chat Memory": {
+      "ai_memory": [
+        [
+          {
+            "node": "Agente W2C Support",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "DADOS_WB",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "DADOS_WB": {
+      "main": [
+        [
+          {
+            "node": "IF VERIFICA IA VOZ1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "TIPO MENSAGEM": {
+      "main": [
+        [
+          {
+            "node": "No Operation, do nothing",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Convert Audio1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Edit Fields - Imagem",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Edit Fields - PDF Base",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "MENSAGEM LEAD": {
+      "main": [
+        [
+          {
+            "node": "TIPO MENSAGEM",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "No Operation, do nothing": {
+      "main": [
+        [
+          {
+            "node": "Envia Mensagem - Estruturada1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields": {
+      "main": [
+        [
+          {
+            "node": "Evolution retorna mensagens",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Evolution retorna mensagens": {
+      "main": [
+        [
+          {
+            "node": "UPDATE LEAD TRACKING",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GET MENSAGEM": {
+      "main": [
+        [
+          {
+            "node": "Wait",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait": {
+      "main": [
+        [
+          {
+            "node": "GET MENSAGEM4",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "PUSH MENSAGEM": {
+      "main": [
+        [
+          {
+            "node": "GET MENSAGEM",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GET MENSAGEM4": {
+      "main": [
+        [
+          {
+            "node": "PAROU DE MANDAR MENSAGEM",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "PAROU DE MANDAR MENSAGEM": {
+      "main": [
+        [
+          {
+            "node": "DELETAR MENSAGENS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "DELETAR MENSAGENS": {
+      "main": [
+        [
+          {
+            "node": "Agente W2C Support",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields - Imagem": {
+      "main": [
+        [
+          {
+            "node": "Convert to File - Imagem1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extrair Texto": {
+      "main": [
+        [
+          {
+            "node": "OCR1",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "OCR1": {
+      "main": [
+        [
+          {
+            "node": "Envia Mensagem - Estruturada1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields - PDF Base": {
+      "main": [
+        [
+          {
+            "node": "Convert to File - PDF1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Convert to File - Imagem1": {
+      "main": [
+        [
+          {
+            "node": "OCR Extrai Imagem1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Convert to File - PDF1": {
+      "main": [
+        [
+          {
+            "node": "CODE - BASE",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "CODE - BASE": {
+      "main": [
+        [
+          {
+            "node": "OCR - Extrai o PDF1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OCR - Extrai o PDF1": {
+      "main": [
+        [
+          {
+            "node": "Code - Organiza o Texto1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code - Organiza o Texto1": {
+      "main": [
+        [
+          {
+            "node": "OCR1",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Envia Mensagem - Estruturada1": {
+      "main": [
+        [
+          {
+            "node": "PUSH MENSAGEM",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF VERIFICA IA VOZ1": {
+      "main": [
+        [
+          {
+            "node": "SET MSG IA VOZ1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "MENSAGEM LEAD",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "SET MSG IA VOZ1": {
+      "main": [
+        [
+          {
+            "node": "TIPO MENSAGEM",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Convert Audio1": {
+      "main": [
+        [
+          {
+            "node": "Transcreve audio1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Transcreve audio1": {
+      "main": [
+        [
+          {
+            "node": "OCR1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OCR Extrai Imagem1": {
+      "main": [
+        [
+          {
+            "node": "Extrair Texto",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pinecone Vector Store": {
+      "ai_tool": [
+        [
+          {
+            "node": "Agente W2C Support",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Embeddings OpenAI2": {
+      "ai_embedding": [
+        [
+          {
+            "node": "Pinecone Vector Store",
+            "type": "ai_embedding",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Schedule Follow-up Check": {
+      "main": [
+        [
+          {
+            "node": "GET ALL TRACKING KEYS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GET ALL TRACKING KEYS": {
+      "main": [
+        [
+          {
+            "node": "Split Tracking Keys",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Tracking Keys": {
+      "main": [
+        [
+          {
+            "node": "GET TRACKING DATA",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GET TRACKING DATA": {
+      "main": [
+        [
+          {
+            "node": "Filter Inactive Leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter Inactive Leads": {
+      "main": [
+        [
+          {
+            "node": "SWITCH FOLLOW-UP TYPE",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "SWITCH FOLLOW-UP TYPE": {
+      "main": [
+        [
+          {
+            "node": "Message 3h",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Message 24h",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Message 48h",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "MARK AS COLD",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Message 3h": {
+      "main": [
+        [
+          {
+            "node": "Send Follow-up 3h",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Message 24h": {
+      "main": [
+        [
+          {
+            "node": "Send Follow-up 24h",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Message 48h": {
+      "main": [
+        [
+          {
+            "node": "Send Follow-up 48h",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Follow-up 3h": {
+      "main": [
+        [
+          {
+            "node": "Update Tracking 3h",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Follow-up 24h": {
+      "main": [
+        [
+          {
+            "node": "Update Tracking 24h",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Follow-up 48h": {
+      "main": [
+        [
+          {
+            "node": "Update Tracking 48h",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "meta": {
+    "instanceId": "7df4797da51957e59ba8ed93efc52cabc936f3ad0c478cbf7fcef0aff43f0160"
+  }
+}
