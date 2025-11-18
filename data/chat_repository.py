@@ -4,8 +4,10 @@ Persistência de dados seguindo padrão IT Valley Architecture
 """
 from typing import Optional, List
 from sqlalchemy.orm import Session
+from sqlalchemy import and_
 
 from domain.chat.chat_entity import ChatEntity
+from data.entities.chat_entities import ChatSessionEntity, ChatMessageEntity
 
 
 class ChatRepository:
@@ -16,7 +18,7 @@ class ChatRepository:
     
     def add_session(self, session: ChatEntity) -> ChatEntity:
         """
-        Adiciona sessão
+        Adiciona sessão no banco de dados
         
         Args:
             session: Sessão para adicionar
@@ -24,12 +26,25 @@ class ChatRepository:
         Returns:
             ChatEntity: Sessão adicionada
         """
-        # Simula persistência
+        # Cria entidade de banco
+        db_session = ChatSessionEntity(
+            id=session.id,
+            user_id=session.user_id,
+            agent_id=session.agent_id,
+            title=session.title,
+            status=session.status,
+            created_at=session.created_at
+        )
+        
+        self.db.add(db_session)
+        self.db.commit()
+        self.db.refresh(db_session)
+        
         return session
     
     def add_message(self, message: ChatEntity) -> ChatEntity:
         """
-        Adiciona mensagem
+        Adiciona mensagem no banco de dados
         
         Args:
             message: Mensagem para adicionar
@@ -37,7 +52,23 @@ class ChatRepository:
         Returns:
             ChatEntity: Mensagem adicionada
         """
-        # Simula persistência
+        import json
+        
+        # Cria entidade de banco
+        db_message = ChatMessageEntity(
+            id=message.id,
+            session_id=message.session_id,
+            user_id=message.user_id,
+            message=message.message,
+            sender=message.sender,
+            context=json.dumps(message.context) if message.context else None,  # Converter dict para JSON string
+            created_at=message.created_at
+        )
+        
+        self.db.add(db_message)
+        self.db.commit()
+        self.db.refresh(db_message)
+        
         return message
     
     def get_session(self, session_id: str, user_id: str) -> Optional[ChatEntity]:
@@ -51,12 +82,30 @@ class ChatRepository:
         Returns:
             ChatEntity: Sessão encontrada ou None
         """
-        # Simula busca
-        return None
+        db_session = self.db.query(ChatSessionEntity).filter(
+            and_(
+                ChatSessionEntity.id == session_id,
+                ChatSessionEntity.user_id == user_id
+            )
+        ).first()
+        
+        if not db_session:
+            return None
+        
+        # Converte para domain entity
+        from domain.chat.chat_entity import ChatEntity
+        return ChatEntity(
+            id=db_session.id,
+            user_id=db_session.user_id,
+            agent_id=db_session.agent_id,
+            title=db_session.title,
+            status=db_session.status,
+            created_at=db_session.created_at
+        )
     
     def update_session(self, session: ChatEntity) -> ChatEntity:
         """
-        Atualiza sessão
+        Atualiza sessão no banco de dados
         
         Args:
             session: Sessão para atualizar
@@ -64,7 +113,18 @@ class ChatRepository:
         Returns:
             ChatEntity: Sessão atualizada
         """
-        # Simula atualização
+        db_session = self.db.query(ChatSessionEntity).filter(
+            ChatSessionEntity.id == session.id
+        ).first()
+        
+        if db_session:
+            db_session.title = session.title
+            db_session.status = session.status
+            db_session.closed_at = session.closed_at if hasattr(session, 'closed_at') else None
+            
+            self.db.commit()
+            self.db.refresh(db_session)
+        
         return session
     
     def get_messages(self, session_id: str, user_id: str, page: int = 1, size: int = 20) -> tuple[List[ChatEntity], int]:
@@ -80,12 +140,47 @@ class ChatRepository:
         Returns:
             tuple: Lista de mensagens e total
         """
-        # Simula lista vazia
-        return [], 0
+        # Verifica se sessão pertence ao usuário
+        session = self.db.query(ChatSessionEntity).filter(
+            and_(
+                ChatSessionEntity.id == session_id,
+                ChatSessionEntity.user_id == user_id
+            )
+        ).first()
+        
+        if not session:
+            return [], 0
+        
+        # Busca mensagens com paginação
+        query = self.db.query(ChatMessageEntity).filter(
+            ChatMessageEntity.session_id == session_id
+        ).order_by(ChatMessageEntity.created_at.desc())
+        
+        total = query.count()
+        
+        offset = (page - 1) * size
+        db_messages = query.offset(offset).limit(size).all()
+        
+        # Converte para domain entities
+        from domain.chat.chat_entity import ChatEntity
+        messages = [
+            ChatEntity(
+                id=msg.id,
+                session_id=msg.session_id,
+                user_id=msg.user_id,
+                message=msg.message,
+                sender=msg.sender,
+                context=msg.context,
+                created_at=msg.created_at
+            )
+            for msg in db_messages
+        ]
+        
+        return messages, total
     
     def list_sessions(self, user_id: str, page: int = 1, size: int = 10, status: Optional[str] = None) -> tuple[List[ChatEntity], int]:
         """
-        Lista sessões
+        Lista sessões do usuário
         
         Args:
             user_id: ID do usuário
@@ -96,5 +191,32 @@ class ChatRepository:
         Returns:
             tuple: Lista de sessões e total
         """
-        # Simula lista vazia
-        return [], 0
+        query = self.db.query(ChatSessionEntity).filter(
+            ChatSessionEntity.user_id == user_id
+        )
+        
+        if status:
+            query = query.filter(ChatSessionEntity.status == status)
+        
+        query = query.order_by(ChatSessionEntity.created_at.desc())
+        
+        total = query.count()
+        
+        offset = (page - 1) * size
+        db_sessions = query.offset(offset).limit(size).all()
+        
+        # Converte para domain entities
+        from domain.chat.chat_entity import ChatEntity
+        sessions = [
+            ChatEntity(
+                id=s.id,
+                user_id=s.user_id,
+                agent_id=s.agent_id,
+                title=s.title,
+                status=s.status,
+                created_at=s.created_at
+            )
+            for s in db_sessions
+        ]
+        
+        return sessions, total

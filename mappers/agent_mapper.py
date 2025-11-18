@@ -30,17 +30,37 @@ class AgentMapper:
         Returns:
             AgentResponse: Dados públicos do agente
         """
+        from schemas.agents.responses import AgentType, AgentStatus
+        
+        # Parsear o tipo
+        agent_type = getattr(agent, 'agent_type', 'chatbot')
+        try:
+            type_enum = AgentType[agent_type.upper()] if agent_type else AgentType.CHATBOT
+        except (KeyError, AttributeError):
+            type_enum = AgentType.CHATBOT
+        
+        # Parsear o status
+        agent_status = getattr(agent, 'status', 'inactive') or 'inactive'
+        try:
+            status_enum = AgentStatus[agent_status.upper()] if agent_status else AgentStatus.INACTIVE
+        except (KeyError, AttributeError):
+            status_enum = AgentStatus.INACTIVE
+        
+        # Handle NULL datetime values with default
+        created_at = agent.created_at if agent.created_at else datetime.utcnow()
+        updated_at = agent.updated_at if agent.updated_at else created_at
+        
         return AgentResponse(
             id=agent.id,
             name=agent.name,
             description=agent.description,
-            type=agent.type,
-            status=agent.status,
-            model=agent.model,
-            temperature=agent.temperature,
-            max_tokens=agent.max_tokens,
-            created_at=agent.created_at,
-            updated_at=agent.updated_at,
+            type=type_enum,
+            status=status_enum,
+            model=agent.model or "gpt-4",
+            temperature=float(agent.temperature or 0.7),
+            max_tokens=int(agent.max_tokens or 4096),
+            created_at=created_at,
+            updated_at=updated_at,
             user_id=agent.user_id
         )
     
@@ -56,19 +76,39 @@ class AgentMapper:
         Returns:
             AgentDetailResponse: Dados detalhados do agente
         """
+        from schemas.agents.responses import AgentType, AgentStatus
+        
+        # Parsear o tipo
+        agent_type = getattr(agent, 'agent_type', 'chatbot')
+        try:
+            type_enum = AgentType[agent_type.upper()] if agent_type else AgentType.CHATBOT
+        except (KeyError, AttributeError):
+            type_enum = AgentType.CHATBOT
+        
+        # Parsear o status
+        agent_status = getattr(agent, 'status', 'inactive') or 'inactive'
+        try:
+            status_enum = AgentStatus[agent_status.upper()] if agent_status else AgentStatus.INACTIVE
+        except (KeyError, AttributeError):
+            status_enum = AgentStatus.INACTIVE
+        
+        # Handle NULL datetime values with default
+        created_at = agent.created_at if agent.created_at else datetime.utcnow()
+        updated_at = agent.updated_at if agent.updated_at else created_at
+        
         return AgentDetailResponse(
             id=agent.id,
             name=agent.name,
             description=agent.description,
-            type=agent.type,
-            status=agent.status,
-            model=agent.model,
-            temperature=agent.temperature,
-            max_tokens=agent.max_tokens,
-            created_at=agent.created_at,
-            updated_at=agent.updated_at,
+            type=type_enum,
+            status=status_enum,
+            model=agent.model or "gpt-4",
+            temperature=float(agent.temperature or 0.7),
+            max_tokens=int(agent.max_tokens or 4096),
+            created_at=created_at,
+            updated_at=updated_at,
             user_id=agent.user_id,
-            instructions=agent.instructions,
+            instructions=getattr(agent, 'system_prompt', '') or '',
             system_prompt=agent.system_prompt,
             total_executions=stats.get('total_executions', 0) if stats else 0,
             last_execution=stats.get('last_execution') if stats else None,

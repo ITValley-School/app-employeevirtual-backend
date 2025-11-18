@@ -79,7 +79,7 @@ async def get_current_user(
         )
     
     user_id = payload.get("sub")
-    if not user_id or not validate_uuid(user_id):
+    if not user_id or (len(user_id) != 32 and len(user_id) != 36):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail=ERROR_MESSAGES["TOKEN_MALFORMED"],

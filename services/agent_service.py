@@ -8,7 +8,8 @@ from sqlalchemy.orm import Session
 
 from schemas.agents.requests import AgentCreateRequest, AgentUpdateRequest, AgentExecuteRequest
 from schemas.agents.responses import AgentResponse, AgentDetailResponse, AgentListResponse
-from domain.agents.agent_entity import AgentEntity
+from data.entities.agent_entities import AgentEntity
+from data.agent_repository import AgentRepository
 from factories.agent_factory import AgentFactory
 from mappers.agent_mapper import AgentMapper
 
@@ -21,6 +22,7 @@ class AgentService:
     
     def __init__(self, db: Session):
         self.db = db
+        self.agent_repository = AgentRepository(db)
     
     def create_agent(self, dto: AgentCreateRequest, user_id: str) -> AgentEntity:
         """
@@ -36,19 +38,41 @@ class AgentService:
         Raises:
             ValueError: Se dados inválidos
         """
+        import uuid
+        from datetime import datetime
+        
         # 1. Validações básicas
-        name = AgentFactory.name_from(dto)
-        if not name:
+        if not dto.name:
             raise ValueError("Nome do agente é obrigatório")
         
-        # 2. Cria entidade via Factory
-        dto.user_id = user_id
-        agent = AgentFactory.create_agent(dto)
+        # 2. Define valores padrão para campos opcionais
+        model = dto.model or "gpt-3.5-turbo"
+        temperature = dto.temperature if dto.temperature is not None else 0.7
+        max_tokens = dto.max_tokens if dto.max_tokens is not None else 1000
         
-        # 3. Simula persistência (em implementação real, usaria repository)
-        # self.agent_repository.add(agent)
+        # 3. Cria entidade diretamente (sem usar Factory problemático)
+        agent = AgentEntity(
+            id=str(uuid.uuid4()),
+            user_id=user_id,
+            name=dto.name,
+            description=dto.description,
+            agent_type=dto.type.value if hasattr(dto.type, 'value') else str(dto.type),
+            system_prompt=dto.instructions or dto.system_prompt,
+            personality=None,
+            avatar_url=None,
+            status="active",  # Status ativo ao criar
+            llm_provider="openai",
+            model=model,
+            temperature=str(temperature),
+            max_tokens=str(max_tokens),
+            created_at=datetime.utcnow(),
+            updated_at=datetime.utcnow(),
+            last_used=None,
+            usage_count=0
+        )
         
-        return agent
+        # 4. Persiste no banco
+        return self.agent_repository.create_agent(agent)
     
     def get_agent_by_id(self, agent_id: str, user_id: str) -> Optional[AgentEntity]:
         """
@@ -61,8 +85,7 @@ class AgentService:
         Returns:
             AgentEntity: Agente encontrado ou None
         """
-        # Simula busca (em implementação real, usaria repository)
-        return None
+        return self.agent_repository.get_agent_by_id(agent_id, user_id)
     
     def get_agent_detail(self, agent_id: str, user_id: str) -> Dict[str, Any]:
         """
@@ -100,8 +123,7 @@ class AgentService:
         Returns:
             tuple: (agentes, total)
         """
-        # Simula listagem (em implementação real, usaria repository)
-        return [], 0
+        return self.agent_repository.list_agents_by_user(user_id, page, size, status)
     
     def get_agent_stats(self, agent_id: str, user_id: str) -> Optional[Dict[str, Any]]:
         """
@@ -161,8 +183,8 @@ class AgentService:
         # Aplica regra de negócio via Domain
         agent.activate()
         
-        # Simula persistência (em implementação real, usaria repository)
-        # self.agent_repository.update(agent)
+        # Persiste no banco de dados
+        self.agent_repository.update_agent(agent)
         
         return agent
     
@@ -188,8 +210,8 @@ class AgentService:
         # Aplica regra de negócio via Domain
         agent.deactivate()
         
-        # Simula persistência (em implementação real, usaria repository)
-        # self.agent_repository.update(agent)
+        # Persiste no banco de dados
+        self.agent_repository.update_agent(agent)
         
         return agent
     
@@ -215,7 +237,7 @@ class AgentService:
         # Aplica regra de negócio via Domain
         agent.start_training()
         
-        # Simula persistência (em implementação real, usaria repository)
-        # self.agent_repository.update(agent)
+        # Persiste no banco de dados
+        self.agent_repository.update_agent(agent)
         
         return agent

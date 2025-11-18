@@ -25,17 +25,17 @@ class AgentCreateRequest(BaseModel):
     name: str = Field(..., min_length=2, max_length=100, description="Nome do agente")
     description: Optional[str] = Field(None, max_length=500, description="Descrição do agente")
     type: AgentType = Field(..., description="Tipo do agente")
-    instructions: str = Field(..., min_length=10, description="Instruções para o agente")
-    model: str = Field(default="gpt-3.5-turbo", description="Modelo de IA")
-    temperature: float = Field(default=0.7, ge=0.0, le=2.0, description="Temperatura do modelo")
-    max_tokens: int = Field(default=1000, ge=100, le=4000, description="Máximo de tokens")
+    instructions: str = Field(..., min_length=3, description="Instruções para o agente")
+    model: Optional[str] = Field(None, description="Modelo de IA")
+    temperature: Optional[float] = Field(None, ge=0.0, le=2.0, description="Temperatura do modelo")
+    max_tokens: Optional[int] = Field(None, ge=100, le=4000, description="Máximo de tokens")
     system_prompt: Optional[str] = Field(None, description="Prompt do sistema")
 
 class AgentUpdateRequest(BaseModel):
     """Request para atualização de agente"""
     name: Optional[str] = Field(None, min_length=2, max_length=100)
     description: Optional[str] = Field(None, max_length=500)
-    instructions: Optional[str] = Field(None, min_length=10)
+    instructions: Optional[str] = Field(None, min_length=3)
     model: Optional[str] = None
     temperature: Optional[float] = Field(None, ge=0.0, le=2.0)
     max_tokens: Optional[int] = Field(None, ge=100, le=4000)

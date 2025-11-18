@@ -10,6 +10,7 @@ from data.user_repository import UserRepository
 from schemas.users.requests import UserCreateRequest, UserUpdateRequest, UserLoginRequest
 from schemas.users.responses import UserResponse, UserDetailResponse, UserListResponse
 from domain.users.user_entity import UserEntity
+from data.entities.user_entities import UserEntity as UserEntityDB
 from factories.user_factory import UserFactory
 from mappers.user_mapper import UserMapper
 
@@ -23,7 +24,7 @@ class UserService:
     def __init__(self, db: Session):
         self.user_repository = UserRepository(db)
     
-    def create_user(self, dto: UserCreateRequest) -> UserEntity:
+    def create_user(self, dto: UserCreateRequest) -> UserEntityDB:
         """
         Cria novo usuário
         
@@ -31,7 +32,7 @@ class UserService:
             dto: Dados para criação
             
         Returns:
-            UserEntity: Usuário criado
+            UserEntityDB: Usuário criado
             
         Raises:
             ValueError: Se email já existe
@@ -41,13 +42,23 @@ class UserService:
         if self.user_repository.exists_email(email):
             raise ValueError("Email já está em uso")
         
-        # 2. Cria entidade via Factory
-        user = UserFactory.create_user(dto)
+        # 2. Cria entidade via Factory (domain entity)
+        domain_user = UserFactory.create_user(dto)
         
-        # 3. Persiste
-        self.user_repository.add(user)
+        # 3. Converte para DB entity
+        db_user = UserEntityDB(
+            id=domain_user.id,
+            name=domain_user.name,
+            email=domain_user.email,
+            password_hash=domain_user.password_hash,
+            plan=domain_user.plan,
+            status=domain_user.status
+        )
         
-        return user
+        # 4. Persiste
+        self.user_repository.add(db_user)
+        
+        return db_user
     
     def get_user_by_id(self, user_id: str) -> Optional[UserEntity]:
         """
@@ -121,17 +132,14 @@ class UserService:
         if not UserFactory.verify_password(dto.password, user.password_hash):
             raise ValueError("Credenciais inválidas")
         
-        # 3. Atualiza último login
-        user.update_last_login()
-        self.user_repository.update(user)
-        
-        # 4. Gera token
+        # 3. Gera token
         from auth.jwt_service import JWTService
         from config.settings import settings
         
         jwt_service = JWTService()
         access_token = jwt_service.create_access_token(
-            data={"sub": user.get_id(), "email": user.get_email()}
+            user_id=user.id,
+            email=user.email
         )
         
         return {

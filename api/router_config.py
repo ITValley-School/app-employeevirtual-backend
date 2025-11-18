@@ -4,6 +4,7 @@ Configuração centralizada de routers da API EmployeeVirtual
 from fastapi import FastAPI
 
 # Imports dos routers - IT Valley Architecture
+from api.auth_api import router as auth_router
 from api.users_api import router as users_router
 from api.agents_api import router as agents_router
 from api.flows_api import router as flows_router
@@ -13,6 +14,11 @@ from api.metadata_api import router as metadata_router
 
 # Configuração das rotas
 ROUTER_CONFIG = [
+    {
+        "router": auth_router,
+        "prefix": "/api",
+        "tags": ["Autenticação"]
+    },
     {
         "router": users_router,
         "prefix": "/api",
@@ -59,7 +65,7 @@ def register_routers(app: FastAPI) -> None:
             prefix=config["prefix"],
             tags=config["tags"]
         )
-        print(f"✅ Router registrado: {config['prefix']} ({', '.join(config['tags'])})")
+        print(f"[OK] Router registrado: {config['prefix']} ({', '.join(config['tags'])})")
 
 
 def get_router_info() -> dict:

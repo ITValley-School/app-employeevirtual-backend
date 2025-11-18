@@ -5,6 +5,7 @@ Seguindo padrão IT Valley Architecture
 from fastapi import APIRouter, Depends, status, Query
 from typing import Optional
 from sqlalchemy.orm import Session
+import logging
 
 from schemas.agents.requests import AgentCreateRequest, AgentUpdateRequest, AgentExecuteRequest
 from schemas.agents.responses import (
@@ -20,6 +21,7 @@ from config.database import db_config
 from auth.dependencies import get_current_user
 from data.entities.user_entities import UserEntity
 
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/agents", tags=["agents"])
 
 
@@ -45,11 +47,25 @@ async def create_agent(
     Returns:
         AgentResponse: Agente criado
     """
-    # 1. Cria agente via Service (Service orquestra tudo)
-    agent = agent_service.create_agent(dto, current_user.get_id())
-    
-    # 2. Converte para Response via Mapper
-    return AgentMapper.to_public(agent)
+    try:
+        logger.info(f"📝 Criando agente: {dto.name} para usuário {current_user.id}")
+        logger.debug(f"   name={dto.name} (type: {type(dto.name).__name__})")
+        logger.debug(f"   type={dto.type} (value: {dto.type.value if hasattr(dto.type, 'value') else dto.type})")
+        logger.debug(f"   instructions={dto.instructions} (len: {len(dto.instructions)})")
+        logger.debug(f"   temperature={dto.temperature} (type: {type(dto.temperature).__name__ if dto.temperature else 'None'})")
+        logger.debug(f"   max_tokens={dto.max_tokens} (type: {type(dto.max_tokens).__name__ if dto.max_tokens else 'None'})")
+        logger.debug(f"   model={dto.model} (type: {type(dto.model).__name__ if dto.model else 'None'})")
+        
+        # 1. Cria agente via Service (Service orquestra tudo)
+        agent = agent_service.create_agent(dto, current_user.id)
+        
+        logger.info(f"✅ Agente criado com sucesso: {agent.id}")
+        
+        # 2. Converte para Response via Mapper
+        return AgentMapper.to_public(agent)
+    except Exception as e:
+        logger.error(f"❌ Erro ao criar agente: {str(e)}", exc_info=True)
+        raise
 
 
 @router.get("/{agent_id}", response_model=AgentDetailResponse)
@@ -70,7 +86,7 @@ async def get_agent(
         AgentDetailResponse: Dados detalhados do agente
     """
     # Service orquestra busca e validações
-    result = agent_service.get_agent_detail(agent_id, current_user.get_id())
+    result = agent_service.get_agent_detail(agent_id, current_user.id)
     
     # Converte para Response
     return AgentMapper.to_detail(result['agent'], result['stats'])
@@ -96,7 +112,7 @@ async def update_agent(
         AgentResponse: Agente atualizado
     """
     # Service orquestra atualização e validações
-    agent = agent_service.update_agent(agent_id, dto, current_user.get_id())
+    agent = agent_service.update_agent(agent_id, dto, current_user.id)
     
     # Converte para Response
     return AgentMapper.to_public(agent)
@@ -124,7 +140,7 @@ async def list_agents(
         AgentListResponse: Lista de agentes
     """
     # Lista agentes
-    agents, total = agent_service.list_agents(current_user.get_id(), page, size, status)
+    agents, total = agent_service.list_agents(current_user.id, page, size, status)
     
     # Converte para Response
     return AgentMapper.to_list(agents, total, page, size)
@@ -150,7 +166,7 @@ async def execute_agent(
         AgentExecuteResponse: Resultado da execução
     """
     # Service orquestra execução e validações
-    result = agent_service.execute_agent(agent_id, dto, current_user.get_id())
+    result = agent_service.execute_agent(agent_id, dto, current_user.id)
     
     # Converte para Response
     return AgentMapper.to_execution_response(
@@ -181,7 +197,7 @@ async def activate_agent(
         AgentResponse: Agente ativado
     """
     # Service orquestra ativação e validações
-    agent = agent_service.activate_agent(agent_id, current_user.get_id())
+    agent = agent_service.activate_agent(agent_id, current_user.id)
     
     return AgentMapper.to_public(agent)
 
@@ -204,7 +220,7 @@ async def deactivate_agent(
         AgentResponse: Agente desativado
     """
     # Service orquestra desativação e validações
-    agent = agent_service.deactivate_agent(agent_id, current_user.get_id())
+    agent = agent_service.deactivate_agent(agent_id, current_user.id)
     
     return AgentMapper.to_public(agent)
 
@@ -227,6 +243,6 @@ async def start_training(
         AgentResponse: Agente em treinamento
     """
     # Service orquestra treinamento e validações
-    agent = agent_service.start_training(agent_id, current_user.get_id())
+    agent = agent_service.start_training(agent_id, current_user.id)
     
     return AgentMapper.to_public(agent)

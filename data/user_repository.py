@@ -9,15 +9,26 @@ from sqlalchemy import and_, func, desc, cast, Date
 from data.entities.user_entities import UserEntity, UserSessionEntity, UserActivityEntity
 # Validação de UUID local
 def validate_uuid(uuid_string: str) -> bool:
-    """Valida se string é um UUID válido"""
-    if not uuid_string or len(uuid_string) != 32:
+    """Valida se string é um UUID válido (aceita com ou sem hífens)"""
+    if not uuid_string:
         return False
-    try:
-        # Verifica se é hexadecimal
-        int(uuid_string, 16)
-        return True
-    except ValueError:
-        return False
+    
+    # UUID sem hífens: 32 caracteres
+    # UUID com hífens: 36 caracteres (8-4-4-4-12)
+    if len(uuid_string) == 32:
+        try:
+            # Verifica se é hexadecimal
+            int(uuid_string, 16)
+            return True
+        except ValueError:
+            return False
+    elif len(uuid_string) == 36:
+        # Verifica formato com hífens: 8-4-4-4-12
+        import re
+        pattern = r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+        return bool(re.match(pattern, uuid_string, re.IGNORECASE))
+    
+    return False
 
 
 class UserRepository:
@@ -55,6 +66,22 @@ class UserRepository:
     def get_user_by_email(self, email: str) -> Optional[UserEntity]:
         """Busca usuário por email"""
         return self.db.query(UserEntity).filter(UserEntity.email == email).first()
+    
+    def exists_email(self, email: str) -> bool:
+        """Verifica se email já existe"""
+        user = self.db.query(UserEntity).filter(UserEntity.email == email).first()
+        return user is not None
+    
+    def add(self, entity: UserEntity) -> None:
+        """Adiciona entidade e faz commit"""
+        self.db.add(entity)
+        self.db.commit()
+        self.db.refresh(entity)
+    
+    def update(self, entity: UserEntity) -> None:
+        """Atualiza entidade e faz commit"""
+        self.db.merge(entity)
+        self.db.commit()
     
     def update_user(self, user_id: str, **kwargs) -> Optional[UserEntity]:
         """Atualiza dados do usuário"""

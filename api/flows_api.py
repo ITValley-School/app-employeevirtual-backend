@@ -46,7 +46,7 @@ async def create_flow(
         FlowResponse: Flow criado
     """
     # Service orquestra criação e validações
-    flow = flow_service.create_flow(dto, current_user.get_id())
+    flow = flow_service.create_flow(dto, current_user.id)
     
     # Converte para Response via Mapper
     return FlowMapper.to_public(flow)
@@ -70,7 +70,7 @@ async def get_flow(
         FlowDetailResponse: Dados detalhados do flow
     """
     # Service orquestra busca e validações
-    result = flow_service.get_flow_detail(flow_id, current_user.get_id())
+    result = flow_service.get_flow_detail(flow_id, current_user.id)
     
     # Converte para Response
     return FlowMapper.to_detail(result['flow'], result['stats'])
@@ -96,7 +96,7 @@ async def update_flow(
         FlowResponse: Flow atualizado
     """
     # Service orquestra atualização e validações
-    flow = flow_service.update_flow(flow_id, dto, current_user.get_id())
+    flow = flow_service.update_flow(flow_id, dto, current_user.id)
     
     # Converte para Response
     return FlowMapper.to_public(flow)
@@ -124,7 +124,7 @@ async def list_flows(
         FlowListResponse: Lista de flows
     """
     # Lista flows
-    flows, total = flow_service.list_flows(current_user.get_id(), page, size, status)
+    flows, total = flow_service.list_flows(current_user.id, page, size, status)
     
     # Converte para Response
     return FlowMapper.to_list(flows, total, page, size)
@@ -150,7 +150,7 @@ async def execute_flow(
         FlowExecuteResponse: Resultado da execução
     """
     # Service orquestra execução e validações
-    result = flow_service.execute_flow(flow_id, dto, current_user.get_id())
+    result = flow_service.execute_flow(flow_id, dto, current_user.id)
     
     # Converte para Response
     return FlowMapper.to_execution_response(
@@ -181,7 +181,7 @@ async def activate_flow(
         FlowResponse: Flow ativado
     """
     # Service orquestra ativação e validações
-    flow = flow_service.activate_flow(flow_id, current_user.get_id())
+    flow = flow_service.activate_flow(flow_id, current_user.id)
     
     return FlowMapper.to_public(flow)
 
@@ -204,6 +204,6 @@ async def deactivate_flow(
         FlowResponse: Flow desativado
     """
     # Service orquestra desativação e validações
-    flow = flow_service.deactivate_flow(flow_id, current_user.get_id())
+    flow = flow_service.deactivate_flow(flow_id, current_user.id)
     
     return FlowMapper.to_public(flow)

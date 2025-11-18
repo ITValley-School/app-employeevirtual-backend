@@ -39,7 +39,7 @@ async def extract_metadata(
         MetadataResponse: Metadados extraídos
     """
     # Service orquestra extração e validações
-    result = metadata_service.extract_metadata(request, current_user.get_id())
+    result = metadata_service.extract_metadata(request, current_user.id)
     
     # Converte para Response via Mapper
     return MetadataMapper.to_response(result)
