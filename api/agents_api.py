@@ -2,10 +2,11 @@
 API de agentes - Implementação IT Valley
 Seguindo padrão IT Valley Architecture
 """
-from fastapi import APIRouter, Depends, status, Query
+from fastapi import APIRouter, Depends, status, Query, UploadFile, File, Form, HTTPException
 from typing import Optional
 from sqlalchemy.orm import Session
 import logging
+import requests
 
 from schemas.agents.requests import AgentCreateRequest, AgentUpdateRequest, AgentExecuteRequest
 from schemas.agents.responses import (
@@ -116,6 +117,43 @@ async def update_agent(
     
     # Converte para Response
     return AgentMapper.to_public(agent)
+
+
+@router.post("/{agent_id}/documents", status_code=status.HTTP_201_CREATED)
+async def upload_agent_document(
+    agent_id: str,
+    filepdf: UploadFile = File(..., description="Arquivo PDF com o conhecimento do agente"),
+    metadone: Optional[str] = Form(None, description="JSON com metadados adicionais"),
+    agent_service: AgentService = Depends(get_agent_service),
+    current_user: UserEntity = Depends(get_current_user)
+):
+    """
+    Faz upload de um PDF para o serviço vetorial e o associa ao agente.
+    """
+    file_bytes = await filepdf.read()
+    try:
+        result = agent_service.upload_agent_document(
+            agent_id=agent_id,
+            user_id=current_user.id,
+            file_content=file_bytes,
+            file_name=filepdf.filename or "documento.pdf",
+            content_type=filepdf.content_type,
+            metadata_raw=metadone,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    except requests.HTTPError as exc:
+        detail = exc.response.text if exc.response is not None else str(exc)
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=f"Erro ao comunicar com Vector DB: {detail}") from exc
+    except Exception as exc:
+        logger.exception("Erro inesperado ao enviar PDF para Vector DB")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Erro inesperado ao enviar documento") from exc
+
+    return {
+        "message": "Documento enviado com sucesso",
+        "document": result.get("document"),
+        "vector_db_response": result.get("vector_db_response")
+    }
 
 
 @router.get("/", response_model=AgentListResponse)

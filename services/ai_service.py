@@ -10,6 +10,7 @@ from pydantic_ai import Agent
 from pydantic import BaseModel
 
 from config.settings import settings
+from integrations.ai.rag_agent import RagAgentRunner
 
 logger = logging.getLogger(__name__)
 
@@ -34,6 +35,17 @@ class AIService:
         
         if not self.openai_api_key:
             logger.warning("OPENAI_API_KEY não configurada. IA não funcionará.")
+
+        self.supports_rag = bool(
+            settings.pinecone_api_key and settings.pinecone_index_name
+        )
+        self.rag_runner: Optional[RagAgentRunner] = None
+        if self.supports_rag:
+            try:
+                self.rag_runner = RagAgentRunner(settings.pinecone_index_name)
+            except Exception as exc:
+                logger.error("Falha ao inicializar RagAgentRunner: %s", exc)
+                self.supports_rag = False
     
     async def generate_response(
         self,
@@ -90,6 +102,41 @@ class AIService:
         except Exception as e:
             logger.error(f"❌ Erro ao gerar resposta com IA: {str(e)}", exc_info=True)
             raise
+
+    def generate_rag_response_sync(
+        self,
+        message: str,
+        agent_id: str,
+        agent_name: str,
+        instructions: Optional[str]
+    ) -> str:
+        """
+        Executa resposta usando agente RAG quando suportado.
+        """
+        if not self.rag_runner:
+            return self.generate_response_sync(
+                message=message,
+                system_prompt=instructions or f"Você é o agente {agent_name}.",
+                agent_id=agent_id,
+                user_id=None
+            )
+
+        try:
+            logger.info("🔎 Executando fluxo RAG para agente %s", agent_id)
+            return self.rag_runner.run(
+                agent_id=agent_id,
+                agent_name=agent_name,
+                instructions=instructions,
+                user_message=message,
+            )
+        except Exception as exc:
+            logger.error("Erro no fluxo RAG, fallback para resposta padrão: %s", exc, exc_info=True)
+            return self.generate_response_sync(
+                message=message,
+                system_prompt=instructions or f"Você é o agente {agent_name}.",
+                agent_id=agent_id,
+                user_id=None
+            )
     
     def generate_response_sync(
         self,

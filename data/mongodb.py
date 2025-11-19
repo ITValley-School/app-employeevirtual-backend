@@ -117,6 +117,7 @@ class Collections:
     AGENT_EXECUTIONS = "agent_executions"
     AGENT_METRICS = "agent_metrics"
     AGENT_KNOWLEDGE = "agent_knowledge"
+    AGENT_DOCUMENTS = "agent_documents"
     
     # === USUÁRIOS E SESSÕES ===
     USER_ACTIVITIES = "user_activities"

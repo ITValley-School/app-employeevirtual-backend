@@ -1,4 +1,4 @@
-# app/integration/pydanticIA/repositories/pydantic_ai_repository.py
+# integrations/ai/pydantic_ai/repository/metadata_repository.py
 """
 Repository corrigido para PydanticAI.
 ❌ ERRO ORIGINAL: BaseModel + __init__ com self.agent não funciona
@@ -8,8 +8,8 @@ Repository corrigido para PydanticAI.
 from pydantic_ai import Agent
 from pydantic import BaseModel, Field
 from typing import Optional
-from integration.pydanticIA.payload.response import MetadadoAIPayload
-from integration.pydanticIA.payload.request import MetadataRequest
+from integrations.ai.pydantic_ai.payload.response import MetadadoAIPayload
+from integrations.ai.pydantic_ai.payload.request import MetadataRequest
 
 
 # ===== OPÇÃO 1: CLASSE PYTHON NORMAL (RECOMENDADA) =====

@@ -5,13 +5,33 @@ Seguindo padrão IT Valley Architecture
 """
 from typing import Optional, List, Dict, Any, Tuple
 from sqlalchemy.orm import Session
+import logging
+import time
+from datetime import datetime
+import json
 
 from schemas.agents.requests import AgentCreateRequest, AgentUpdateRequest, AgentExecuteRequest
-from schemas.agents.responses import AgentResponse, AgentDetailResponse, AgentListResponse
 from data.entities.agent_entities import AgentEntity
 from data.agent_repository import AgentRepository
+from data.agent_document_repository import AgentDocumentRepository
 from factories.agent_factory import AgentFactory
 from mappers.agent_mapper import AgentMapper
+from services.ai_service import AIService
+from integrations.ai.vector_db_client import VectorDBClient
+
+logger = logging.getLogger(__name__)
+
+
+def _normalize_model_name(model: Optional[str]) -> str:
+    """
+    Normaliza nomes de modelos para o formato esperado pelo Pydantic AI
+    """
+    if not model:
+        return "gpt-4-turbo-preview"
+    model = model.strip()
+    if model.startswith("openai:"):
+        return model[7:]
+    return model
 
 
 class AgentService:
@@ -20,58 +40,42 @@ class AgentService:
     Coordena fluxos sem implementar regras de negócio
     """
     
-    def __init__(self, db: Session):
+    def __init__(self, db: Session, ai_service: Optional[AIService] = None, vector_db_client: Optional[VectorDBClient] = None):
         self.db = db
         self.agent_repository = AgentRepository(db)
+        self.ai_service = ai_service or AIService()
+        self.vector_db_client = vector_db_client or VectorDBClient()
+        self.agent_document_repository = AgentDocumentRepository()
     
     def create_agent(self, dto: AgentCreateRequest, user_id: str) -> AgentEntity:
         """
-        Cria novo agente
-        
-        Args:
-            dto: Dados para criação
-            user_id: ID do usuário
-            
-        Returns:
-            AgentEntity: Agente criado
-            
-        Raises:
-            ValueError: Se dados inválidos
+        Cria novo agente utilizando a Factory do domínio
         """
-        import uuid
-        from datetime import datetime
+        payload = dto.model_dump()
+        payload["user_id"] = user_id
         
-        # 1. Validações básicas
-        if not dto.name:
-            raise ValueError("Nome do agente é obrigatório")
+        domain_agent = AgentFactory.create_agent(payload)
         
-        # 2. Define valores padrão para campos opcionais
-        model = dto.model or "gpt-3.5-turbo"
-        temperature = dto.temperature if dto.temperature is not None else 0.7
-        max_tokens = dto.max_tokens if dto.max_tokens is not None else 1000
-        
-        # 3. Cria entidade diretamente (sem usar Factory problemático)
         agent = AgentEntity(
-            id=str(uuid.uuid4()),
-            user_id=user_id,
-            name=dto.name,
-            description=dto.description,
-            agent_type=dto.type.value if hasattr(dto.type, 'value') else str(dto.type),
-            system_prompt=dto.instructions or dto.system_prompt,
+            id=domain_agent.id,
+            user_id=domain_agent.user_id,
+            name=domain_agent.name,
+            description=domain_agent.description,
+            agent_type=domain_agent.type,
+            system_prompt=domain_agent.system_prompt or domain_agent.instructions,
             personality=None,
             avatar_url=None,
-            status="active",  # Status ativo ao criar
+            status=domain_agent.status,
             llm_provider="openai",
-            model=model,
-            temperature=str(temperature),
-            max_tokens=str(max_tokens),
-            created_at=datetime.utcnow(),
-            updated_at=datetime.utcnow(),
+            model=domain_agent.model,
+            temperature=str(domain_agent.temperature),
+            max_tokens=str(domain_agent.max_tokens),
+            created_at=domain_agent.created_at,
+            updated_at=domain_agent.created_at,
             last_used=None,
             usage_count=0
         )
         
-        # 4. Persiste no banco
         return self.agent_repository.create_agent(agent)
     
     def get_agent_by_id(self, agent_id: str, user_id: str) -> Optional[AgentEntity]:
@@ -154,11 +158,112 @@ class AgentService:
         Raises:
             ValueError: Se agente não encontrado
         """
-        # Simula execução
+        agent = self.get_agent_by_id(agent_id, user_id)
+        if not agent:
+            raise ValueError("Agente não encontrado")
+        
+        system_prompt = agent.system_prompt or f"Você é o agente {agent.name}. Responda como especialista no assunto."
+        
+        message_payload = dto.message
+        if dto.context:
+            context_str = "\n".join([f"{key}: {value}" for key, value in dto.context.items()])
+            message_payload = f"Contexto adicional:\n{context_str}\n\nMensagem do usuário: {dto.message}"
+        
+        model = _normalize_model_name(agent.model)
+        temperature = float(agent.temperature or 0.7)
+        max_tokens = int(agent.max_tokens or 2000)
+        
+        start_time = time.perf_counter()
+        should_use_rag = self.ai_service.supports_rag and self.agent_document_repository.has_documents(agent.id)
+
+        if should_use_rag:
+            response_text = self.ai_service.generate_rag_response_sync(
+                message=message_payload,
+                agent_id=agent.id,
+                agent_name=agent.name,
+                instructions=system_prompt
+            )
+        else:
+            response_text = self.ai_service.generate_response_sync(
+                message=message_payload,
+                system_prompt=system_prompt,
+                agent_id=agent.id,
+                user_id=user_id,
+                temperature=temperature,
+                model=model,
+                max_tokens=max_tokens
+            )
+        execution_time = time.perf_counter() - start_time
+        
+        tokens_used = len((dto.message or "").split()) + len(response_text.split())
+        
+        now = datetime.utcnow()
+        agent.last_used = now
+        agent.usage_count = str(int(agent.usage_count or "0") + 1)
+        agent.updated_at = now
+        self.agent_repository.update_agent(agent)
+        
         return {
-            'response': f"Resposta simulada para: {dto.message}",
-            'execution_time': 0.1,
-            'tokens_used': 50
+            'response': response_text,
+            'message': dto.message,
+            'execution_time': round(execution_time, 4),
+            'tokens_used': tokens_used,
+            'session_id': dto.session_id
+        }
+
+    def upload_agent_document(
+        self,
+        agent_id: str,
+        user_id: str,
+        file_content: bytes,
+        file_name: str,
+        content_type: Optional[str],
+        metadata_raw: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """
+        Envia um PDF associado ao agente para o serviço vetorial externo.
+        """
+        if not file_content:
+            raise ValueError("Arquivo PDF não pode estar vazio")
+
+        agent = self.get_agent_by_id(agent_id, user_id)
+        if not agent:
+            raise ValueError("Agente não encontrado")
+
+        metadata: Dict[str, Any] = {}
+        if metadata_raw:
+            try:
+                metadata = json.loads(metadata_raw)
+            except json.JSONDecodeError as exc:
+                raise ValueError("Metadados inválidos. Envie um JSON válido.") from exc
+
+        metadata.update({
+            "agent_id": agent_id,
+            "user_id": user_id,
+            "agent_name": agent.name,
+        })
+
+        metadata_json = json.dumps(metadata)
+
+        final_file_name = file_name or f"{agent_id}.pdf"
+        vector_response = self.vector_db_client.upload_pdf(
+            file_name=final_file_name,
+            content=file_content,
+            content_type=content_type,
+            metadata_json=metadata_json,
+        )
+
+        stored_document = self.agent_document_repository.record_upload(
+            agent_id=agent_id,
+            user_id=user_id,
+            file_name=final_file_name,
+            metadata=metadata,
+            vector_response=vector_response,
+        )
+
+        return {
+            "vector_db_response": vector_response,
+            "document": stored_document,
         }
     
     def activate_agent(self, agent_id: str, user_id: str) -> AgentEntity:
