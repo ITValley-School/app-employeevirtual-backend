@@ -2,8 +2,8 @@
 API de agentes - Implementação IT Valley
 Seguindo padrão IT Valley Architecture
 """
-from fastapi import APIRouter, Depends, status, Query, UploadFile, File, Form, HTTPException
-from typing import Optional
+from fastapi import APIRouter, Depends, status, Query, UploadFile, File, Form, HTTPException, Response
+from typing import Optional, List
 from sqlalchemy.orm import Session
 import logging
 import requests
@@ -13,7 +13,8 @@ from schemas.agents.responses import (
     AgentResponse, 
     AgentDetailResponse, 
     AgentListResponse,
-    AgentExecuteResponse
+    AgentExecuteResponse,
+    AgentDocumentResponse,
 )
 from services.agent_service import AgentService
 from mappers.agent_mapper import AgentMapper
@@ -154,6 +155,34 @@ async def upload_agent_document(
         "document": result.get("document"),
         "vector_db_response": result.get("vector_db_response")
     }
+
+
+@router.get("/{agent_id}/documents", response_model=List[AgentDocumentResponse])
+async def list_agent_documents(
+    agent_id: str,
+    agent_service: AgentService = Depends(get_agent_service),
+    current_user: UserEntity = Depends(get_current_user)
+):
+    """Lista documentos vinculados ao agente."""
+    try:
+        return agent_service.list_agent_documents(agent_id, current_user.id)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+
+
+@router.delete("/{agent_id}/documents/{document_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_agent_document(
+    agent_id: str,
+    document_id: str,
+    agent_service: AgentService = Depends(get_agent_service),
+    current_user: UserEntity = Depends(get_current_user)
+):
+    """Remove documento associado ao agente."""
+    try:
+        agent_service.delete_agent_document(agent_id, document_id, current_user.id)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.get("/", response_model=AgentListResponse)

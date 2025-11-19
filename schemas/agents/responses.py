@@ -81,3 +81,14 @@ class AgentTrainingResponse(BaseModel):
     accuracy: Optional[float] = Field(None, description="Precisão atual")
     started_at: datetime = Field(..., description="Início do treinamento")
     estimated_completion: Optional[datetime] = Field(None, description="Estimativa de conclusão")
+
+
+class AgentDocumentResponse(BaseModel):
+    """Response para documentos associados ao agente"""
+    id: str = Field(..., description="ID do documento")
+    agent_id: str = Field(..., description="ID do agente")
+    user_id: str = Field(..., description="ID do usuário proprietário")
+    file_name: str = Field(..., description="Nome do arquivo")
+    metadata: Dict[str, Any] = Field(default_factory=dict, description="Metadados enviados")
+    vector_response: Dict[str, Any] = Field(default_factory=dict, description="Resposta do serviço vetorial")
+    created_at: datetime = Field(..., description="Data do upload")

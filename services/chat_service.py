@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import and_
 
 from schemas.chat.requests import ChatMessageRequest, ChatSessionRequest
+from schemas.agents.requests import AgentExecuteRequest
 from domain.chat.chat_entity import ChatEntity
 from factories.chat_factory import ChatFactory
 from data.chat_repository import ChatRepository
@@ -16,6 +17,7 @@ from data.chat_mongodb_repository import ChatMongoDBRepository
 from data.agent_repository import AgentRepository
 from data.entities.chat_entities import ChatSessionEntity, ChatMessageEntity
 from services.ai_service import AIService
+from services.agent_service import AgentService
 
 logger = logging.getLogger(__name__)
 
@@ -51,6 +53,7 @@ class ChatService:
         self.chat_mongodb_repository = ChatMongoDBRepository()
         self.agent_repository = AgentRepository(db)
         self.ai_service = AIService()
+        self.agent_service = AgentService(db)
     
     def create_session(self, dto: ChatSessionRequest, user_id: str) -> ChatEntity:
         """
@@ -158,24 +161,37 @@ class ChatService:
             }
             
             # Executa IA de forma síncrona usando AIService
-            ai_response = self.ai_service.generate_response_sync(
-                message=ChatFactory.message_from(dto),
-                system_prompt=agent_config['system_prompt'],
-                agent_id=session.agent_id,
-                user_id=user_id,
-                temperature=agent_config['temperature'],
-                model=agent_config['model'],
-                max_tokens=agent_config['max_tokens']
-            )
+            message_text = ChatFactory.message_from(dto)
+
+            if agent:
+                exec_request = AgentExecuteRequest(
+                    message=message_text,
+                    context=dto.context,
+                    session_id=session_id,
+                )
+                execution = self.agent_service.execute_agent(agent.id, exec_request, user_id)
+                ai_response = execution['response']
+                agent_config['rag_used'] = execution.get('rag_used', False)
+            else:
+                ai_response = self.ai_service.generate_response_sync(
+                    message=message_text,
+                    system_prompt=agent_config['system_prompt'],
+                    agent_id=session.agent_id,
+                    user_id=user_id,
+                    temperature=agent_config['temperature'],
+                    model=agent_config['model'],
+                    max_tokens=agent_config['max_tokens']
+                )
+                agent_config['rag_used'] = False
             
             logger.info(f"✅ Resposta IA gerada para sessão {session_id}")
             
         except Exception as e:
             logger.error(f"❌ Erro ao gerar resposta com IA: {str(e)}", exc_info=True)
             logger.error(f"   Agent config: {agent_config}")
-            logger.error(f"   User message: {ChatFactory.message_from(dto)}")
+            logger.error(f"   User message: {message_text}")
             # Fallback para resposta padrão
-            ai_response = f"Desculpe, houve um erro ao processar sua mensagem. Tente novamente."
+            ai_response = "Desculpe, houve um erro ao processar sua mensagem. Tente novamente."
         
         # 7. Cria mensagem de resposta do assistente
         assistant_response = ChatFactory.create_message(

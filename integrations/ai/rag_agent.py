@@ -3,6 +3,7 @@ Executor RAG baseado em Pydantic AI com Pinecone.
 """
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from typing import Optional
 
@@ -11,6 +12,8 @@ from pinecone import Pinecone, ServerlessSpec
 from pydantic_ai import Agent as PydanticAgent, RunContext
 
 from config.settings import settings
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -42,6 +45,7 @@ def _build_agent(system_prompt: str) -> PydanticAgent[RagDependencies]:
         Busca trechos relacionados ao agente no Pinecone.
         """
 
+        logger.info("Buscando contexto no namespace %s", context.deps.agent_id)
         embedding = context.deps.openai.embeddings.create(
             input=search_query,
             model="text-embedding-3-small",
@@ -53,7 +57,14 @@ def _build_agent(system_prompt: str) -> PydanticAgent[RagDependencies]:
             vector=vector,
             top_k=8,
             include_metadata=True,
-            filter={"agent_id": {"$eq": context.deps.agent_id}},
+            namespace=context.deps.agent_id,
+        )
+
+        match_count = len(results.matches or [])
+        logger.info(
+            "Consulta Pinecone namespace=%s retornou %s matches",
+            context.deps.agent_id,
+            match_count,
         )
 
         if not results.matches:
@@ -123,6 +134,11 @@ class RagAgentRunner:
         Executa o agente RAG com instruções específicas.
         """
         self.ensure_index()
+        logger.info(
+            "Executando RAG para agente %s no índice %s",
+            agent_id,
+            self.index_name,
+        )
 
         deps = RagDependencies(
             openai=self.openai_client,

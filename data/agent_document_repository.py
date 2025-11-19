@@ -63,11 +63,21 @@ class AgentDocumentRepository:
         ).sort("created_at", -1)
         return [_stringify_id(doc) for doc in docs]
 
-    def has_documents(self, agent_id: str) -> bool:
+    def get_document(self, document_id: str, user_id: str) -> Optional[Dict[str, Any]]:
+        """
+        Busca documento específico do usuário.
+        """
+        doc = self.collection.find_one({"_id": ObjectId(document_id), "user_id": user_id})
+        return _stringify_id(doc) if doc else None
+
+    def has_documents(self, agent_id: str, user_id: Optional[str] = None) -> bool:
         """
         Verifica se o agente possui documentos vetoriais.
         """
-        return self.collection.count_documents({"agent_id": agent_id}) > 0
+        query = {"agent_id": agent_id}
+        if user_id:
+            query["user_id"] = user_id
+        return self.collection.count_documents(query) > 0
 
     def delete_document(self, document_id: str, user_id: str) -> bool:
         """

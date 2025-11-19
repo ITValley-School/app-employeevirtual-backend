@@ -17,7 +17,8 @@ from data.agent_document_repository import AgentDocumentRepository
 from factories.agent_factory import AgentFactory
 from mappers.agent_mapper import AgentMapper
 from services.ai_service import AIService
-from integrations.ai.vector_db_client import VectorDBClient
+from integrations.ai.vector_store_service import VectorStoreService
+from config.settings import settings
 
 logger = logging.getLogger(__name__)
 
@@ -40,11 +41,18 @@ class AgentService:
     Coordena fluxos sem implementar regras de negócio
     """
     
-    def __init__(self, db: Session, ai_service: Optional[AIService] = None, vector_db_client: Optional[VectorDBClient] = None):
+    def __init__(self, db: Session, ai_service: Optional[AIService] = None, vector_db_client: Optional[VectorStoreService] = None):
         self.db = db
         self.agent_repository = AgentRepository(db)
         self.ai_service = ai_service or AIService()
-        self.vector_db_client = vector_db_client or VectorDBClient()
+        self.vector_store: Optional[VectorStoreService] = None
+        if vector_db_client:
+            self.vector_store = vector_db_client
+        elif settings.openai_api_key and settings.pinecone_api_key and settings.pinecone_index_name:
+            try:
+                self.vector_store = VectorStoreService(settings.pinecone_index_name)
+            except ValueError as exc:
+                logger.warning("VectorStoreService indisponível: %s", exc)
         self.agent_document_repository = AgentDocumentRepository()
     
     def create_agent(self, dto: AgentCreateRequest, user_id: str) -> AgentEntity:
@@ -76,7 +84,15 @@ class AgentService:
             usage_count=0
         )
         
-        return self.agent_repository.create_agent(agent)
+        stored_agent = self.agent_repository.create_agent(agent)
+
+        if self.vector_store:
+            try:
+                self.vector_store.ensure_namespace(stored_agent.id)
+            except Exception as exc:
+                logger.error("Erro ao criar namespace no Pinecone: %s", exc, exc_info=True)
+
+        return stored_agent
     
     def get_agent_by_id(self, agent_id: str, user_id: str) -> Optional[AgentEntity]:
         """
@@ -174,7 +190,16 @@ class AgentService:
         max_tokens = int(agent.max_tokens or 2000)
         
         start_time = time.perf_counter()
-        should_use_rag = self.ai_service.supports_rag and self.agent_document_repository.has_documents(agent.id)
+        rag_supported = self.ai_service.supports_rag
+        has_docs = self.agent_document_repository.has_documents(agent.id, user_id)
+        logger.info(
+            "RAG check for agent %s | supports_rag=%s | has_docs=%s",
+            agent.id,
+            rag_supported,
+            has_docs,
+        )
+
+        should_use_rag = rag_supported and has_docs
 
         if should_use_rag:
             response_text = self.ai_service.generate_rag_response_sync(
@@ -184,6 +209,10 @@ class AgentService:
                 instructions=system_prompt
             )
         else:
+            if not rag_supported:
+                logger.warning("RAG desabilitado para o agente %s (variáveis ausentes?)", agent.id)
+            elif not has_docs:
+                logger.warning("Agente %s não possui documentos para RAG", agent.id)
             response_text = self.ai_service.generate_response_sync(
                 message=message_payload,
                 system_prompt=system_prompt,
@@ -208,7 +237,8 @@ class AgentService:
             'message': dto.message,
             'execution_time': round(execution_time, 4),
             'tokens_used': tokens_used,
-            'session_id': dto.session_id
+            'session_id': dto.session_id,
+            'rag_used': should_use_rag,
         }
 
     def upload_agent_document(
@@ -237,20 +267,25 @@ class AgentService:
             except json.JSONDecodeError as exc:
                 raise ValueError("Metadados inválidos. Envie um JSON válido.") from exc
 
-        metadata.update({
-            "agent_id": agent_id,
-            "user_id": user_id,
-            "agent_name": agent.name,
-        })
+        metadata = metadata or {}
+        metadata.setdefault("agent_id", agent_id)
+        metadata.setdefault("user_id", user_id)
+        metadata.setdefault("agent_name", agent.name)
 
         metadata_json = json.dumps(metadata)
 
         final_file_name = file_name or f"{agent_id}.pdf"
-        vector_response = self.vector_db_client.upload_pdf(
+        if not self.vector_store:
+            raise ValueError(
+                "Serviço vetorial não configurado. Defina OPENAI_API_KEY e variáveis do Pinecone para habilitar o RAG."
+            )
+
+        vector_response = self.vector_store.upsert_pdf(
+            agent_id=agent_id,
+            user_id=user_id,
             file_name=final_file_name,
-            content=file_content,
-            content_type=content_type,
-            metadata_json=metadata_json,
+            file_content=file_content,
+            metadata=metadata,
         )
 
         stored_document = self.agent_document_repository.record_upload(
@@ -265,6 +300,28 @@ class AgentService:
             "vector_db_response": vector_response,
             "document": stored_document,
         }
+
+    def list_agent_documents(self, agent_id: str, user_id: str) -> List[Dict[str, Any]]:
+        """Retorna documentos vetoriais do agente."""
+        agent = self.get_agent_by_id(agent_id, user_id)
+        if not agent:
+            raise ValueError("Agente não encontrado")
+        return self.agent_document_repository.list_documents(agent_id, user_id)
+
+    def delete_agent_document(self, agent_id: str, document_id: str, user_id: str) -> bool:
+        """Remove documento associado ao agente."""
+        agent = self.get_agent_by_id(agent_id, user_id)
+        if not agent:
+            raise ValueError("Agente não encontrado")
+
+        document = self.agent_document_repository.get_document(document_id, user_id)
+        if not document or document.get("agent_id") != agent_id:
+            raise ValueError("Documento não encontrado")
+
+        deleted = self.agent_document_repository.delete_document(document_id, user_id)
+        if not deleted:
+            raise ValueError("Não foi possível remover o documento")
+        return deleted
     
     def activate_agent(self, agent_id: str, user_id: str) -> AgentEntity:
         """

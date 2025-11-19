@@ -44,7 +44,6 @@ class Settings:
     ai_service_api_key: Optional[str] = os.getenv("AI_SERVICE_API_KEY")
     orion_api_url: str = os.getenv("ORION_API_URL", "http://localhost:8001")
     orion_api_key: Optional[str] = os.getenv("ORION_API_KEY")
-    vector_db_base_url: str = os.getenv("VECTOR_DB_BASE_URL", "https://app-vectordb-ia.azurewebsites.net")
     pinecone_api_key: Optional[str] = os.getenv("PINECONE_API_KEY")
     pinecone_index_name: Optional[str] = os.getenv("PINECONE_INDEX_NAME")
     pinecone_cloud: str = os.getenv("PINECONE_CLOUD", "aws")
