@@ -140,13 +140,14 @@ class AIService:
             )
 
         try:
-            logger.info("🔎 Executando fluxo RAG para agente %s", agent_id)
-            return self.rag_runner.run(
+            logger.info("🔎 RAG: Executando para agente %s", agent_id)
+            response = self.rag_runner.run(
                 agent_id=agent_id,
                 agent_name=agent_name,
                 instructions=instructions,
                 user_message=message,
             )
+            return response
         except Exception as exc:
             logger.error("Erro no fluxo RAG, fallback para resposta padrão: %s", exc, exc_info=True)
             return self.generate_response_sync(

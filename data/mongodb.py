@@ -4,6 +4,7 @@ Configuração de conexão com MongoDB (para dados não-relacionais)
 """
 import os
 import logging
+import certifi
 from motor.motor_asyncio import AsyncIOMotorClient
 from pymongo import MongoClient
 from typing import Optional, Dict, Any
@@ -39,8 +40,11 @@ def get_mongo_client() -> MongoClient:
     if mongo_client is None:
         try:
             # Configurações de timeout e retry para Azure Cosmos DB
+            # Usa certifi para resolver problemas de certificado SSL
             mongo_client = MongoClient(
                 MONGODB_URL,
+                tls=True,
+                tlsCAFile=certifi.where(),  # Usa certificados do certifi
                 serverSelectionTimeoutMS=10000,  # 10s para seleção de servidor
                 socketTimeoutMS=30000,  # 30s para operações
                 connectTimeoutMS=10000,  # 10s para conexão inicial
@@ -52,7 +56,7 @@ def get_mongo_client() -> MongoClient:
             )
             # Testar conexão com timeout menor
             mongo_client.admin.command('ping', maxTimeMS=5000)
-            logger.info("✅ Cliente MongoDB síncrono conectado")
+            logger.info("✅ Cliente MongoDB síncrono conectado (SSL configurado)")
         except Exception as e:
             logger.error(f"❌ Erro ao conectar MongoDB síncrono: {e}")
             # Não levanta exceção, permite que o sistema continue sem MongoDB
@@ -72,8 +76,13 @@ def get_async_mongo_client() -> AsyncIOMotorClient:
     
     if async_mongo_client is None:
         try:
-            async_mongo_client = AsyncIOMotorClient(MONGODB_URL)
-            logger.info("✅ Cliente MongoDB assíncrono criado")
+            # Usa certifi para resolver problemas de certificado SSL
+            async_mongo_client = AsyncIOMotorClient(
+                MONGODB_URL,
+                tls=True,
+                tlsCAFile=certifi.where()  # Usa certificados do certifi
+            )
+            logger.info("✅ Cliente MongoDB assíncrono criado (SSL configurado)")
         except Exception as e:
             logger.error(f"❌ Erro ao criar cliente MongoDB assíncrono: {e}")
             raise

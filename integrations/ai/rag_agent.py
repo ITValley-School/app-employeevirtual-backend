@@ -44,9 +44,8 @@ def _build_agent(system_prompt: str) -> PydanticAgent[RagDependencies]:
         Busca trechos relacionados ao agente no Pinecone usando namespace.
         """
         import time
+        import json
         start_time = time.perf_counter()
-        
-        logger.info("🔍 Buscando contexto no namespace %s", context.deps.agent_id)
         
         # Gera embedding da query
         embedding_start = time.perf_counter()
@@ -56,42 +55,58 @@ def _build_agent(system_prompt: str) -> PydanticAgent[RagDependencies]:
         )
         vector = embedding.data[0].embedding
         embedding_time = time.perf_counter() - embedding_start
-        logger.debug("   Embedding gerado em %.3fs", embedding_time)
 
-        # Query no Pinecone usando namespace (muito mais eficiente que filter)
+        # Query no Pinecone usando namespace
         query_start = time.perf_counter()
         results = context.deps.index.query(
             vector=vector,
             top_k=8,
             include_metadata=True,
-            namespace=context.deps.agent_id,  # Usa namespace ao invés de filter
+            namespace=context.deps.agent_id,
         )
         query_time = time.perf_counter() - query_start
         
         match_count = len(results.matches or [])
-        logger.info(
-            "✅ Consulta Pinecone namespace=%s retornou %s matches em %.3fs",
-            context.deps.agent_id,
-            match_count,
-            query_time
-        )
+        logger.info("🔍 RAG: %d matches encontrados em %.3fs (namespace=%s)", 
+                   match_count, query_time, context.deps.agent_id)
 
         if not results.matches:
-            logger.warning("⚠️ Nenhum match encontrado para namespace %s", context.deps.agent_id)
+            logger.warning("⚠️ RAG: Nenhum match encontrado para agente %s", context.deps.agent_id)
             return "Nenhum conhecimento relevante encontrado."
 
         sections = []
         for match in results.matches:
             metadata = match.metadata or {}
-            title = metadata.get("title") or metadata.get("file_name") or "Conteúdo"
-            content = metadata.get("content") or metadata.get("text") or ""
-            sections.append(f"# {title}\n\n{content}")
+            
+            # Extrai título e conteúdo
+            title = (
+                metadata.get("title") or 
+                metadata.get("file_name") or 
+                metadata.get("document_name") or 
+                "Conteúdo"
+            )
+            
+            # O campo principal é 'chunk' (usado pelo microserviço)
+            content = (
+                metadata.get("chunk") or 
+                metadata.get("content") or 
+                metadata.get("text") or 
+                ""
+            )
+            
+            # Converte para string e limpa
+            if content:
+                content = str(content).strip()
+                if content:
+                    sections.append(f"## {title}\n\n{content}\n")
 
         total_time = time.perf_counter() - start_time
-        logger.info("📊 Retrieve completo em %.3fs (embedding: %.3fs, query: %.3fs)", 
-                   total_time, embedding_time, query_time)
-
-        return "\n\n".join(sections)
+        total_content = sum(len(s) for s in sections)
+        logger.info("✅ RAG: %d seções recuperadas (%d chars) em %.3fs", 
+                   len(sections), total_content, total_time)
+        
+        result_text = "\n\n".join(sections)
+        return result_text if result_text else "Nenhum conhecimento relevante encontrado nos documentos."
 
     return agent
 
@@ -120,8 +135,11 @@ class RagAgentRunner:
         self._index_ensured = False
         
         self.agent = _build_agent(
-            "Você é um agente RAG. Sempre use a ferramenta retrieve quando precisar de contexto."
-            " Responda em português e cite os trechos recuperados."
+            "Você é um agente RAG especializado em responder perguntas baseado em documentos recuperados. "
+            "SEMPRE use a ferramenta retrieve() quando precisar buscar informações. "
+            "Quando receber conteúdo recuperado, leia cuidadosamente e use essas informações para responder. "
+            "Se o conteúdo recuperado contém a resposta, use-o diretamente. "
+            "Responda em português de forma clara e precisa, citando as informações dos documentos quando relevante."
         )
         
         # Garante índice na inicialização (apenas uma vez)
@@ -183,19 +201,14 @@ class RagAgentRunner:
         import time
         start_time = time.perf_counter()
         
-        logger.info(
-            "🚀 Executando RAG para agente %s (%s) no índice %s",
-            agent_id,
-            agent_name,
-            self.index_name,
-        )
+        logger.info("🚀 RAG: Executando para agente %s (%s)", agent_id, agent_name)
 
         # Usa index cacheado
         index = self._get_index()
         
         deps = RagDependencies(
             openai=self.openai_client,
-            index=index,  # Passa index cacheado
+            index=index,
             agent_id=agent_id,
         )
 
@@ -209,8 +222,7 @@ class RagAgentRunner:
         execution_time = time.perf_counter() - start_time
         
         response_text = result.data.response if hasattr(result.data, "response") else str(result.data)
-        logger.info("✅ RAG executado em %.3fs (resposta: %d chars)", 
-                   execution_time, len(response_text))
+        logger.info("✅ RAG: Resposta gerada em %.3fs (%d chars)", execution_time, len(response_text))
         
         return response_text
 

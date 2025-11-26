@@ -9,11 +9,13 @@ import logging
 import time
 from datetime import datetime
 import json
+import threading
 
 from schemas.agents.requests import AgentCreateRequest, AgentUpdateRequest, AgentExecuteRequest
 from data.entities.agent_entities import AgentEntity
 from data.agent_repository import AgentRepository
 from data.agent_document_repository import AgentDocumentRepository
+from data.chat_mongodb_repository import ChatMongoDBRepository
 from factories.agent_factory import AgentFactory
 from mappers.agent_mapper import AgentMapper
 from services.ai_service import AIService
@@ -47,6 +49,8 @@ class AgentService:
         self.ai_service = ai_service or AIService.get_instance()
         self.vector_db_client = vector_db_client or VectorDBClient()
         self.agent_document_repository = AgentDocumentRepository()
+        # MongoDB repository para salvar conversas (opcional, não bloqueante)
+        self.chat_mongodb_repository = ChatMongoDBRepository()
     
     def create_agent(self, dto: AgentCreateRequest, user_id: str) -> AgentEntity:
         """
@@ -180,14 +184,9 @@ class AgentService:
         has_docs = self.agent_document_repository.has_documents(agent.id)
         should_use_rag = self.ai_service.supports_rag and has_docs
         
-        logger.info(
-            f"🚀 Executando agente {agent.id} ({agent.name}): "
-            f"RAG={'✅' if should_use_rag else '❌'} (supports_rag={self.ai_service.supports_rag}, has_docs={has_docs})"
-        )
-        
         try:
             if should_use_rag:
-                logger.info(f"🔎 Usando RAG para agente {agent.id}")
+                logger.info(f"🚀 Executando agente {agent.id} ({agent.name}) com RAG")
                 response_text = self.ai_service.generate_rag_response_sync(
                     message=message_payload,
                     agent_id=agent.id,
@@ -195,7 +194,7 @@ class AgentService:
                     instructions=system_prompt
                 )
             else:
-                logger.info(f"💬 Usando resposta padrão para agente {agent.id}")
+                logger.info(f"🚀 Executando agente {agent.id} ({agent.name})")
                 response_text = self.ai_service.generate_response_sync(
                     message=message_payload,
                     system_prompt=system_prompt,
@@ -217,10 +216,7 @@ class AgentService:
             response_text = f"Erro ao processar sua mensagem: {str(exc)}"
         
         execution_time = time.perf_counter() - start_time
-        logger.info(
-            f"✅ Agente {agent.id} executado em {execution_time:.3f}s. "
-            f"Resposta: {len(response_text)} caracteres"
-        )
+        logger.info(f"✅ Agente {agent.id} executado em {execution_time:.3f}s")
         
         tokens_used = len((dto.message or "").split()) + len(response_text.split())
         
@@ -230,7 +226,8 @@ class AgentService:
         agent.updated_at = now
         self.agent_repository.update_agent(agent)
         
-        return {
+        # Prepara resposta (retorna imediatamente, sem esperar MongoDB)
+        result = {
             'response': response_text,
             'message': dto.message,
             'execution_time': round(execution_time, 4),
@@ -238,6 +235,63 @@ class AgentService:
             'session_id': dto.session_id,
             'rag_used': should_use_rag
         }
+        
+        # Salva no MongoDB de forma assíncrona (não bloqueante) se tiver session_id
+        if dto.session_id:
+            self._save_conversation_async(
+                session_id=dto.session_id,
+                user_id=user_id,
+                agent_id=agent.id,
+                user_message=dto.message,
+                assistant_message=response_text
+            )
+        
+        return result
+    
+    def _save_conversation_async(self, session_id: str, user_id: str, agent_id: str, 
+                                  user_message: str, assistant_message: str):
+        """
+        Salva conversa no MongoDB de forma assíncrona (não bloqueante).
+        Executa em thread separada para não atrasar a resposta ao frontend.
+        """
+        def save_in_background():
+            try:
+                # Salva mensagem do usuário
+                self.chat_mongodb_repository.add_message({
+                    'session_id': session_id,
+                    'user_id': user_id,
+                    'agent_id': agent_id,
+                    'message': user_message,
+                    'sender': 'user',
+                    'context': {},
+                    'metadata': {
+                        'created_at': datetime.utcnow(),
+                        'source': 'agent_execute'
+                    }
+                })
+                
+                # Salva resposta do assistente
+                self.chat_mongodb_repository.add_message({
+                    'session_id': session_id,
+                    'user_id': user_id,
+                    'agent_id': agent_id,
+                    'message': assistant_message,
+                    'sender': 'assistant',
+                    'context': {},
+                    'metadata': {
+                        'created_at': datetime.utcnow(),
+                        'source': 'agent_execute'
+                    }
+                })
+                
+                logger.debug(f"✅ Conversa salva no MongoDB (background): {session_id}")
+            except Exception as e:
+                # Não loga erro como crítico - é apenas persistência opcional
+                logger.debug(f"⚠️ Falha ao salvar conversa no MongoDB (não crítico): {str(e)}")
+        
+        # Executa em thread separada (não bloqueia resposta)
+        thread = threading.Thread(target=save_in_background, daemon=True)
+        thread.start()
 
     def upload_agent_document(
         self,

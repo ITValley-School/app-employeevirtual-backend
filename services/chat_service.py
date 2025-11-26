@@ -14,6 +14,7 @@ from factories.chat_factory import ChatFactory
 from data.chat_repository import ChatRepository
 from data.chat_mongodb_repository import ChatMongoDBRepository
 from data.agent_repository import AgentRepository
+from data.agent_document_repository import AgentDocumentRepository
 from data.entities.chat_entities import ChatSessionEntity, ChatMessageEntity
 from services.ai_service import AIService
 
@@ -55,20 +56,37 @@ class ChatService:
     
     def create_session(self, dto: ChatSessionRequest, user_id: str) -> ChatEntity:
         """
-        Cria nova sessão de chat
+        Cria nova sessão de chat ou retorna sessão existente ativa
+        
+        Se já existir uma sessão ativa para o mesmo agente e usuário, retorna ela.
+        Caso contrário, cria uma nova sessão.
         
         Args:
             dto: Dados da sessão
             user_id: ID do usuário
             
         Returns:
-            ChatEntity: Sessão criada
+            ChatEntity: Sessão criada ou existente
         """
-        # 1. Factory cria Entity a partir do DTO
+        # 1. Verifica se já existe sessão ativa para este agente e usuário
+        if dto.agent_id:
+            existing_session = self.chat_repository.get_active_session_by_agent(
+                agent_id=dto.agent_id,
+                user_id=user_id
+            )
+            
+            if existing_session:
+                logger.info(
+                    f"♻️ Reutilizando sessão existente: ID={existing_session.id}, "
+                    f"Agent={dto.agent_id}, User={user_id}"
+                )
+                return existing_session
+        
+        # 2. Se não existe, cria nova sessão
         session = ChatFactory.create_session(dto, user_id)
         logger.info(f"🏭 Factory criou sessão: ID={session.id}, Title={session.title}, Agent={session.agent_id}")
         
-        # 2. Repository persiste Entity no SQL Server
+        # 3. Repository persiste Entity no SQL Server
         try:
             persisted = self.chat_repository.add_session(session)
             logger.info(f"✅ Sessão salva no SQL Server: {persisted.id}")
@@ -78,7 +96,7 @@ class ChatService:
             logger.error(f"Traceback: {traceback.format_exc()}")
             raise
         
-        # 3. Salvar conversa no MongoDB
+        # 4. Salvar conversa no MongoDB (apenas se for nova sessão)
         try:
             self.chat_mongodb_repository.add_conversation({
                 'conversation_id': session.id,
@@ -158,16 +176,33 @@ class ChatService:
                 'max_tokens': int(agent.max_tokens or 2000) if agent else 2000
             }
             
+            # Verifica se deve usar RAG
+            has_docs = False
+            should_use_rag = False
+            if session.agent_id:
+                doc_repo = AgentDocumentRepository()
+                has_docs = doc_repo.has_documents(session.agent_id)
+                should_use_rag = self.ai_service.supports_rag and has_docs
+            
             # Executa IA de forma síncrona usando AIService
-            ai_response = self.ai_service.generate_response_sync(
-                message=ChatFactory.message_from(dto),
-                system_prompt=agent_config['system_prompt'],
-                agent_id=session.agent_id,
-                user_id=user_id,
-                temperature=agent_config['temperature'],
-                model=agent_config['model'],
-                max_tokens=agent_config['max_tokens']
-            )
+            if should_use_rag and agent:
+                logger.info(f"🔎 Usando RAG para agente {session.agent_id}")
+                ai_response = self.ai_service.generate_rag_response_sync(
+                    message=ChatFactory.message_from(dto),
+                    agent_id=session.agent_id,
+                    agent_name=agent.name,
+                    instructions=agent_config['system_prompt']
+                )
+            else:
+                ai_response = self.ai_service.generate_response_sync(
+                    message=ChatFactory.message_from(dto),
+                    system_prompt=agent_config['system_prompt'],
+                    agent_id=session.agent_id,
+                    user_id=user_id,
+                    temperature=agent_config['temperature'],
+                    model=agent_config['model'],
+                    max_tokens=agent_config['max_tokens']
+                )
             
             logger.info(f"✅ Resposta IA gerada para sessão {session_id}")
             

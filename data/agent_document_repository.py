@@ -106,8 +106,7 @@ class AgentDocumentRepository:
         try:
             cursor = self.collection.find(
                 {"agent_id": agent_id, "user_id": user_id}
-            )
-            cursor = cursor.with_options(max_time_ms=5000)  # Timeout de 5s
+            ).max_time_ms(5000)  # Timeout de 5s
             docs = list(cursor.sort("created_at", -1))
             return [_stringify_id(doc) for doc in docs]
         except Exception as e:
@@ -129,9 +128,11 @@ class AgentDocumentRepository:
         Verifica se o agente possui documentos vetoriais.
         """
         try:
-            cursor = self.collection.find({"agent_id": agent_id}).limit(1)
-            cursor = cursor.with_options(max_time_ms=3000)  # Timeout de 3s
-            return cursor.count() > 0
+            # Query simples usando find_one() que é mais eficiente e compatível com Cosmos DB
+            query = {"agent_id": agent_id}
+            doc = self.collection.find_one(query, {"_id": 1})
+            has_docs = doc is not None
+            return has_docs
         except Exception as e:
             error_msg = str(e)
             if 'timeout' in error_msg.lower() or 'timed out' in error_msg.lower():

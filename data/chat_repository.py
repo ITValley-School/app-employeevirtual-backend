@@ -103,6 +103,42 @@ class ChatRepository:
             created_at=db_session.created_at
         )
     
+    def get_active_session_by_agent(self, agent_id: str, user_id: str) -> Optional[ChatEntity]:
+        """
+        Busca sessão ativa por agente e usuário
+        
+        Retorna a sessão mais recente ativa para o agente e usuário especificados.
+        Isso permite reutilizar a mesma conversa ao invés de criar uma nova a cada mensagem.
+        
+        Args:
+            agent_id: ID do agente
+            user_id: ID do usuário
+            
+        Returns:
+            ChatEntity: Sessão ativa encontrada ou None
+        """
+        db_session = self.db.query(ChatSessionEntity).filter(
+            and_(
+                ChatSessionEntity.agent_id == agent_id,
+                ChatSessionEntity.user_id == user_id,
+                ChatSessionEntity.status == "active"
+            )
+        ).order_by(ChatSessionEntity.created_at.desc()).first()
+        
+        if not db_session:
+            return None
+        
+        # Converte para domain entity
+        from domain.chat.chat_entity import ChatEntity
+        return ChatEntity(
+            id=db_session.id,
+            user_id=db_session.user_id,
+            agent_id=db_session.agent_id,
+            title=db_session.title,
+            status=db_session.status,
+            created_at=db_session.created_at
+        )
+    
     def update_session(self, session: ChatEntity) -> ChatEntity:
         """
         Atualiza sessão no banco de dados
