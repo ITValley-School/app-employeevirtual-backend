@@ -43,7 +43,8 @@ class AgentService:
     def __init__(self, db: Session, ai_service: Optional[AIService] = None, vector_db_client: Optional[VectorDBClient] = None):
         self.db = db
         self.agent_repository = AgentRepository(db)
-        self.ai_service = ai_service or AIService()
+        # Usa singleton para evitar múltiplas inicializações do Pinecone
+        self.ai_service = ai_service or AIService.get_instance()
         self.vector_db_client = vector_db_client or VectorDBClient()
         self.agent_document_repository = AgentDocumentRepository()
     
@@ -174,26 +175,52 @@ class AgentService:
         max_tokens = int(agent.max_tokens or 2000)
         
         start_time = time.perf_counter()
-        should_use_rag = self.ai_service.supports_rag and self.agent_document_repository.has_documents(agent.id)
-
-        if should_use_rag:
-            response_text = self.ai_service.generate_rag_response_sync(
-                message=message_payload,
-                agent_id=agent.id,
-                agent_name=agent.name,
-                instructions=system_prompt
+        
+        # Verifica se deve usar RAG
+        has_docs = self.agent_document_repository.has_documents(agent.id)
+        should_use_rag = self.ai_service.supports_rag and has_docs
+        
+        logger.info(
+            f"🚀 Executando agente {agent.id} ({agent.name}): "
+            f"RAG={'✅' if should_use_rag else '❌'} (supports_rag={self.ai_service.supports_rag}, has_docs={has_docs})"
+        )
+        
+        try:
+            if should_use_rag:
+                logger.info(f"🔎 Usando RAG para agente {agent.id}")
+                response_text = self.ai_service.generate_rag_response_sync(
+                    message=message_payload,
+                    agent_id=agent.id,
+                    agent_name=agent.name,
+                    instructions=system_prompt
+                )
+            else:
+                logger.info(f"💬 Usando resposta padrão para agente {agent.id}")
+                response_text = self.ai_service.generate_response_sync(
+                    message=message_payload,
+                    system_prompt=system_prompt,
+                    agent_id=agent.id,
+                    user_id=user_id,
+                    temperature=temperature,
+                    model=model,
+                    max_tokens=max_tokens
+                )
+            
+            if not response_text or len(response_text.strip()) == 0:
+                logger.error(f"❌ Resposta vazia do agente {agent.id}")
+                response_text = "Desculpe, não consegui gerar uma resposta. Tente novamente."
+        except Exception as exc:
+            logger.error(
+                f"❌ Erro ao executar agente {agent.id}: {str(exc)}",
+                exc_info=True
             )
-        else:
-            response_text = self.ai_service.generate_response_sync(
-                message=message_payload,
-                system_prompt=system_prompt,
-                agent_id=agent.id,
-                user_id=user_id,
-                temperature=temperature,
-                model=model,
-                max_tokens=max_tokens
-            )
+            response_text = f"Erro ao processar sua mensagem: {str(exc)}"
+        
         execution_time = time.perf_counter() - start_time
+        logger.info(
+            f"✅ Agente {agent.id} executado em {execution_time:.3f}s. "
+            f"Resposta: {len(response_text)} caracteres"
+        )
         
         tokens_used = len((dto.message or "").split()) + len(response_text.split())
         
@@ -208,7 +235,8 @@ class AgentService:
             'message': dto.message,
             'execution_time': round(execution_time, 4),
             'tokens_used': tokens_used,
-            'session_id': dto.session_id
+            'session_id': dto.session_id,
+            'rag_used': should_use_rag
         }
 
     def upload_agent_document(
@@ -250,6 +278,7 @@ class AgentService:
             file_name=final_file_name,
             content=file_content,
             content_type=content_type,
+            namespace=agent_id,  # Usa agent_id como namespace
             metadata_json=metadata_json,
         )
 

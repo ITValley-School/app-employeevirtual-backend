@@ -52,8 +52,22 @@ class ChatMongoDBRepository:
             return str(result.inserted_id)
             
         except Exception as e:
-            logger.error(f"❌ Erro ao salvar conversa no MongoDB: {str(e)}", exc_info=True)
-            raise
+            error_msg = str(e)
+            is_timeout = (
+                'timeout' in error_msg.lower() or 
+                'timed out' in error_msg.lower() or
+                'ServerSelectionTimeoutError' in type(e).__name__
+            )
+            if is_timeout:
+                logger.warning(
+                    f"⏱️ Timeout ao salvar conversa no MongoDB. "
+                    f"Conversa foi salva no SQL Server. Continuando sem MongoDB."
+                )
+                # Retorna ID da conversa mesmo sem MongoDB (já foi salva no SQL)
+                return conversation_doc.get('conversation_id', conversation_doc.get('_id', ''))
+            logger.error(f"❌ Erro ao salvar conversa no MongoDB: {error_msg}", exc_info=True)
+            # Não levanta exceção - permite que o sistema continue
+            return conversation_doc.get('conversation_id', conversation_doc.get('_id', ''))
     
     def add_message(self, message_data: Dict[str, Any]) -> str:
         """
@@ -95,15 +109,29 @@ class ChatMongoDBRepository:
             )
             
             if result.modified_count == 0:
-                logger.error(f"❌ Conversa {message_data['session_id']} não encontrada")
-                raise ValueError(f"Conversa não encontrada: {message_data['session_id']}")
+                logger.warning(f"⚠️ Conversa {message_data['session_id']} não encontrada no MongoDB")
+                # Não levanta exceção - permite que o sistema continue
+                return str(message_doc['_id'])
             
             logger.info(f"✅ Mensagem adicionada à conversa: {message_data['session_id']}")
             return str(message_doc['_id'])
             
         except Exception as e:
-            logger.error(f"❌ Erro ao adicionar mensagem: {str(e)}", exc_info=True)
-            raise
+            error_msg = str(e)
+            is_timeout = (
+                'timeout' in error_msg.lower() or 
+                'timed out' in error_msg.lower() or
+                'ServerSelectionTimeoutError' in type(e).__name__
+            )
+            if is_timeout:
+                logger.warning(
+                    f"⏱️ Timeout ao adicionar mensagem no MongoDB. "
+                    f"Mensagem processada mas não salva no MongoDB."
+                )
+            else:
+                logger.error(f"❌ Erro ao adicionar mensagem: {error_msg}", exc_info=True)
+            # Não levanta exceção - permite que o sistema continue
+            return str(message_doc.get('_id', ''))
     
     def get_user_conversations(self, user_id: str, agent_id: Optional[str] = None) -> List[Dict[str, Any]]:
         """
@@ -154,9 +182,12 @@ class ChatMongoDBRepository:
             if user_id:
                 query['user_id'] = user_id
             
+            # Adiciona timeout específico para a query (5s)
+            # Cria cursor e aplica timeout
+            collection = self.db[Collections.CHAT_CONVERSATIONS]
+            cursor = collection.find(query).max_time_ms(5000)  # Timeout de 5s
             conversations = list(
-                self.db[Collections.CHAT_CONVERSATIONS]
-                .find(query)
+                cursor
                 .sort('metadata.last_activity', -1)
                 .limit(100)
             )
@@ -165,10 +196,23 @@ class ChatMongoDBRepository:
                 conv['_id'] = str(conv['_id'])
                 conv['id'] = conv['conversation_id']
             
+            logger.debug(f"✅ {len(conversations)} conversas encontradas para agente {agent_id}")
             return conversations
             
         except Exception as e:
-            logger.error(f"❌ Erro ao buscar conversas do agente: {str(e)}", exc_info=True)
+            error_msg = str(e)
+            # Tratamento específico para timeouts
+            if 'timeout' in error_msg.lower() or 'timed out' in error_msg.lower():
+                logger.warning(
+                    f"⏱️ Timeout ao buscar conversas do agente {agent_id}. "
+                    f"MongoDB pode estar lento ou indisponível. Retornando lista vazia."
+                )
+            else:
+                logger.error(
+                    f"❌ Erro ao buscar conversas do agente {agent_id}: {error_msg}",
+                    exc_info=True
+                )
+            # Retorna lista vazia em caso de erro (não quebra o fluxo)
             return []
     
     def get_messages_by_session(self, session_id: str, user_id: str, limit: int = 50) -> List[Dict[str, Any]]:

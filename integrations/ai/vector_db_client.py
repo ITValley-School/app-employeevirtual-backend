@@ -20,23 +20,31 @@ class VectorDBClient:
     para o microserviço externo que realiza o upsert no banco vetorial.
     """
 
-    def __init__(self, base_url: Optional[str] = None, timeout: int = 120):
+    def __init__(self, base_url: Optional[str] = None, index_name: Optional[str] = None, timeout: int = 120):
         self.base_url = (base_url or settings.vector_db_base_url).rstrip("/")
+        self.index_name = index_name or settings.vector_db_index_name
         self.timeout = timeout
-
-    @property
-    def upload_endpoint(self) -> str:
-        return f"{self.base_url}/upsert/upsert-pdf/metadonnes"
 
     def upload_pdf(
         self,
         file_name: str,
         content: bytes,
         content_type: Optional[str],
+        namespace: str,
         metadata_json: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Envia PDF e metadados para o serviço externo.
+        
+        Args:
+            file_name: Nome do arquivo PDF
+            content: Conteúdo binário do PDF
+            content_type: Tipo MIME do arquivo
+            namespace: Namespace do Pinecone (geralmente agent_id)
+            metadata_json: JSON string com metadados opcionais
+            
+        Returns:
+            Dict com resposta do microserviço
         """
         files = {
             "filepdf": (
@@ -46,14 +54,28 @@ class VectorDBClient:
             )
         }
 
-        data: Dict[str, Any] = {}
+        # Sempre envia index_name e namespace
+        data: Dict[str, Any] = {
+            "index_name": self.index_name,
+            "namespace": namespace,
+        }
+        
+        # Se houver metadados, usa endpoint com metadonnes
         if metadata_json:
             data["metadone"] = metadata_json
+            endpoint = f"{self.base_url}/upsert/upsert-pdf/metadonnes"
+        else:
+            endpoint = f"{self.base_url}/upsert/upsert-pdf"
 
-        logger.info("Enviando PDF para Vector DB em %s", self.upload_endpoint)
+        logger.info(
+            "Enviando PDF para Vector DB: endpoint=%s, index=%s, namespace=%s",
+            endpoint,
+            self.index_name,
+            namespace
+        )
 
         response = requests.post(
-            self.upload_endpoint,
+            endpoint,
             files=files,
             data=data,
             timeout=self.timeout,

@@ -131,6 +131,7 @@ async def upload_agent_document(
     Faz upload de um PDF para o serviço vetorial e o associa ao agente.
     """
     file_bytes = await filepdf.read()
+    result = None
     try:
         result = agent_service.upload_agent_document(
             agent_id=agent_id,
@@ -146,13 +147,38 @@ async def upload_agent_document(
         detail = exc.response.text if exc.response is not None else str(exc)
         raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=f"Erro ao comunicar com Vector DB: {detail}") from exc
     except Exception as exc:
+        # Se o documento foi enviado para o Vector DB mas falhou no MongoDB,
+        # ainda retornamos sucesso (o documento está no Pinecone)
+        error_msg = str(exc)
+        if result and result.get("vector_db_response"):
+            logger.warning(
+                f"⚠️ Documento enviado para Vector DB mas falhou ao registrar no MongoDB: {error_msg}"
+            )
+            # Retorna sucesso parcial - documento está no Pinecone
+            return {
+                "message": "Documento enviado com sucesso para Vector DB. Aviso: falha ao registrar no MongoDB.",
+                "document": {"mongo_error": True, "message": "Documento no Pinecone mas não registrado no MongoDB"},
+                "vector_db_response": result.get("vector_db_response"),
+                "warning": "MongoDB indisponível, mas documento está no Vector DB"
+            }
         logger.exception("Erro inesperado ao enviar PDF para Vector DB")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Erro inesperado ao enviar documento") from exc
 
+    # Verifica se houve erro no MongoDB mas documento foi enviado
+    document = result.get("document", {}) if result else {}
+    if document.get("mongo_error"):
+        logger.warning("⚠️ Documento enviado para Vector DB mas não registrado no MongoDB (timeout)")
+        return {
+            "message": "Documento enviado com sucesso para Vector DB. Aviso: falha ao registrar no MongoDB.",
+            "document": document,
+            "vector_db_response": result.get("vector_db_response") if result else None,
+            "warning": "MongoDB indisponível, mas documento está no Vector DB"
+        }
+
     return {
         "message": "Documento enviado com sucesso",
-        "document": result.get("document"),
-        "vector_db_response": result.get("vector_db_response")
+        "document": document,
+        "vector_db_response": result.get("vector_db_response") if result else None
     }
 
 

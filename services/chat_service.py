@@ -50,7 +50,8 @@ class ChatService:
         self.chat_repository = ChatRepository(db)
         self.chat_mongodb_repository = ChatMongoDBRepository()
         self.agent_repository = AgentRepository(db)
-        self.ai_service = AIService()
+        # Usa singleton para evitar múltiplas inicializações do Pinecone
+        self.ai_service = AIService.get_instance()
     
     def create_session(self, dto: ChatSessionRequest, user_id: str) -> ChatEntity:
         """

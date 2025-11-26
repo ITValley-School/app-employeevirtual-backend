@@ -29,7 +29,7 @@ logger = logging.getLogger(__name__)
 
 def get_mongo_client() -> MongoClient:
     """
-    Obtém cliente MongoDB síncrono
+    Obtém cliente MongoDB síncrono com configurações otimizadas
     
     Returns:
         MongoClient: Cliente MongoDB
@@ -38,13 +38,26 @@ def get_mongo_client() -> MongoClient:
     
     if mongo_client is None:
         try:
-            mongo_client = MongoClient(MONGODB_URL)
-            # Testar conexão
-            mongo_client.admin.command('ping')
+            # Configurações de timeout e retry para Azure Cosmos DB
+            mongo_client = MongoClient(
+                MONGODB_URL,
+                serverSelectionTimeoutMS=10000,  # 10s para seleção de servidor
+                socketTimeoutMS=30000,  # 30s para operações
+                connectTimeoutMS=10000,  # 10s para conexão inicial
+                retryWrites=True,
+                retryReads=True,
+                maxPoolSize=50,  # Pool de conexões
+                minPoolSize=5,
+                maxIdleTimeMS=45000,
+            )
+            # Testar conexão com timeout menor
+            mongo_client.admin.command('ping', maxTimeMS=5000)
             logger.info("✅ Cliente MongoDB síncrono conectado")
         except Exception as e:
             logger.error(f"❌ Erro ao conectar MongoDB síncrono: {e}")
-            raise
+            # Não levanta exceção, permite que o sistema continue sem MongoDB
+            # O repositório deve tratar erros graciosamente
+            logger.warning("⚠️ Sistema continuará sem MongoDB. Algumas funcionalidades podem não funcionar.")
     
     return mongo_client
 

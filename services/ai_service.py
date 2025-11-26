@@ -20,10 +20,15 @@ class AIResponse(BaseModel):
     response: str
 
 
+# Singleton para AIService (evita múltiplas inicializações do Pinecone)
+_ai_service_instance: Optional['AIService'] = None
+
+
 class AIService:
     """
     Serviço de IA - Orquestra integração com modelos de IA
     Usa Pydantic AI como abstração de modelos
+    Singleton pattern para evitar múltiplas inicializações do Pinecone
     """
     
     def __init__(self):
@@ -36,16 +41,29 @@ class AIService:
         if not self.openai_api_key:
             logger.warning("OPENAI_API_KEY não configurada. IA não funcionará.")
 
-        self.supports_rag = bool(
-            settings.pinecone_api_key and settings.pinecone_index_name
-        )
+        # Usa pinecone_index_name se definido, senão usa vector_db_index_name (padrão "employee")
+        rag_index_name = settings.pinecone_index_name or settings.vector_db_index_name
+        self.supports_rag = bool(settings.pinecone_api_key and rag_index_name)
         self.rag_runner: Optional[RagAgentRunner] = None
         if self.supports_rag:
             try:
-                self.rag_runner = RagAgentRunner(settings.pinecone_index_name)
+                logger.info("🔧 Inicializando RagAgentRunner (índice: %s)", rag_index_name)
+                self.rag_runner = RagAgentRunner(rag_index_name)
+                logger.info("✅ RagAgentRunner inicializado com sucesso")
             except Exception as exc:
-                logger.error("Falha ao inicializar RagAgentRunner: %s", exc)
+                logger.error("Falha ao inicializar RagAgentRunner: %s", exc, exc_info=True)
                 self.supports_rag = False
+    
+    @classmethod
+    def get_instance(cls) -> 'AIService':
+        """
+        Retorna instância singleton do AIService.
+        Evita múltiplas inicializações do Pinecone.
+        """
+        global _ai_service_instance
+        if _ai_service_instance is None:
+            _ai_service_instance = cls()
+        return _ai_service_instance
     
     async def generate_response(
         self,
