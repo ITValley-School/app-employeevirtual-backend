@@ -88,3 +88,62 @@ class VectorDBClient:
             logger.error("Resposta do Vector DB não está em JSON válido: %s", exc)
             raise ValueError("Resposta do serviço vetorial inválida") from exc
 
+    def delete_document(
+        self,
+        namespace: str,
+        file_name: Optional[str] = None,
+        delete_all: bool = False,
+    ) -> Dict[str, Any]:
+        """
+        Remove documentos do Pinecone via microserviço externo.
+        
+        Args:
+            namespace: Namespace do Pinecone (geralmente agent_id)
+            file_name: Nome do arquivo específico a deletar (opcional)
+            delete_all: Se True, deleta todos os documentos do namespace
+            
+        Returns:
+            Dict com resposta do microserviço
+            
+        Note:
+            O microserviço pode ter diferentes endpoints:
+            - DELETE /delete/namespace/{namespace} - deleta todo o namespace
+            - DELETE /delete/document/{namespace}/{file_name} - deleta documento específico
+        """
+        data: Dict[str, Any] = {
+            "index_name": self.index_name,
+            "namespace": namespace,
+        }
+        
+        if delete_all:
+            endpoint = f"{self.base_url}/delete/namespace/{namespace}"
+            logger.info(
+                "Deletando todos os documentos do namespace: index=%s, namespace=%s",
+                self.index_name,
+                namespace
+            )
+        elif file_name:
+            endpoint = f"{self.base_url}/delete/document/{namespace}/{file_name}"
+            data["file_name"] = file_name
+            logger.info(
+                "Deletando documento específico: index=%s, namespace=%s, file=%s",
+                self.index_name,
+                namespace,
+                file_name
+            )
+        else:
+            raise ValueError("Deve fornecer file_name ou definir delete_all=True")
+        
+        response = requests.delete(
+            endpoint,
+            json=data,
+            timeout=self.timeout,
+        )
+        response.raise_for_status()
+        
+        try:
+            return response.json()
+        except ValueError:
+            # Alguns endpoints podem retornar apenas status 200 sem JSON
+            return {"success": True, "message": "Documento(s) deletado(s) com sucesso"}
+

@@ -13,13 +13,21 @@ import threading
 
 from schemas.agents.requests import AgentCreateRequest, AgentUpdateRequest, AgentExecuteRequest
 from data.entities.agent_entities import AgentEntity
+from data.entities.system_agent_entities import SystemAgentEntity
 from data.agent_repository import AgentRepository
+from data.system_agent_repository import SystemAgentRepository
 from data.agent_document_repository import AgentDocumentRepository
 from data.chat_mongodb_repository import ChatMongoDBRepository
+from data.system_agent_execution_repository import SystemAgentExecutionRepository
+from data.tool_cache_repository import ToolCacheRepository
 from factories.agent_factory import AgentFactory
 from mappers.agent_mapper import AgentMapper
 from services.ai_service import AIService
 from integrations.ai.vector_db_client import VectorDBClient
+from integrations.ai.orion_client import OrionClient
+from integrations.ai.system_agent_tools import build_system_agent, SystemAgentDependencies
+from domain.agents.agent_tools import ToolType
+from config.settings import settings
 
 logger = logging.getLogger(__name__)
 
@@ -45,12 +53,16 @@ class AgentService:
     def __init__(self, db: Session, ai_service: Optional[AIService] = None, vector_db_client: Optional[VectorDBClient] = None):
         self.db = db
         self.agent_repository = AgentRepository(db)
+        self.system_agent_repository = SystemAgentRepository(db)
         # Usa singleton para evitar múltiplas inicializações do Pinecone
         self.ai_service = ai_service or AIService.get_instance()
         self.vector_db_client = vector_db_client or VectorDBClient()
         self.agent_document_repository = AgentDocumentRepository()
         # MongoDB repository para salvar conversas (opcional, não bloqueante)
         self.chat_mongodb_repository = ChatMongoDBRepository()
+        # Repositórios para agentes de sistema
+        self.system_execution_repository = SystemAgentExecutionRepository()
+        self.tool_cache_repository = ToolCacheRepository()
     
     def create_agent(self, dto: AgentCreateRequest, user_id: str) -> AgentEntity:
         """
@@ -348,6 +360,142 @@ class AgentService:
             "vector_db_response": vector_response,
             "document": stored_document,
         }
+
+    def list_agent_documents(
+        self,
+        agent_id: str,
+        user_id: str,
+    ) -> List[Dict[str, Any]]:
+        """
+        Lista documentos associados a um agente.
+        
+        Args:
+            agent_id: ID do agente
+            user_id: ID do usuário
+            
+        Returns:
+            Lista de documentos com metadados
+        """
+        agent = self.get_agent_by_id(agent_id, user_id)
+        if not agent:
+            raise ValueError("Agente não encontrado")
+        
+        documents = self.agent_document_repository.list_documents(agent_id, user_id)
+        return documents
+
+    def delete_agent_document(
+        self,
+        agent_id: str,
+        document_id: str,
+        user_id: str,
+    ) -> Dict[str, Any]:
+        """
+        Remove um documento do agente (MongoDB + Pinecone).
+        
+        Args:
+            agent_id: ID do agente
+            document_id: ID do documento no MongoDB
+            user_id: ID do usuário
+            
+        Returns:
+            Dict com resultado da operação
+        """
+        agent = self.get_agent_by_id(agent_id, user_id)
+        if not agent:
+            raise ValueError("Agente não encontrado")
+        
+        # Busca documento no MongoDB para obter file_name
+        document = self.agent_document_repository.get_document_by_id(document_id, user_id)
+        if not document:
+            raise ValueError("Documento não encontrado")
+        
+        if document.get("agent_id") != agent_id:
+            raise ValueError("Documento não pertence a este agente")
+        
+        file_name = document.get("file_name")
+        namespace = agent_id
+        
+        # Tenta deletar do Pinecone primeiro
+        vector_delete_result = None
+        try:
+            if file_name:
+                vector_delete_result = self.vector_db_client.delete_document(
+                    namespace=namespace,
+                    file_name=file_name,
+                    delete_all=False
+                )
+            else:
+                # Se não tiver file_name, tenta deletar todo o namespace (menos comum)
+                logger.warning(f"⚠️ Documento {document_id} não tem file_name, pulando delete no Pinecone")
+        except Exception as e:
+            logger.warning(
+                f"⚠️ Erro ao deletar documento do Pinecone (continuando com delete do MongoDB): {str(e)}"
+            )
+            # Continua mesmo se falhar no Pinecone
+        
+        # Deleta do MongoDB
+        mongo_deleted = self.agent_document_repository.delete_document(document_id, user_id)
+        
+        if not mongo_deleted:
+            raise ValueError("Erro ao deletar documento do MongoDB")
+        
+        return {
+            "success": True,
+            "document_id": document_id,
+            "file_name": file_name,
+            "vector_db_response": vector_delete_result,
+            "mongo_deleted": mongo_deleted,
+        }
+
+    def update_agent_document_metadata(
+        self,
+        agent_id: str,
+        document_id: str,
+        user_id: str,
+        metadata_updates: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        """
+        Atualiza metadados de um documento do agente.
+        
+        Args:
+            agent_id: ID do agente
+            document_id: ID do documento
+            user_id: ID do usuário
+            metadata_updates: Dicionário com atualizações de metadados
+            
+        Returns:
+            Dict com documento atualizado
+        """
+        agent = self.get_agent_by_id(agent_id, user_id)
+        if not agent:
+            raise ValueError("Agente não encontrado")
+        
+        # Busca documento atual
+        document = self.agent_document_repository.get_document_by_id(document_id, user_id)
+        if not document:
+            raise ValueError("Documento não encontrado")
+        
+        if document.get("agent_id") != agent_id:
+            raise ValueError("Documento não pertence a este agente")
+        
+        # Merge dos metadados existentes com as atualizações
+        current_metadata = document.get("metadata", {})
+        updated_metadata = {**current_metadata, **metadata_updates}
+        
+        # Atualiza no MongoDB
+        updated_document = self.agent_document_repository.update_document_metadata(
+            document_id=document_id,
+            user_id=user_id,
+            metadata_updates=updated_metadata
+        )
+        
+        if not updated_document:
+            raise ValueError("Erro ao atualizar metadados do documento")
+        
+        return {
+            "success": True,
+            "document": updated_document,
+        }
     
     def activate_agent(self, agent_id: str, user_id: str) -> AgentEntity:
         """
@@ -429,3 +577,195 @@ class AgentService:
         self.agent_repository.update_agent(agent)
         
         return agent
+    
+    # ========== MÉTODOS PARA AGENTES DE SISTEMA ==========
+    
+    def get_system_agents(self) -> List[SystemAgentEntity]:
+        """
+        Lista todos os agentes de sistema ativos
+        
+        Returns:
+            Lista de agentes de sistema
+        """
+        return self.system_agent_repository.list_all()
+    
+    def get_system_agent_by_id(self, agent_id: str) -> Optional[SystemAgentEntity]:
+        """
+        Busca agente de sistema por ID
+        
+        Args:
+            agent_id: ID do agente de sistema
+            
+        Returns:
+            SystemAgentEntity: Agente encontrado ou None
+        """
+        return self.system_agent_repository.get_by_id(agent_id)
+    
+    def get_system_agents_by_type(self, agent_type: str) -> List[SystemAgentEntity]:
+        """
+        Lista agentes de sistema por tipo
+        
+        Args:
+            agent_type: Tipo do agente
+            
+        Returns:
+            Lista de agentes de sistema
+        """
+        return self.system_agent_repository.get_by_type(agent_type)
+    
+    def _get_tools_for_system_agent(self, system_agent: SystemAgentEntity) -> List[str]:
+        """
+        Determina ferramentas disponíveis baseado no tipo do agente
+        
+        Args:
+            system_agent: Agente de sistema
+            
+        Returns:
+            Lista de ferramentas habilitadas
+        """
+        # Mapeamento de tipos de agente para ferramentas
+        tools_mapping = {
+            "transcriber": [ToolType.TRANSCRIBE_AUDIO, ToolType.TRANSCRIBE_YOUTUBE],
+            "ocr": [ToolType.OCR_IMAGE],
+            "document_processor": [ToolType.PROCESS_PDF, ToolType.EXTRACT_TEXT],
+            "assistant": [ToolType.TRANSCRIBE_AUDIO, ToolType.OCR_IMAGE, ToolType.PROCESS_PDF],
+        }
+        
+        # Retorna ferramentas baseado no agent_type
+        agent_type_lower = system_agent.agent_type.lower() if system_agent.agent_type else ""
+        return tools_mapping.get(agent_type_lower, [])
+    
+    def execute_system_agent(
+        self,
+        system_agent_id: str,
+        dto: AgentExecuteRequest,
+        user_id: str
+    ) -> Dict[str, Any]:
+        """
+        Executa agente de sistema com ferramentas avançadas
+        
+        Args:
+            system_agent_id: ID do agente de sistema
+            dto: Dados de execução
+            user_id: ID do usuário
+            
+        Returns:
+            Dict com resultado da execução
+            
+        Raises:
+            ValueError: Se agente não encontrado
+        """
+        import time
+        start_time = time.perf_counter()
+        
+        # Busca agente de sistema
+        system_agent = self.get_system_agent_by_id(system_agent_id)
+        if not system_agent:
+            raise ValueError("Agente de sistema não encontrado ou inativo")
+        
+        logger.info(f"🚀 Executando agente de sistema: {system_agent.name} ({system_agent_id})")
+        
+        # Determina ferramentas habilitadas
+        enabled_tools = self._get_tools_for_system_agent(system_agent)
+        logger.info(f"🔧 Ferramentas habilitadas: {enabled_tools}")
+        
+        # Cria cliente Orion (usa endpoint específico do agente ou fallback)
+        orion_client = None
+        if enabled_tools:  # Só cria se tiver ferramentas que precisam do Orion
+            orion_url = system_agent.orion_endpoint or settings.orion_api_url
+            if orion_url:
+                try:
+                    orion_client = OrionClient(base_url=orion_url)
+                    logger.info(f"✅ Cliente Orion inicializado: {orion_url}")
+                except Exception as e:
+                    logger.warning(f"⚠️ Erro ao inicializar Orion: {e}")
+            else:
+                logger.warning("⚠️ Orion não configurado. Ferramentas avançadas não estarão disponíveis.")
+        
+        # Constrói agente com ferramentas
+        system_agent_instance = build_system_agent(
+            system_prompt=system_agent.system_prompt,
+            enabled_tools=enabled_tools,
+            orion_client=orion_client
+        )
+        
+        # Prepara dependências (inclui contexto do arquivo se houver)
+        file_context = dto.context if dto.context and dto.context.get('has_file') else None
+        deps = SystemAgentDependencies(
+            agent_id=system_agent_id,
+            user_id=user_id,
+            orion_client=orion_client,
+            file_context=file_context
+        )
+        
+        # Enriquece mensagem se houver arquivo anexado
+        message_to_send = dto.message
+        if file_context:
+            file_name = file_context.get('file_name', 'arquivo')
+            file_type = file_context.get('file_content_type', '')
+            # Adiciona informação sobre o arquivo na mensagem para o agente
+            message_to_send = f"{dto.message}\n\n[Arquivo anexado: {file_name} ({file_type})]"
+            logger.info(f"📎 Arquivo anexado detectado: {file_name}")
+        
+        # Executa agente
+        try:
+            result = system_agent_instance.run_sync(message_to_send, deps=deps)
+            execution_time = time.perf_counter() - start_time
+            
+            # Extrai resposta
+            response_text = str(result.data) if hasattr(result, "data") else str(result)
+            
+            # Extrai ferramentas usadas
+            tools_used = []
+            if hasattr(result, "tool_calls"):
+                tools_used = [call.get("tool_name", "") for call in result.tool_calls]
+            
+            # Calcula tokens (aproximado)
+            tokens_used = len(dto.message.split()) + len(response_text.split())
+            
+            # Salva execução no MongoDB (assíncrono)
+            execution_id = self.system_execution_repository.save_execution(
+                system_agent_id=system_agent_id,
+                user_id=user_id,
+                user_message=dto.message,
+                agent_response=response_text,
+                tools_used=tools_used,
+                execution_metadata={
+                    "session_id": dto.session_id,
+                    "tokens_used": tokens_used,
+                    "execution_time": round(execution_time, 4)
+                }
+            )
+            
+            logger.info(f"✅ Agente de sistema executado em {execution_time:.3f}s (tools: {tools_used})")
+            
+            return {
+                "response": response_text,
+                "message": dto.message,
+                "execution_time": round(execution_time, 4),
+                "tokens_used": tokens_used,
+                "session_id": dto.session_id,
+                "execution_id": execution_id,
+                "tools_used": tools_used,
+                "system_agent": True
+            }
+            
+        except Exception as exc:
+            execution_time = time.perf_counter() - start_time
+            logger.error(
+                f"❌ Erro ao executar agente de sistema {system_agent_id}: {str(exc)}",
+                exc_info=True
+            )
+            response_text = f"Erro ao processar sua mensagem: {str(exc)}"
+            
+            return {
+                "response": response_text,
+                "message": dto.message,
+                "execution_time": round(execution_time, 4),
+                "tokens_used": 0,
+                "session_id": dto.session_id,
+                "execution_id": "",
+                "tools_used": [],
+                "system_agent": True,
+                "error": str(exc)
+            }

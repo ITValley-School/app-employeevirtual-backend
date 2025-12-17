@@ -80,19 +80,37 @@ Este documento explica o fluxo completo para integrar o frontend com as APIs do 
 - **Parâmetros**: Limit (padrão: 50, máximo: 100)
 - **Uso**: Histórico de conversas
 
-## 📚 4. Base de Conhecimento (RAG)
+## 📚 4. Base de Conhecimento (RAG) - Documentos
 
-### 4.1 Adicionar Arquivo
-- **Endpoint**: `POST /api/agents/{agent_id}/knowledge`
-- **Descrição**: Associar arquivo ao agente para contexto
-- **Campos obrigatórios**: Nome, tipo, tamanho, URL
-- **Campo opcional**: ID do arquivo no Orion
-- **Uso**: Enriquecer conhecimento do agente
+### 4.1 Upload de Documento PDF
+- **Endpoint**: `POST /api/agents/{agent_id}/documents`
+- **Descrição**: Faz upload de um PDF para o serviço vetorial (Pinecone)
+- **Formato**: `multipart/form-data`
+- **Campos**: 
+  - `filepdf`: Arquivo PDF (obrigatório)
+  - `metadone`: JSON com metadados adicionais (opcional)
+- **Uso**: Adicionar conhecimento ao agente via RAG
 
-### 4.2 Listar Arquivos
-- **Endpoint**: `GET /api/agents/{agent_id}/knowledge`
-- **Descrição**: Listar arquivos associados ao agente
-- **Uso**: Gerenciar base de conhecimento
+### 4.2 Listar Documentos
+- **Endpoint**: `GET /api/agents/{agent_id}/documents`
+- **Descrição**: Lista todos os documentos associados ao agente
+- **Resposta**: Lista com metadados, nome do arquivo, datas, etc.
+- **Uso**: Visualizar documentos disponíveis para o agente
+
+### 4.3 Deletar Documento
+- **Endpoint**: `DELETE /api/agents/{agent_id}/documents/{document_id}`
+- **Descrição**: Remove documento do MongoDB e Pinecone
+- **Uso**: Remover documentos obsoletos ou incorretos
+
+### 4.4 Atualizar Metadados
+- **Endpoint**: `PATCH /api/agents/{agent_id}/documents/{document_id}/metadata`
+- **Descrição**: Atualiza metadados de um documento
+- **Body**: `{ "metadata": { ... } }`
+- **Uso**: Editar informações sobre o documento
+
+### 📖 Documentação Completa
+- **Guia Detalhado**: Ver `GERENCIAMENTO_DOCUMENTOS_FRONTEND.md`
+- **Inclui**: Exemplos de código, componentes React, hooks, tratamento de erros
 
 ## 🔄 5. Fluxo de Uso Recomendado
 

@@ -53,3 +53,7 @@ class AgentTrainRequest(BaseModel):
     training_data: List[Dict[str, str]] = Field(..., description="Dados de treinamento")
     epochs: int = Field(default=10, ge=1, le=100, description="Número de épocas")
     learning_rate: float = Field(default=0.001, ge=0.0001, le=0.1, description="Taxa de aprendizado")
+
+class AgentDocumentMetadataUpdateRequest(BaseModel):
+    """Request para atualização de metadados de documento"""
+    metadata: Dict[str, Any] = Field(..., description="Metadados a serem atualizados")

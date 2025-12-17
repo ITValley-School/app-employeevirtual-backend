@@ -48,13 +48,15 @@ class AgentDocumentRepository:
         Nota: Se o MongoDB estiver indisponível, retorna documento em memória.
         O documento já está no Pinecone (mais importante), então não quebra o fluxo.
         """
+        now = datetime.utcnow()
         document = {
             "agent_id": agent_id,
             "user_id": user_id,
             "file_name": file_name,
             "metadata": metadata or {},
             "vector_response": vector_response or {},
-            "created_at": datetime.utcnow(),
+            "created_at": now,
+            "updated_at": now,
         }
         
         try:
@@ -149,12 +151,50 @@ class AgentDocumentRepository:
             # O RAG ainda funcionará se houver documentos no Pinecone
             return False
 
+    def get_document_by_id(self, document_id: str, user_id: str) -> Optional[Dict[str, Any]]:
+        """
+        Busca documento por ID.
+        """
+        try:
+            doc = self.collection.find_one(
+                {"_id": ObjectId(document_id), "user_id": user_id}
+            )
+            return _stringify_id(doc) if doc else None
+        except Exception as e:
+            logger.error(f"❌ Erro ao buscar documento {document_id}: {str(e)}")
+            return None
+
     def delete_document(self, document_id: str, user_id: str) -> bool:
         """
         Remove documento por ID.
         """
-        result = self.collection.delete_one(
-            {"_id": ObjectId(document_id), "user_id": user_id}
-        )
-        return result.deleted_count > 0
+        try:
+            result = self.collection.delete_one(
+                {"_id": ObjectId(document_id), "user_id": user_id}
+            )
+            return result.deleted_count > 0
+        except Exception as e:
+            logger.error(f"❌ Erro ao deletar documento {document_id}: {str(e)}")
+            return False
+
+    def update_document_metadata(
+        self, 
+        document_id: str, 
+        user_id: str, 
+        metadata_updates: Dict[str, Any]
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Atualiza metadados de um documento.
+        """
+        try:
+            result = self.collection.update_one(
+                {"_id": ObjectId(document_id), "user_id": user_id},
+                {"$set": {"metadata": metadata_updates, "updated_at": datetime.utcnow()}}
+            )
+            if result.modified_count > 0:
+                return self.get_document_by_id(document_id, user_id)
+            return None
+        except Exception as e:
+            logger.error(f"❌ Erro ao atualizar documento {document_id}: {str(e)}")
+            return None
 
