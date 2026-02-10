@@ -44,7 +44,7 @@ async def get_dashboard_overview(
         DashboardOverviewResponse: Visão geral do dashboard
     """
     # Service orquestra busca e validações
-    overview = dashboard_service.get_overview(current_user.get_id())
+    overview = dashboard_service.get_overview(current_user.id)
     
     # Converte para Response
     return DashboardMapper.to_overview(overview)
@@ -68,7 +68,7 @@ async def get_dashboard_stats(
         DashboardStatsResponse: Estatísticas do dashboard
     """
     # Service orquestra busca e validações
-    stats = dashboard_service.get_stats(current_user.get_id(), period)
+    stats = dashboard_service.get_stats(current_user.id, period)
     
     # Converte para Response
     return DashboardMapper.to_stats(stats)
@@ -94,7 +94,7 @@ async def get_usage_chart(
         DashboardChartResponse: Dados do gráfico
     """
     # Service orquestra busca e validações
-    chart_data = dashboard_service.get_usage_chart(current_user.get_id(), period, chart_type)
+    chart_data = dashboard_service.get_usage_chart(current_user.id, period, chart_type)
     
     # Converte para Response
     return DashboardMapper.to_chart(chart_data)
@@ -120,7 +120,7 @@ async def get_performance_chart(
         DashboardChartResponse: Dados do gráfico
     """
     # Service orquestra busca e validações
-    chart_data = dashboard_service.get_performance_chart(current_user.get_id(), period, chart_type)
+    chart_data = dashboard_service.get_performance_chart(current_user.id, period, chart_type)
     
     # Converte para Response
     return DashboardMapper.to_chart(chart_data)
@@ -146,7 +146,7 @@ async def get_execution_report(
         DashboardReportResponse: Relatório gerado
     """
     # Service orquestra geração e validações
-    report = dashboard_service.generate_execution_report(current_user.get_id(), period, format)
+    report = dashboard_service.generate_execution_report(current_user.id, period, format)
     
     # Converte para Response
     return DashboardMapper.to_report(report)
@@ -172,7 +172,7 @@ async def get_usage_report(
         DashboardReportResponse: Relatório gerado
     """
     # Service orquestra geração e validações
-    report = dashboard_service.generate_usage_report(current_user.get_id(), period, format)
+    report = dashboard_service.generate_usage_report(current_user.id, period, format)
     
     # Converte para Response
     return DashboardMapper.to_report(report)

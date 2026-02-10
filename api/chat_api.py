@@ -2,16 +2,20 @@
 API de chat - Implementação IT Valley
 Seguindo padrão IT Valley Architecture
 """
-from fastapi import APIRouter, Depends, status, Query
+from fastapi import APIRouter, Depends, status, Query, HTTPException
 from typing import Optional
 from sqlalchemy.orm import Session
+import logging
 
 from schemas.chat.requests import ChatMessageRequest, ChatSessionRequest
 from schemas.chat.responses import (
     ChatMessageResponse, 
     ChatSessionResponse, 
     ChatListResponse,
-    ChatHistoryResponse
+    ChatHistoryResponse,
+    ChatSendResponse,
+    AgentConversationsResponse,
+    ConversationSidebarItem
 )
 from services.chat_service import ChatService
 from mappers.chat_mapper import ChatMapper
@@ -20,6 +24,7 @@ from config.database import db_config
 from auth.dependencies import get_current_user
 from data.entities.user_entities import UserEntity
 
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/chat", tags=["chat"])
 
 
@@ -28,7 +33,7 @@ def get_chat_service(db: Session = Depends(db_config.get_session)) -> ChatServic
     return ChatService(db)
 
 
-@router.post("/sessions", response_model=ChatSessionResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/sessions", response_model=ConversationSidebarItem, status_code=status.HTTP_201_CREATED)
 async def create_chat_session(
     dto: ChatSessionRequest,
     chat_service: ChatService = Depends(get_chat_service),
@@ -43,16 +48,25 @@ async def create_chat_session(
         current_user: Usuário autenticado
         
     Returns:
-        ChatSessionResponse: Sessão criada
+        ConversationSidebarItem: Conversa criada com dados para sidebar
     """
     # Service orquestra criação e validações
-    session = chat_service.create_session(dto, current_user.get_id())
+    session = chat_service.create_session(dto, current_user.id)
     
-    # Converte para Response via Mapper
-    return ChatMapper.to_session(session)
+    # Converte para Response do sidebar (com metadados completos)
+    return ConversationSidebarItem(
+        id=session.id,
+        title=session.title,
+        agent_id=session.agent_id,
+        user_id=current_user.id,
+        message_count=0,  # Nova conversa tem 0 mensagens
+        status="active",
+        last_activity=session.created_at,
+        created_at=session.created_at
+    )
 
 
-@router.post("/sessions/{session_id}/messages", response_model=ChatMessageResponse)
+@router.post("/sessions/{session_id}/messages", response_model=ChatSendResponse)
 async def send_message(
     session_id: str,
     dto: ChatMessageRequest,
@@ -69,13 +83,13 @@ async def send_message(
         current_user: Usuário autenticado
         
     Returns:
-        ChatMessageResponse: Mensagem enviada
+        ChatSendResponse: Mensagem enviada e resposta do assistente
     """
-    # Service orquestra envio e validações
-    message = chat_service.send_message(session_id, dto, current_user.get_id())
+    # Service orquestra envio e validações (assíncrono)
+    result = await chat_service.send_message_async(session_id, dto, current_user.id)
     
-    # Converte para Response
-    return ChatMapper.to_message(message)
+    # Converte para Response - result agora é um dicionário com 'user_message' e 'assistant_response'
+    return ChatMapper.to_send_response(result)
 
 
 @router.get("/sessions/{session_id}/messages", response_model=ChatHistoryResponse)
@@ -100,7 +114,7 @@ async def get_chat_history(
         ChatHistoryResponse: Histórico de mensagens
     """
     # Service orquestra busca e validações
-    messages, total = chat_service.get_chat_history(session_id, current_user.get_id(), page, size)
+    messages, total = chat_service.get_chat_history(session_id, current_user.id, page, size)
     
     # Converte para Response
     return ChatMapper.to_history(messages, total, page, size)
@@ -128,7 +142,7 @@ async def list_chat_sessions(
         ChatListResponse: Lista de sessões
     """
     # Lista sessões
-    sessions, total = chat_service.list_sessions(current_user.get_id(), page, size, status)
+    sessions, total = chat_service.list_sessions(current_user.id, page, size, status)
     
     # Converte para Response
     return ChatMapper.to_list(sessions, total, page, size)
@@ -152,7 +166,7 @@ async def get_chat_session(
         ChatSessionResponse: Dados da sessão
     """
     # Service orquestra busca e validações
-    session = chat_service.get_session(session_id, current_user.get_id())
+    session = chat_service.get_session(session_id, current_user.id)
     
     # Converte para Response
     return ChatMapper.to_session(session)
@@ -176,6 +190,83 @@ async def close_chat_session(
         ChatSessionResponse: Sessão fechada
     """
     # Service orquestra fechamento e validações
-    session = chat_service.close_session(session_id, current_user.get_id())
+    session = chat_service.close_session(session_id, current_user.id)
     
     return ChatMapper.to_session(session)
+
+
+@router.get("/agents/{agent_id}/conversations", response_model=AgentConversationsResponse)
+async def get_agent_conversations(
+    agent_id: str,
+    chat_service: ChatService = Depends(get_chat_service),
+    current_user: UserEntity = Depends(get_current_user)
+):
+    """
+    Busca todas as conversas ativas de um agente para a sidebar
+    
+    Args:
+        agent_id: ID do agente
+        chat_service: Serviço de chat
+        current_user: Usuário autenticado
+        
+    Returns:
+        AgentConversationsResponse: Conversas ativas do agente
+    """
+    # Busca conversas do agente no MongoDB
+    conversations = chat_service.get_agent_conversations(agent_id, current_user.id)
+    
+    return AgentConversationsResponse(
+        agent_id=agent_id,
+        conversations=conversations,
+        total=len(conversations)
+    )
+
+
+@router.patch("/sessions/{session_id}/inactivate", status_code=status.HTTP_200_OK)
+async def inactivate_conversation_sql(
+    session_id: str,
+    chat_service: ChatService = Depends(get_chat_service),
+    current_user: UserEntity = Depends(get_current_user)
+):
+    """
+    Inativa conversa no SQL Server
+    
+    Args:
+        session_id: ID da sessão
+        chat_service: Serviço de chat
+        current_user: Usuário autenticado
+        
+    Returns:
+        dict: Mensagem de sucesso
+    """
+    chat_service.inactivate_conversation_sql(session_id, current_user.id)
+    return {"message": "Conversa inativada no SQL Server"}
+
+
+@router.patch("/conversations/{conversation_id}/inactivate", status_code=status.HTTP_200_OK)
+async def inactivate_conversation_mongo(
+    conversation_id: str,
+    chat_service: ChatService = Depends(get_chat_service),
+    current_user: UserEntity = Depends(get_current_user)
+):
+    """
+    Inativa conversa no MongoDB
+    
+    Args:
+        conversation_id: ID da conversa (MongoDB)
+        chat_service: Serviço de chat
+        current_user: Usuário autenticado
+        
+    Returns:
+        dict: Mensagem de sucesso
+    """
+    try:
+        chat_service.inactivate_conversation_mongo(conversation_id, current_user.id)
+        return {"message": "Conversa inativada no MongoDB"}
+    except Exception as e:
+        logger.error(f"Erro ao inativar conversa: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Erro ao inativar conversa: {str(e)}"
+        )
+

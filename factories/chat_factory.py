@@ -29,6 +29,7 @@ class ChatFactory:
             id=str(uuid4()),
             title=dto.title,
             user_id=user_id,
+            agent_id=dto.agent_id,
             status="active",
             created_at=datetime.utcnow()
         )
@@ -51,6 +52,34 @@ class ChatFactory:
             session_id=session_id,
             user_id=user_id,
             message=dto.message,
-            role="user",
+            sender="user",
+            context=dto.context,
             created_at=datetime.utcnow()
         )
+    
+    @staticmethod
+    def extract_message_text(dto: ChatMessageRequest) -> str:
+        """
+        Extrai texto da mensagem do DTO
+        
+        Args:
+            dto: Request da mensagem
+            
+        Returns:
+            str: Texto da mensagem
+        """
+        return dto.message
+    
+    @staticmethod
+    def message_from(dto: ChatMessageRequest) -> str:
+        """
+        Cria texto de mensagem a partir do DTO
+        IT Valley helper para extrair dados via Factory
+        
+        Args:
+            dto: Request da mensagem
+            
+        Returns:
+            str: Texto da mensagem
+        """
+        return dto.message

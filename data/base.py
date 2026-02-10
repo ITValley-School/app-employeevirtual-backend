@@ -23,3 +23,7 @@ def is_model_registered(model_class):
     Verifica se um modelo está registrado na base
     """
     return model_class in Base.metadata.tables.values()
+
+# NOTA: Não importar entidades aqui para evitar importação circular
+# As entidades devem ser importadas no ponto onde forem necessárias
+# (ex: em arquivos como data/database.py ou data/migrations.py)

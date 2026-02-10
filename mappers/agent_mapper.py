@@ -11,9 +11,12 @@ from schemas.agents.responses import (
     AgentDetailResponse, 
     AgentListResponse,
     AgentExecuteResponse,
-    AgentStatsResponse
+    AgentStatsResponse,
+    SystemAgentResponse,
+    SystemAgentListResponse
 )
 from data.entities.agent_entities import AgentEntity
+from data.entities.system_agent_entities import SystemAgentEntity
 
 
 class AgentMapper:
@@ -30,17 +33,37 @@ class AgentMapper:
         Returns:
             AgentResponse: Dados públicos do agente
         """
+        from schemas.agents.responses import AgentType, AgentStatus
+        
+        # Parsear o tipo
+        agent_type = getattr(agent, 'agent_type', 'chatbot')
+        try:
+            type_enum = AgentType[agent_type.upper()] if agent_type else AgentType.CHATBOT
+        except (KeyError, AttributeError):
+            type_enum = AgentType.CHATBOT
+        
+        # Parsear o status
+        agent_status = getattr(agent, 'status', 'inactive') or 'inactive'
+        try:
+            status_enum = AgentStatus[agent_status.upper()] if agent_status else AgentStatus.INACTIVE
+        except (KeyError, AttributeError):
+            status_enum = AgentStatus.INACTIVE
+        
+        # Handle NULL datetime values with default
+        created_at = agent.created_at if agent.created_at else datetime.utcnow()
+        updated_at = agent.updated_at if agent.updated_at else created_at
+        
         return AgentResponse(
             id=agent.id,
             name=agent.name,
             description=agent.description,
-            type=agent.type,
-            status=agent.status,
-            model=agent.model,
-            temperature=agent.temperature,
-            max_tokens=agent.max_tokens,
-            created_at=agent.created_at,
-            updated_at=agent.updated_at,
+            type=type_enum,
+            status=status_enum,
+            model=agent.model or "gpt-4",
+            temperature=float(agent.temperature or 0.7),
+            max_tokens=int(agent.max_tokens or 4096),
+            created_at=created_at,
+            updated_at=updated_at,
             user_id=agent.user_id
         )
     
@@ -56,19 +79,39 @@ class AgentMapper:
         Returns:
             AgentDetailResponse: Dados detalhados do agente
         """
+        from schemas.agents.responses import AgentType, AgentStatus
+        
+        # Parsear o tipo
+        agent_type = getattr(agent, 'agent_type', 'chatbot')
+        try:
+            type_enum = AgentType[agent_type.upper()] if agent_type else AgentType.CHATBOT
+        except (KeyError, AttributeError):
+            type_enum = AgentType.CHATBOT
+        
+        # Parsear o status
+        agent_status = getattr(agent, 'status', 'inactive') or 'inactive'
+        try:
+            status_enum = AgentStatus[agent_status.upper()] if agent_status else AgentStatus.INACTIVE
+        except (KeyError, AttributeError):
+            status_enum = AgentStatus.INACTIVE
+        
+        # Handle NULL datetime values with default
+        created_at = agent.created_at if agent.created_at else datetime.utcnow()
+        updated_at = agent.updated_at if agent.updated_at else created_at
+        
         return AgentDetailResponse(
             id=agent.id,
             name=agent.name,
             description=agent.description,
-            type=agent.type,
-            status=agent.status,
-            model=agent.model,
-            temperature=agent.temperature,
-            max_tokens=agent.max_tokens,
-            created_at=agent.created_at,
-            updated_at=agent.updated_at,
+            type=type_enum,
+            status=status_enum,
+            model=agent.model or "gpt-4",
+            temperature=float(agent.temperature or 0.7),
+            max_tokens=int(agent.max_tokens or 4096),
+            created_at=created_at,
+            updated_at=updated_at,
             user_id=agent.user_id,
-            instructions=agent.instructions,
+            instructions=getattr(agent, 'system_prompt', '') or '',
             system_prompt=agent.system_prompt,
             total_executions=stats.get('total_executions', 0) if stats else 0,
             last_execution=stats.get('last_execution') if stats else None,
@@ -168,3 +211,45 @@ class AgentMapper:
             "type": agent.type,
             "status": agent.status
         }
+    
+    # ========== MÉTODOS PARA AGENTES DE SISTEMA ==========
+    
+    @staticmethod
+    def to_system_agent(system_agent: SystemAgentEntity) -> SystemAgentResponse:
+        """
+        Converte SystemAgentEntity para SystemAgentResponse
+        
+        Args:
+            system_agent: Entidade de agente de sistema
+            
+        Returns:
+            SystemAgentResponse: Dados do agente de sistema
+        """
+        return SystemAgentResponse(
+            id=system_agent.id,
+            name=system_agent.name,
+            description=system_agent.description,
+            agent_type=system_agent.agent_type,
+            system_prompt=system_agent.system_prompt,
+            avatar_url=system_agent.avatar_url,
+            orion_endpoint=system_agent.orion_endpoint,
+            is_active=system_agent.is_active,
+            created_at=system_agent.created_at,
+            updated_at=system_agent.updated_at
+        )
+    
+    @staticmethod
+    def to_system_agent_list(system_agents: List[SystemAgentEntity]) -> SystemAgentListResponse:
+        """
+        Converte lista de SystemAgentEntity para SystemAgentListResponse
+        
+        Args:
+            system_agents: Lista de agentes de sistema
+            
+        Returns:
+            SystemAgentListResponse: Lista formatada para API
+        """
+        return SystemAgentListResponse(
+            agents=[AgentMapper.to_system_agent(agent) for agent in system_agents],
+            total=len(system_agents)
+        )

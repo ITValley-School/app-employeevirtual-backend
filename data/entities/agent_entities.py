@@ -33,34 +33,38 @@ class AgentEntity(Base):
     __tablename__ = "agents"
     __table_args__ = SCHEMA_CONFIG
 
-    id = Column(String(32), primary_key=True, server_default=text("NEWID()"), index=True)
-    user_id = Column(String(32), nullable=False, index=True)
+    id = Column(String(36), primary_key=True, index=True)
+    user_id = Column(String(36), nullable=False, index=True)
     name = Column(String(100), nullable=False)
     description = Column(Text)
-    type = Column(SQLEnum(AgentType), default=AgentType.CHATBOT, nullable=False)
-    status = Column(SQLEnum(AgentStatus), default=AgentStatus.DRAFT, nullable=False)
-    configuration = Column(Text)  # JSON com configurações
-    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
-    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
-    last_execution = Column(DateTime(timezone=True))
-    execution_count = Column(Text, default="0")
-    is_public = Column(Boolean, default=False)
-    tags = Column(Text)  # JSON com tags
+    agent_type = Column(String(50))  # chatbot, assistant, automation, etc
+    system_prompt = Column(Text)
+    personality = Column(Text)
+    avatar_url = Column(String(500))
+    status = Column(String(20))  # active, inactive, draft, archived
+    llm_provider = Column(String(50))  # openai, anthropic, etc
+    model = Column(String(100))  # gpt-4, claude-3, etc
+    temperature = Column(Text)
+    max_tokens = Column(Text)
+    created_at = Column(DateTime(timezone=True), nullable=False)
+    updated_at = Column(DateTime(timezone=True))
+    last_used = Column(DateTime(timezone=True))
+    usage_count = Column(Text, default="0")
 
     def __repr__(self):
-        return f"<AgentEntity(id={self.id}, name='{self.name}', type='{self.type}')>"
+        return f"<AgentEntity(id={self.id}, name='{self.name}', type='{self.agent_type}')>"
 
     def activate(self) -> None:
         """Ativa o agente"""
-        self.status = AgentStatus.ACTIVE
+        self.status = "active"
 
     def deactivate(self) -> None:
         """Desativa o agente"""
-        self.status = AgentStatus.INACTIVE
+        self.status = "inactive"
 
     def archive(self) -> None:
         """Arquiva o agente"""
-        self.status = AgentStatus.ARCHIVED
+        self.status = "archived"
 
     def apply_update_from_any(self, data: Any) -> None:
         """Aplica atualizações de forma segura"""

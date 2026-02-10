@@ -15,14 +15,17 @@ class ChatEntity:
     Contém apenas dados e comportamentos essenciais
     """
     id: str
+    user_id: str
     title: Optional[str] = None
     session_id: Optional[str] = None
-    user_id: str = ""
+    agent_id: Optional[str] = None
     message: Optional[str] = None
-    role: str = "user"
+    sender: str = "user"  # user ou assistant
     status: str = "active"
-    created_at: datetime = None
+    context: Optional[str] = None
+    created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
+    closed_at: Optional[datetime] = None
     
     def __post_init__(self):
         """Inicialização pós-criação"""
@@ -34,6 +37,7 @@ class ChatEntity:
         Fecha a sessão de chat
         """
         self.status = "closed"
+        self.closed_at = datetime.utcnow()
         self.updated_at = datetime.utcnow()
     
     def is_active(self) -> bool:

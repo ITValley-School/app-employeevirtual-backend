@@ -18,7 +18,6 @@ from auth.config import (
     ACCESS_TOKEN_EXPIRE_MINUTES,
     REFRESH_TOKEN_EXPIRE_DAYS
 )
-# Removido import antigo - validação será feita diretamente
 
 # Blacklist de tokens em memória
 _token_blacklist: Set[str] = set()
@@ -41,8 +40,8 @@ class JWTService:
         Returns:
             Token JWT de acesso
         """
-        # Validação básica de UUID
-        if not user_id or len(user_id) != 32:
+        # Validação básica - UUID pode ter 32 caracteres (sem hífens) ou 36 (com hífens)
+        if not user_id or (len(user_id) != 32 and len(user_id) != 36):
             raise ValueError("Invalid user_id UUID")
             
         return JWTService._create_token(
@@ -63,8 +62,8 @@ class JWTService:
         Returns:
             Token JWT de refresh
         """
-        # Validação básica de UUID
-        if not user_id or len(user_id) != 32:
+        # Validação básica - UUID pode ter 32 caracteres (sem hífens) ou 36 (com hífens)
+        if not user_id or (len(user_id) != 32 and len(user_id) != 36):
             raise ValueError("Invalid user_id UUID")
             
         return JWTService._create_token(
@@ -113,7 +112,7 @@ class JWTService:
         if email and token_type == JWT_TYPE_ACCESS:
             payload["email"] = email
         
-        return jwt.encode(payload, JWT_SECRET_KEY, algorithm=JWT_ALGORITHM), payload["exp"]
+        return jwt.encode(payload, JWT_SECRET_KEY, algorithm=JWT_ALGORITHM)
     
     @staticmethod
     def verify_token(token: str, expected_type: str = JWT_TYPE_ACCESS) -> Dict[str, Any]:
@@ -156,9 +155,9 @@ class JWTService:
             if payload.get("iss") != JWT_ISSUER:
                 raise InvalidTokenError("Emissor do token inválido")
             
-            # Verificar se o user_id é um UUID válido
+            # Verificar se o user_id existe e é válido
             user_id = payload.get("sub")
-            if not user_id or not validate_uuid(user_id):
+            if not user_id or (len(user_id) != 32 and len(user_id) != 36):
                 raise InvalidTokenError("User ID inválido no token")
             
             return payload
@@ -187,7 +186,7 @@ class JWTService:
         try:
             payload = JWTService.verify_token(token)
             user_id = payload.get("sub")
-            if validate_uuid(user_id):
+            if user_id:
                 return user_id
         except (ExpiredSignatureError, InvalidTokenError):
             pass
@@ -279,8 +278,8 @@ class JWTService:
         Returns:
             Dicionário com access_token e refresh_token
         """
-        # Validação básica de UUID
-        if not user_id or len(user_id) != 32:
+        # Validação básica - UUID pode ter 32 caracteres (sem hífens) ou 36 (com hífens)
+        if not user_id or (len(user_id) != 32 and len(user_id) != 36):
             raise ValueError("Invalid user_id UUID")
             
         access_token = JWTService.create_access_token(user_id, email)
@@ -307,7 +306,7 @@ class JWTService:
             payload = JWTService.verify_token(refresh_token, JWT_TYPE_REFRESH)
             
             user_id = payload.get("sub")
-            if not user_id or not validate_uuid(user_id):
+            if not user_id or (len(user_id) != 32 and len(user_id) != 36):
                 return None
             
             # Criar novo access_token (sem email para refresh)

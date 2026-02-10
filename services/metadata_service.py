@@ -1,4 +1,4 @@
-from integration.pydanticIA.repository.metadata_repository import PydanticAIRepository
+from integrations.ai.pydantic_ai.repository.metadata_repository import PydanticAIRepository
 from schemas.metadata.request import MetadataPDFRequest, MetadataStringRequest
 
 class MetadataService:
