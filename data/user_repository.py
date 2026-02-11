@@ -33,10 +33,41 @@ def validate_uuid(uuid_string: str) -> bool:
 
 class UserRepository:
     """Repositório para operações de dados de usuários"""
-    
+
     def __init__(self, db: Session):
         self.db = db
-    
+
+    def _to_model(self, domain) -> UserEntity:
+        """
+        Converte Domain Entity → DB Model (SQLAlchemy)
+        Fronteira entre domínio e persistência.
+        """
+        return UserEntity(
+            id=domain.id,
+            name=domain.name,
+            email=domain.email,
+            password_hash=domain.password_hash,
+            plan=domain.plan,
+            status=domain.status,
+        )
+
+    def _to_entity(self, model: UserEntity) -> UserEntity:
+        """
+        Retorna o DB Model diretamente.
+        """
+        return model
+
+    def save(self, domain) -> UserEntity:
+        """
+        Persiste domain entity convertendo internamente.
+        Service passa o objeto inteiro, Repository converte via _to_model.
+        """
+        model = self._to_model(domain)
+        self.db.add(model)
+        self.db.commit()
+        self.db.refresh(model)
+        return self._to_entity(model)
+
     # CRUD Usuários
     def create_user(self, name: str, email: str, password_hash: str, plan: str = "free") -> UserEntity:
         """Cria um novo usuário"""

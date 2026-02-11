@@ -1,0 +1,21 @@
+# Dependências para execução de testes
+# Instale com: pip install -r requirements-test.txt
+
+# Framework de testes
+pytest==7.4.3
+pytest-asyncio==0.21.1
+pytest-cov==4.1.0
+pytest-mock==3.12.0
+
+# Cliente de teste do FastAPI
+httpx==0.25.1
+
+# Ferramentas de mock
+faker==20.1.0
+
+# Cobertura de código
+coverage[toml]==7.3.2
+
+# Relatórios e formatação
+pytest-html==4.1.1
+pytest-json-report==1.5.0

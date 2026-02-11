@@ -119,16 +119,16 @@ class ChatMapper:
     def to_send_response(data: dict) -> ChatSendResponse:
         """
         Converte resultado de envio de mensagem para ChatSendResponse
-        
+
         Args:
             data: Dicionário com 'user_message' e 'assistant_response'
-            
+
         Returns:
             ChatSendResponse: Response formatada
         """
         user_msg = data.get('user_message')
         asst_msg = data.get('assistant_response')
-        
+
         return ChatSendResponse(
             message=user_msg.message if user_msg else "",
             response=asst_msg.message if asst_msg else "",
@@ -136,4 +136,61 @@ class ChatMapper:
             response_id=asst_msg.id if asst_msg else "",
             timestamp=asst_msg.created_at if asst_msg else datetime.utcnow(),
             metadata={}
+        )
+
+    @staticmethod
+    def to_sidebar_item(session: 'ChatEntity', user_id: str) -> 'ConversationSidebarItem':
+        """
+        Converte ChatEntity para ConversationSidebarItem
+
+        Args:
+            session: Sessão de chat
+            user_id: ID do usuário
+
+        Returns:
+            ConversationSidebarItem: Item formatado para sidebar
+        """
+        from schemas.chat.responses import ConversationSidebarItem
+        return ConversationSidebarItem(
+            id=session.id,
+            title=session.title or "Nova Conversa",
+            agent_id=session.agent_id or "",
+            user_id=user_id,
+            message_count=0,
+            status="active",
+            last_activity=session.created_at,
+            created_at=session.created_at,
+        )
+
+    @staticmethod
+    def to_agent_conversations(agent_id: str, conversations: List[dict]) -> 'AgentConversationsResponse':
+        """
+        Converte lista de conversas para AgentConversationsResponse
+
+        Args:
+            agent_id: ID do agente
+            conversations: Lista de dicts de conversas
+
+        Returns:
+            AgentConversationsResponse: Response formatada
+        """
+        from schemas.chat.responses import AgentConversationsResponse, ConversationSidebarItem
+
+        items = []
+        for conv in conversations:
+            items.append(ConversationSidebarItem(
+                id=conv.get('id', ''),
+                title=conv.get('title', 'Nova Conversa'),
+                agent_id=conv.get('agent_id', agent_id),
+                user_id=conv.get('user_id', ''),
+                message_count=conv.get('message_count', 0),
+                status=conv.get('status', 'active'),
+                last_activity=conv.get('last_activity') or datetime.utcnow(),
+                created_at=conv.get('created_at') or datetime.utcnow(),
+            ))
+
+        return AgentConversationsResponse(
+            agent_id=agent_id,
+            conversations=items,
+            total=len(items),
         )

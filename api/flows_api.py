@@ -15,7 +15,6 @@ from schemas.flows.responses import (
 )
 from services.flow_service import FlowService
 from mappers.flow_mapper import FlowMapper
-from factories.flow_factory import FlowFactory
 from config.database import db_config
 from auth.dependencies import get_current_user
 from data.entities.user_entities import UserEntity
@@ -151,16 +150,9 @@ async def execute_flow(
     """
     # Service orquestra execução e validações
     result = flow_service.execute_flow(flow_id, dto, current_user.id)
-    
-    # Converte para Response
-    return FlowMapper.to_execution_response(
-        flow_id=flow_id,
-        input_data=result['input_data'],
-        output_data=result['output_data'],
-        execution_time=result['execution_time'],
-        steps_completed=result['steps_completed'],
-        session_id=result['session_id']
-    )
+
+    # Converte para Response via Mapper (recebe dict inteiro)
+    return FlowMapper.to_execution_response(result, flow_id)
 
 
 @router.patch("/{flow_id}/activate", response_model=FlowResponse)

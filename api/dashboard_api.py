@@ -15,7 +15,6 @@ from schemas.dashboard.responses import (
 )
 from services.dashboard_service import DashboardService
 from mappers.dashboard_mapper import DashboardMapper
-from factories.dashboard_factory import DashboardFactory
 from config.database import db_config
 from auth.dependencies import get_current_user
 from data.entities.user_entities import UserEntity

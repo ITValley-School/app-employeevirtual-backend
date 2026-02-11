@@ -9,8 +9,8 @@ import logging
 
 from schemas.chat.requests import ChatMessageRequest, ChatSessionRequest
 from schemas.chat.responses import (
-    ChatMessageResponse, 
-    ChatSessionResponse, 
+    ChatMessageResponse,
+    ChatSessionResponse,
     ChatListResponse,
     ChatHistoryResponse,
     ChatSendResponse,
@@ -19,7 +19,6 @@ from schemas.chat.responses import (
 )
 from services.chat_service import ChatService
 from mappers.chat_mapper import ChatMapper
-from factories.chat_factory import ChatFactory
 from config.database import db_config
 from auth.dependencies import get_current_user
 from data.entities.user_entities import UserEntity
@@ -52,18 +51,9 @@ async def create_chat_session(
     """
     # Service orquestra criação e validações
     session = chat_service.create_session(dto, current_user.id)
-    
-    # Converte para Response do sidebar (com metadados completos)
-    return ConversationSidebarItem(
-        id=session.id,
-        title=session.title,
-        agent_id=session.agent_id,
-        user_id=current_user.id,
-        message_count=0,  # Nova conversa tem 0 mensagens
-        status="active",
-        last_activity=session.created_at,
-        created_at=session.created_at
-    )
+
+    # Converte para Response via Mapper
+    return ChatMapper.to_sidebar_item(session, current_user.id)
 
 
 @router.post("/sessions/{session_id}/messages", response_model=ChatSendResponse)
@@ -212,14 +202,11 @@ async def get_agent_conversations(
     Returns:
         AgentConversationsResponse: Conversas ativas do agente
     """
-    # Busca conversas do agente no MongoDB
+    # Service orquestra busca de conversas
     conversations = chat_service.get_agent_conversations(agent_id, current_user.id)
-    
-    return AgentConversationsResponse(
-        agent_id=agent_id,
-        conversations=conversations,
-        total=len(conversations)
-    )
+
+    # Converte para Response via Mapper
+    return ChatMapper.to_agent_conversations(agent_id, conversations)
 
 
 @router.patch("/sessions/{session_id}/inactivate", status_code=status.HTTP_200_OK)

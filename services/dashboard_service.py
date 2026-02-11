@@ -6,6 +6,7 @@ from typing import Dict, Any
 from sqlalchemy.orm import Session
 
 from data.dashboard_repository import DashboardRepository
+from factories.dashboard_factory import DashboardFactory
 
 
 class DashboardService:

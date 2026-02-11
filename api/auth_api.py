@@ -11,7 +11,6 @@ from schemas.users.responses import UserLoginResponse, UserResponse
 from services.user_service import UserService
 from mappers.user_mapper import UserMapper
 from config.database import db_config
-from auth.jwt_service import JWTService
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -90,39 +89,23 @@ async def refresh_token(
 ):
     """
     Renova o token JWT
-    
+
     Args:
         token: Token JWT atual
         user_service: Serviço de usuários
-        
+
     Returns:
         UserLoginResponse: Novo token JWT
-        
+
     Raises:
         HTTPException: Se token inválido
     """
     try:
-        jwt_service = JWTService()
-        payload = jwt_service.verify_token(token)
-        user_id = payload.get("sub")
-        
-        if not user_id:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Token inválido"
-            )
-        
-        # Gera novo token
-        new_token = jwt_service.create_access_token(user_id, payload.get("email", ""))
-        
-        return {
-            "access_token": new_token,
-            "token_type": "bearer",
-            "user": {
-                "id": user_id,
-                "email": payload.get("email")
-            }
-        }
+        # Service orquestra refresh do token
+        refresh_result = user_service.refresh_token(token)
+
+        # Converte para Response via Mapper
+        return UserMapper.to_refresh_response(refresh_result)
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,

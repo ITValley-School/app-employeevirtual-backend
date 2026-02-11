@@ -64,24 +64,16 @@ class FlowMapper:
         )
     
     @staticmethod
-    def to_execution_response(
-        flow_id: str, 
-        execution_id: str,
-        status: str,
-        steps_completed: int,
-        total_steps: int,
-        execution_time: float,
-        result: Optional[dict] = None
-    ) -> FlowExecuteResponse:
-        """Cria response para execução de flow"""
+    def to_execution_response(result: dict, flow_id: str) -> FlowExecuteResponse:
+        """Cria response para execução de flow a partir de dict do Service"""
         return FlowExecuteResponse(
             flow_id=flow_id,
-            execution_id=execution_id,
-            status=status,
-            steps_completed=steps_completed,
-            total_steps=total_steps,
-            execution_time=execution_time,
-            result=result,
+            execution_id=result.get('execution_id', ''),
+            status=result.get('status', 'completed'),
+            steps_completed=result.get('steps_completed', 0),
+            total_steps=result.get('total_steps', 0),
+            execution_time=result.get('execution_time', 0.0),
+            result=result.get('output_data'),
             timestamp=datetime.utcnow()
         )
     

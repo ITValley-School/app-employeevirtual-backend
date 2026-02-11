@@ -15,11 +15,8 @@ from schemas.users.responses import (
 )
 from services.user_service import UserService
 from mappers.user_mapper import UserMapper
-from factories.user_factory import UserFactory
 from config.database import db_config
 from auth.dependencies import get_current_user
-from auth.jwt_service import JWTService
-from config.settings import settings
 
 router = APIRouter(prefix="/users", tags=["users"])
 

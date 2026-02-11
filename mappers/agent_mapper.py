@@ -3,15 +3,18 @@ Mapper para agentes
 Converte entre Entity (domínio) e Response (API)
 Seguindo padrão IT Valley Architecture
 """
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
 from datetime import datetime
 
 from schemas.agents.responses import (
-    AgentResponse, 
-    AgentDetailResponse, 
+    AgentResponse,
+    AgentDetailResponse,
     AgentListResponse,
     AgentExecuteResponse,
     AgentStatsResponse,
+    AgentDocumentResponse,
+    AgentDocumentListResponse,
+    AgentDocumentDeleteResponse,
     SystemAgentResponse,
     SystemAgentListResponse
 )
@@ -140,35 +143,24 @@ class AgentMapper:
         )
     
     @staticmethod
-    def to_execution_response(
-        agent_id: str, 
-        message: str, 
-        response: str, 
-        execution_time: float,
-        tokens_used: int,
-        session_id: Optional[str] = None
-    ) -> AgentExecuteResponse:
+    def to_execution_response(result: dict, agent_id: str) -> AgentExecuteResponse:
         """
-        Cria response para execução de agente
-        
+        Cria response para execução de agente a partir de dict do Service
+
         Args:
+            result: Dict completo retornado pelo Service
             agent_id: ID do agente
-            message: Mensagem enviada
-            response: Resposta do agente
-            execution_time: Tempo de execução
-            tokens_used: Tokens utilizados
-            session_id: ID da sessão
-            
+
         Returns:
             AgentExecuteResponse: Response de execução
         """
         return AgentExecuteResponse(
             agent_id=agent_id,
-            message=message,
-            response=response,
-            execution_time=execution_time,
-            tokens_used=tokens_used,
-            session_id=session_id,
+            message=result.get('message', ''),
+            response=result.get('response', ''),
+            execution_time=result.get('execution_time', 0.0),
+            tokens_used=result.get('tokens_used', 0),
+            session_id=result.get('session_id'),
             timestamp=datetime.utcnow()
         )
     
@@ -212,6 +204,108 @@ class AgentMapper:
             "status": agent.status
         }
     
+    # ========== MÉTODOS PARA DOCUMENTOS ==========
+
+    @staticmethod
+    def to_document(doc: Dict[str, Any], agent_id: str, user_id: str) -> AgentDocumentResponse:
+        """
+        Converte dict de documento para AgentDocumentResponse
+
+        Args:
+            doc: Dicionário com dados do documento
+            agent_id: ID do agente
+            user_id: ID do usuário
+
+        Returns:
+            AgentDocumentResponse: Documento formatado para API
+        """
+        created_at = doc.get("created_at")
+        if not created_at:
+            created_at = datetime.utcnow()
+
+        return AgentDocumentResponse(
+            id=doc.get("id", str(doc.get("_id", ""))),
+            agent_id=doc.get("agent_id", agent_id),
+            user_id=doc.get("user_id", user_id),
+            file_name=doc.get("file_name", ""),
+            metadata=doc.get("metadata", {}),
+            vector_response=doc.get("vector_response"),
+            created_at=created_at,
+            updated_at=doc.get("updated_at"),
+            mongo_error=doc.get("mongo_error", False)
+        )
+
+    @staticmethod
+    def to_document_list(
+        documents: List[Dict[str, Any]], agent_id: str, user_id: str
+    ) -> AgentDocumentListResponse:
+        """
+        Converte lista de documentos para AgentDocumentListResponse
+
+        Args:
+            documents: Lista de dicts de documentos
+            agent_id: ID do agente
+            user_id: ID do usuário
+
+        Returns:
+            AgentDocumentListResponse: Lista formatada para API
+        """
+        document_responses = [
+            AgentMapper.to_document(doc, agent_id, user_id) for doc in documents
+        ]
+        return AgentDocumentListResponse(
+            documents=document_responses,
+            total=len(document_responses),
+            agent_id=agent_id
+        )
+
+    @staticmethod
+    def to_document_delete(result: Dict[str, Any], document_id: str) -> AgentDocumentDeleteResponse:
+        """
+        Converte resultado de deleção para AgentDocumentDeleteResponse
+
+        Args:
+            result: Dict com resultado da operação de deleção
+            document_id: ID do documento
+
+        Returns:
+            AgentDocumentDeleteResponse: Resultado formatado para API
+        """
+        return AgentDocumentDeleteResponse(
+            success=result.get("success", True),
+            document_id=result.get("document_id", document_id),
+            file_name=result.get("file_name"),
+            vector_db_response=result.get("vector_db_response"),
+            mongo_deleted=result.get("mongo_deleted", True),
+            message="Documento removido com sucesso"
+        )
+
+    @staticmethod
+    def to_upload_response(result: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Converte resultado de upload para response formatado
+
+        Args:
+            result: Dict com resultado do upload
+
+        Returns:
+            Dict formatado para API
+        """
+        document = result.get("document", {})
+        if document.get("mongo_error"):
+            return {
+                "message": "Documento enviado com sucesso para Vector DB. Aviso: falha ao registrar no MongoDB.",
+                "document": document,
+                "vector_db_response": result.get("vector_db_response"),
+                "warning": "MongoDB indisponível, mas documento está no Vector DB"
+            }
+
+        return {
+            "message": "Documento enviado com sucesso",
+            "document": document,
+            "vector_db_response": result.get("vector_db_response")
+        }
+
     # ========== MÉTODOS PARA AGENTES DE SISTEMA ==========
     
     @staticmethod

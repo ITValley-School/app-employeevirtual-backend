@@ -1,0 +1,18 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(netstat:*)",
+      "Bash(findstr:*)",
+      "Bash(taskkill:*)",
+      "Bash(Get-Process:*)",
+      "Bash(Where-Object {$_Id -eq 32556})",
+      "Bash(tasklist /FI \"PID eq 32556\" /V)",
+      "Bash(wmic process where \"ProcessId=32556\" get ProcessId,Name,ExecutablePath,CommandLine)",
+      "Bash(tasklist:*)",
+      "Bash(python -m pytest:*)",
+      "Bash(venv/Scripts/python.exe -m pip:*)",
+      "Bash(python:*)",
+      "Bash(wc:*)"
+    ]
+  }
+}

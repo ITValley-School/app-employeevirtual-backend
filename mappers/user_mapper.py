@@ -132,10 +132,10 @@ class UserMapper:
     def to_display(user: UserEntity) -> dict:
         """
         Converte UserEntity para formato de exibição simples
-        
+
         Args:
             user: Entidade do domínio
-            
+
         Returns:
             dict: Dados para exibição (nome e cargo apenas)
         """
@@ -144,3 +144,21 @@ class UserMapper:
             "name": user.name,
             "plan": user.plan
         }
+
+    @staticmethod
+    def to_refresh_response(refresh_result: dict) -> 'UserLoginResponse':
+        """
+        Converte resultado do refresh token para UserLoginResponse
+
+        Args:
+            refresh_result: Resultado com access_token, token_type, user
+
+        Returns:
+            UserLoginResponse: Resposta de refresh formatada
+        """
+        return UserLoginResponse(
+            user=refresh_result.get("user"),
+            access_token=refresh_result["access_token"],
+            token_type=refresh_result.get("token_type", "bearer"),
+            expires_in=refresh_result.get("expires_in", 0)
+        )
